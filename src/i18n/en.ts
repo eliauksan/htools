@@ -126,7 +126,7 @@ export const en: Messages = {
     description: "Try another category or a shorter search term."
   },
   footer: {
-    version: "HTools v1.0.1",
+    version: "HTools v1.0.2",
     d1: "Cloudflare D1"
   },
   submit: {

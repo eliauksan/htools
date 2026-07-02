@@ -320,7 +320,8 @@ const submissionCategories = [
 ];
 
 const CATEGORY_PAGE_SIZE = 16;
-const DEFAULT_SOURCE_URL = "/htools.json";
+const DEFAULT_SOURCE_URL =
+  "https://raw.githubusercontent.com/shaoyouvip/htools/refs/heads/main/public/htools.json";
 const SOURCE_PREVIEW_ERROR_LIMIT = 5;
 const NAV_BURST_PARTICLE_COUNT = 12;
 const NAV_BURST_NAVIGATION_DELAY_MS = 220;
@@ -999,9 +1000,9 @@ function getAdminMaintenanceText(locale: Locale) {
       ...siteText,
       title: "\u68c0\u6d4b / \u5bfc\u5165",
       sourceTitle: "\u8ba2\u9605\u6e90\u5bfc\u5165",
-      sourceDescription: "\u4ece\u517c\u5bb9\u7684 JSON \u8ba2\u9605\u6e90\u8bfb\u53d6\u5de5\u5177\u6570\u636e\u3002\u9ed8\u8ba4\u5730\u5740\u4e3a\u9879\u76ee\u5185\u7f6e\u8ba2\u9605\u6e90\uff0c\u4e5f\u53ef\u4ee5\u586b\u5199\u5176\u4ed6\u516c\u5f00\u6e90\uff0c\u4f8b\u5982\u5176\u4ed6\u7ad9\u70b9\u516c\u5f00\u7684 /api/htools.json\u3002\u68c0\u6d4b\u53ea\u6821\u9a8c\u683c\u5f0f\u548c\u6570\u91cf\uff0c\u5bfc\u5165\u624d\u4f1a\u5199\u5165 D1\u3002",
+      sourceDescription: "\u4ece\u517c\u5bb9\u7684 JSON \u8ba2\u9605\u6e90\u8bfb\u53d6\u5de5\u5177\u6570\u636e\u3002\u9ed8\u8ba4\u5730\u5740\u6307\u5411 HTools \u4e3b\u4ed3\u5e93\u7684\u5728\u7ebf\u6570\u636e\u6e90\uff0c\u4e5f\u53ef\u4ee5\u586b\u5199\u5176\u4ed6\u516c\u5f00\u6e90\uff0c\u4f8b\u5982\u5176\u4ed6\u7ad9\u70b9\u516c\u5f00\u7684 /api/htools.json\u3002\u68c0\u6d4b\u53ea\u6821\u9a8c\u683c\u5f0f\u548c\u6570\u91cf\uff0c\u5bfc\u5165\u624d\u4f1a\u5199\u5165 D1\u3002",
       sourceUrl: "\u8ba2\u9605\u6e90 URL",
-      sourcePlaceholder: "/htools.json",
+      sourcePlaceholder: DEFAULT_SOURCE_URL,
       sourceDetect: "\u68c0\u6d4b\u8ba2\u9605\u6e90",
       sourceChecking: "\u68c0\u6d4b\u4e2d...",
       sourceImport: "\u5bfc\u5165\u8ba2\u9605\u6e90",
@@ -1120,11 +1121,11 @@ function getAdminMaintenanceText(locale: Locale) {
 
   return {
     title: "Check / Import",
-  sourceTitle: "Subscription Source Import",
-  sourceDescription:
-    "Read tool data from a compatible JSON subscription source. The default URL is the built-in subscription source; you can also use other public sources, such as another site's /api/htools.json. Check only validates the source; import writes to D1.",
+    sourceTitle: "Subscription Source Import",
+    sourceDescription:
+      "Read tool data from a compatible JSON subscription source. The default URL points to the online source in the HTools main repository; you can also use other public sources, such as another site's /api/htools.json. Check only validates the source; import writes to D1.",
     sourceUrl: "Subscription source URL",
-    sourcePlaceholder: "/htools.json",
+    sourcePlaceholder: DEFAULT_SOURCE_URL,
     sourceDetect: "Check Subscription",
     sourceChecking: "Checking...",
     sourceImport: "Import Subscription",

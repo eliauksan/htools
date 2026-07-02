@@ -4,6 +4,12 @@ HTools is an open-source tool directory built on Cloudflare Pages Functions and 
 
 [中文文档](README.md)
 
+## Screenshots
+
+![HTools public tool library](public/demo/frontend-tools.png)
+
+![HTools admin tool library](public/demo/admin-tools.png)
+
 ## Features
 
 - Public site: home, tool categories, articles, tool submission, and about page.
@@ -46,7 +52,7 @@ The admin password only has to be non-empty. Letters, numbers, symbols, and Unic
 7. Redeploy the Pages project.
 8. Open `/admin` and sign in.
 
-The app initializes the D1 schema automatically on first API access. The database starts empty; HTools does not write default tools during deployment. Import `/htools.json` from the admin dashboard or add tools manually.
+The app initializes the D1 schema automatically on first API access. The database starts empty; HTools does not write default tools during deployment. Import the default subscription source from the admin dashboard or add tools manually.
 
 ## Local Development
 
@@ -91,10 +97,10 @@ https://your-domain.com/api/github/callback
 ## Data Sources
 
 - Default source file: `public/htools.json`
-- Default source URL: `/htools.json`
+- Default source URL: `https://raw.githubusercontent.com/shaoyouvip/htools/refs/heads/main/public/htools.json`
 - Current site public source: `/api/htools.json`
 
-`/htools.json` is only the default subscription source. It is not written to D1 automatically. Administrators can import it from the dashboard or import another site's `/api/htools.json`.
+The default tool source is only an online subscription source. It is not written to D1 automatically. Administrators can import it from the dashboard or import another site's `/api/htools.json`. The default URL points to the HTools main repository so sites that have not updated their code can still import the latest tool data.
 
 ## SEO And Feeds
 
@@ -111,4 +117,4 @@ https://your-domain.com/api/github/callback
 
 ## Version
 
-Current version: `HTools v1.0.1`
+Current version: `HTools v1.0.2`
