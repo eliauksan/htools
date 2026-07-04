@@ -509,6 +509,23 @@ export function toolFromRow(row: ToolRow) {
   };
 }
 
+export function toolSourceFromRow(row: ToolRow) {
+  const tool = toolFromRow(row);
+
+  return {
+    updatedAt: (tool.updated_at || tool.created_at || new Date().toISOString()).slice(0, 10),
+    id: tool.id,
+    name: tool.name,
+    description: tool.description,
+    url: tool.url,
+    demoUrl: tool.demoUrl,
+    image: tool.image,
+    category: tool.category,
+    tags: tool.tags,
+    featured: tool.featured
+  };
+}
+
 export function articleFromRow(row: ArticleRow) {
   const { cover_image, ...article } = row;
 
@@ -1030,7 +1047,7 @@ function parseArticleTagString(value: string) {
       .replace(/^\[(.*)\]$/, "$1");
 
     normalized
-      .split(/[,，、]/)
+      .split(/[\r\n,，、。;；|｜/／\\]+/)
       .map(cleanTag)
       .filter(Boolean)
       .forEach((tag) => tags.push(tag));

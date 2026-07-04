@@ -27,6 +27,7 @@ import type {
   SubmissionInput,
   SubmissionResult,
   Tool,
+  ToolSourceItem,
   ToolImportMode,
   ToolImportResponse,
   ToolInput
@@ -610,6 +611,18 @@ export async function exportBackupData(token: string): Promise<HtoolsBackup> {
   });
 
   return readJson<HtoolsBackup>(response);
+}
+
+export async function exportToolSourceData(token: string): Promise<ToolSourceItem[]> {
+  const response = await fetch("/api/admin/tool-source", {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  return readJson<ToolSourceItem[]>(response);
 }
 
 export async function restoreBackupData(

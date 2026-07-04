@@ -1,4 +1,4 @@
-import { getDatabase, json, toolFromRow, type Env, type ToolRow } from "../_shared";
+import { getDatabase, json, toolSourceFromRow, type Env, type ToolRow } from "../_shared";
 
 const SOURCE_PUBLIC_KEY = "source_public_enabled";
 const SOURCE_HEADERS = {
@@ -29,7 +29,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
       "SELECT * FROM tools ORDER BY updated_at DESC, created_at DESC"
     ).all<ToolRow>();
 
-    return json(result.results.map(sourceToolFromRow), {
+    return json(result.results.map(toolSourceFromRow), {
       headers: SOURCE_HEADERS
     });
   } catch (error) {
@@ -54,21 +54,4 @@ async function isSourcePublic(db: D1Database) {
   } catch {
     return false;
   }
-}
-
-function sourceToolFromRow(row: ToolRow) {
-  const tool = toolFromRow(row);
-
-  return {
-    updatedAt: (tool.updated_at || tool.created_at || new Date().toISOString()).slice(0, 10),
-    id: tool.id,
-    name: tool.name,
-    url: tool.url,
-    demoUrl: tool.demoUrl,
-    image: tool.image,
-    category: tool.category,
-    description: tool.description,
-    tags: tool.tags,
-    featured: tool.featured
-  };
 }

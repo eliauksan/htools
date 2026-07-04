@@ -137,16 +137,10 @@ export type Messages = {
     sidebarSettings: string;
     sidebarSubmit: string;
     title: string;
-    eyebrow: string;
     heading: string;
     description: string;
-    cardSuitableTitle: string;
-    cardSuitableDescription: string;
-    cardReviewTitle: string;
-    cardReviewDescription: string;
-    cardNextTitle: string;
-    cardNextDescription: string;
-    tip: string;
+    guideIntroTitle: string;
+    guideIntroDescription: string;
     guideTitle: string;
     guideDescription: string;
     guideContentTitle: string;

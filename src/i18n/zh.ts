@@ -12,7 +12,7 @@ export const zh: Messages = {
     admin: "后台"
   },
   hero: {
-    eyebrow: "开源工具导航",
+    eyebrow: "工具导航",
     title: "工具",
     description: "发现精选工具和资源，加速你的独立开发与产品构建。"
   },
@@ -122,7 +122,7 @@ export const zh: Messages = {
     description: "换个分类，或者试试更短的搜索词。"
   },
   footer: {
-    version: "HTools v1.0.2",
+    version: "HTools v1.0.4",
     d1: "Cloudflare D1"
   },
   submit: {
@@ -134,26 +134,18 @@ export const zh: Messages = {
     sidebarSettings: "设置",
     sidebarSubmit: "提交工具",
     title: "提交工具",
-    eyebrow: "面向开源工具与实用项目",
-    heading: "把值得推荐的开源工具提交到 HTools",
+    heading: "把值得推荐的工具提交到 HTools",
     description:
       "请提供项目名称、地址、简介和分类。提交后会创建 GitHub Issue，方便公开讨论和审核。",
-    cardSuitableTitle: "适合提交",
-    cardSuitableDescription:
-      "开源项目、开发工具、自托管服务、效率工具、AI 工具，以及能帮助开发者完成具体任务的资源。",
-    cardReviewTitle: "公开审核",
-    cardReviewDescription:
-      "提交会进入 GitHub Issue。我们会检查项目可访问性、分类、描述质量和是否适合工具目录。",
-    cardNextTitle: "收录方式",
-    cardNextDescription:
-      "通过审核后，项目会被整理进工具库。必要时我们会在 Issue 中继续确认补充信息。",
-    tip: "提示：请尽量提交项目主页、源码仓库或官方文档地址。",
-    guideTitle: "一起维护一份实用的开源工具目录",
-    guideDescription:
+    guideIntroTitle: "一起维护一份实用的工具目录",
+    guideIntroDescription:
       "HTools 通过 GitHub Issue 接收工具推荐，提交、讨论和审核都保持公开透明。我们关注项目是否稳定、清晰、可访问，并能真正帮助开发者。",
+    guideTitle: "提交说明",
+    guideDescription:
+      "提交前请确认项目地址可访问，名称、简介和分类能帮助维护者快速判断是否适合收录。",
     guideContentTitle: "提交内容",
     guideContentDescription:
-      "请填写项目名称、链接、简短说明、标签和最接近的分类。描述里可以说明它解决什么问题、适合谁使用。",
+      "请填写项目名称、链接、简短说明、标签和最接近的分类。标签请用逗号、顿号或分号分隔，不要用空格分隔。",
     guideReviewTitle: "审核流程",
     guideReviewDescription:
       "提交成功后会生成公开 Issue。站点维护者会根据链接质量、项目状态和目录匹配度决定是否收录。",
@@ -177,7 +169,7 @@ export const zh: Messages = {
   },
   admin: {
     title: "HTools 后台",
-    description: "登录后管理精选开源工具导航。",
+    description: "登录后管理精选工具导航。",
     dashboard: "控制台",
     directoryService: "HTools 控制台",
     platform: "平台",
@@ -270,7 +262,7 @@ export const zh: Messages = {
     category: "分类",
     description: "简介",
     tags: "标签",
-    tagsPlaceholder: "开源 数据库 认证",
+    tagsPlaceholder: "数据库, 认证, AI",
     githubMetadata: "GitHub 信息",
     githubMetadataLoading: "获取中...",
     featuredTool: "精选工具",

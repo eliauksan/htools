@@ -16,6 +16,19 @@ export type Tool = {
 
 export type ToolInput = Omit<Tool, "id" | "created_at" | "updated_at">;
 
+export type ToolSourceItem = {
+  updatedAt: string;
+  id: string;
+  name: string;
+  description: string;
+  url: string;
+  demoUrl: string;
+  image: string;
+  category: string;
+  tags: string[];
+  featured: boolean;
+};
+
 export type GitHubToolMetadata = {
   owner: string;
   repo: string;

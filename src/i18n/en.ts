@@ -12,7 +12,7 @@ export const en: Messages = {
     admin: "Admin"
   },
   hero: {
-    eyebrow: "Open-source tool directory",
+    eyebrow: "Tool directory",
     title: "Tools",
     description:
       "Discover curated tools and resources to accelerate your indie development journey."
@@ -127,7 +127,7 @@ export const en: Messages = {
     description: "Try another category or a shorter search term."
   },
   footer: {
-    version: "HTools v1.0.2",
+    version: "HTools v1.0.4",
     d1: "Cloudflare D1"
   },
   submit: {
@@ -140,26 +140,18 @@ export const en: Messages = {
     sidebarSettings: "Settings",
     sidebarSubmit: "Submit Tool",
     title: "Submit Tool",
-    eyebrow: "For open-source tools and useful projects",
-    heading: "Submit a useful open-source tool to HTools",
+    heading: "Submit a useful tool to HTools",
     description:
       "Share the project name, URL, description, and category. Submissions create GitHub issues for transparent review.",
-    cardSuitableTitle: "Good fit",
-    cardSuitableDescription:
-      "Open-source projects, developer tools, self-hosted services, productivity tools, AI tools, and resources that help developers finish real tasks.",
-    cardReviewTitle: "Public review",
-    cardReviewDescription:
-      "Each submission becomes a GitHub issue. We check availability, category, description quality, and fit for the directory.",
-    cardNextTitle: "How it is listed",
-    cardNextDescription:
-      "Approved projects are organized into the tool library. We may ask for details in the issue when something needs clarification.",
-    tip: "Tip: submit a project homepage, source repository, or official documentation link.",
-    guideTitle: "Help maintain a practical open-source tool directory",
+    guideIntroTitle: "Help maintain a practical tool directory",
+    guideIntroDescription:
+      "HTools accepts tool recommendations through GitHub issues so submissions, discussion, and review stay open. We focus on whether each project is stable, clear, reachable, and genuinely useful to developers.",
+    guideTitle: "Submission notes",
     guideDescription:
-      "HTools accepts tool recommendations through GitHub issues so submission, discussion, and review stay open. We focus on whether a project is stable, clear, reachable, and genuinely useful to developers.",
+      "Before submitting, make sure the project link is reachable and the name, description, and category help maintainers judge whether it fits.",
     guideContentTitle: "Submission content",
     guideContentDescription:
-      "Provide the project name, link, short description, tags, and closest category. The description can explain what problem it solves and who it helps.",
+      "Provide the project name, link, short description, tags, and closest category. Separate tags with commas, semicolons, pipes, or slashes; spaces stay inside a tag.",
     guideReviewTitle: "Review flow",
     guideReviewDescription:
       "A successful submission creates a public issue. Maintainers decide whether to list it based on link quality, project status, and directory fit.",
@@ -283,7 +275,7 @@ export const en: Messages = {
     category: "Category",
     description: "Description",
     tags: "Tags",
-    tagsPlaceholder: "Open Source, Database, Auth",
+    tagsPlaceholder: "Database, Auth, AI",
     githubMetadata: "GitHub Info",
     githubMetadataLoading: "Fetching...",
     featuredTool: "Featured tool",

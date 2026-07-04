@@ -95,6 +95,7 @@ import {
   deleteContentSource,
   deleteTool,
   exportBackupData,
+  exportToolSourceData,
   importTools,
   loadAdminArticles,
   loadArticle,
@@ -1013,6 +1014,8 @@ function getAdminMaintenanceText(locale: Locale) {
       sourceChecking: "\u68c0\u6d4b\u4e2d...",
       sourceImport: "\u5bfc\u5165\u8ba2\u9605\u6e90",
       sourceImporting: "\u5bfc\u5165\u4e2d...",
+      sourceExport: "\u5bfc\u51fa\u8ba2\u9605\u6e90",
+      sourceExporting: "\u5bfc\u51fa\u4e2d...",
       sourceMode: "\u5bfc\u5165\u65b9\u5f0f",
       sourceModeSkip: "\u8df3\u8fc7\u91cd\u590d",
       sourceModeUpsert: "\u8986\u76d6\u540c URL",
@@ -1109,6 +1112,7 @@ function getAdminMaintenanceText(locale: Locale) {
       sourceChecked: (count: number) => `\u8ba2\u9605\u6e90\u68c0\u6d4b\u5b8c\u6210\uff1a\u5171 ${count} \u6761\u3002`,
       sourceImportSummary: (result: ToolImportResponse) =>
         `\u5bfc\u5165\u5b8c\u6210\uff1a\u65b0\u589e ${result.imported}\uff0c\u66f4\u65b0 ${result.updated}\uff0c\u8df3\u8fc7 ${result.skipped}\uff0c\u5931\u8d25 ${result.failed}\u3002`,
+      sourceExported: (count: number) => `已导出订阅源：${count} 条。`,
       sourceErrorItem: (index: number, message: string) =>
         `\u7b2c ${index + 1} \u6761\uff1a${message}`,
       sourceRequestFailed: (status: number) => `\u8ba2\u9605\u6e90\u8bf7\u6c42\u5931\u8d25\uff1a${status}`,
@@ -1136,6 +1140,8 @@ function getAdminMaintenanceText(locale: Locale) {
     sourceChecking: "Checking...",
     sourceImport: "Import Subscription",
     sourceImporting: "Importing...",
+    sourceExport: "Export Subscription",
+    sourceExporting: "Exporting...",
     sourceMode: "Import mode",
     sourceModeSkip: "Skip duplicates",
     sourceModeUpsert: "Overwrite same URL",
@@ -1146,6 +1152,7 @@ function getAdminMaintenanceText(locale: Locale) {
     sourceChecked: (count: number) => `Subscription check complete: ${count} items.`,
     sourceImportSummary: (result: ToolImportResponse) =>
       `Import complete: ${result.imported} created, ${result.updated} updated, ${result.skipped} skipped, ${result.failed} failed.`,
+    sourceExported: (count: number) => `Exported subscription source: ${count} items.`,
     sourceTotal: "Total",
     sourceValid: "Valid",
     sourceDuplicate: "Subscription dupes",
@@ -1937,7 +1944,7 @@ function splitArticleTagSegment(value: string) {
     .replace(/^\[(.*)\]$/, "$1");
 
   return trimmed
-    .split(/[\s,，、。;；|｜/／\\]+/)
+    .split(/[\r\n,，、。;；|｜/／\\]+/)
     .map(cleanArticleTag)
     .filter(Boolean);
 }
@@ -4450,6 +4457,26 @@ function ArticleItemSkeleton() {
   );
 }
 
+function PublicPageHero({
+  description,
+  eyebrow,
+  title
+}: {
+  description?: ReactNode;
+  eyebrow?: ReactNode;
+  title: ReactNode;
+}) {
+  return (
+    <header className="category-page-hero public-page-hero">
+      <div>
+        {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
+        <h1>{title}</h1>
+        {description ? <p>{description}</p> : null}
+      </div>
+    </header>
+  );
+}
+
 function AboutPage({
   locale,
   onLocaleChange,
@@ -4476,6 +4503,7 @@ function AboutPage({
   const siteSettings = useSiteSettings();
   const showSettingsSkeleton = useLoadingSkeleton(!siteSettingsLoaded);
   const aboutContent = siteSettings.aboutContent?.trim() ?? "";
+  const showDefaultAboutHero = siteSettingsLoaded && !aboutContent;
   const productLinks = [
     { label: t.aboutPage.author, href: "https://zrf.me/" },
     { label: t.aboutPage.official, href: "https://zrf.me/" },
@@ -4498,78 +4526,82 @@ function AboutPage({
         themeMode={themeMode}
       />
 
-      <main className="content-page about-page">
-        <article className={`about-content ${!siteSettingsLoaded ? "is-loading" : ""}`}>
-          {siteSettingsLoaded && aboutContent ? (
-            <Suspense
-              fallback={
-                <LoadingSkeleton>
-                  <AboutContentSkeleton />
-                </LoadingSkeleton>
-              }
-            >
-              <MarkdownContent content={aboutContent} />
-            </Suspense>
-          ) : siteSettingsLoaded ? (
-            <>
-              <h1>{t.aboutPage.title}</h1>
-              <p>{t.aboutPage.greeting}</p>
-              <p>{t.aboutPage.intro}</p>
-              <p>{t.aboutPage.pain}</p>
-              <p>{t.aboutPage.reason}</p>
+      <main className="category-page public-page about-page">
+        {showDefaultAboutHero ? (
+          <PublicPageHero title={t.aboutPage.title} description={t.aboutPage.intro} />
+        ) : null}
 
-              <section className="about-section">
-                <h2>{t.aboutPage.whatTitle}</h2>
-                <p>{t.aboutPage.whatIntro}</p>
-                <p>{t.aboutPage.collectIntro}</p>
-                <ul className="about-list">
-                  <li>{t.aboutPage.devTools}</li>
-                  <li>{t.aboutPage.designResources}</li>
-                  <li>{t.aboutPage.growthTools}</li>
-                  <li>{t.aboutPage.communityContrib}</li>
-                </ul>
-              </section>
+        <section className="public-page-body public-page-body-prose">
+          <article className={`about-content ${!siteSettingsLoaded ? "is-loading" : ""}`}>
+            {siteSettingsLoaded && aboutContent ? (
+              <Suspense
+                fallback={
+                  <LoadingSkeleton>
+                    <AboutContentSkeleton />
+                  </LoadingSkeleton>
+                }
+              >
+                <MarkdownContent content={aboutContent} />
+              </Suspense>
+            ) : siteSettingsLoaded ? (
+              <>
+                <p className="about-lead">{t.aboutPage.greeting}</p>
+                <p>{t.aboutPage.pain}</p>
+                <p>{t.aboutPage.reason}</p>
 
-              <section className="about-section">
-                <p>{t.aboutPage.helpIntro}</p>
-                <ul className="about-list">
-                  <li>{t.aboutPage.share}</li>
-                  <li>{t.aboutPage.recommend}</li>
-                  <li>{t.aboutPage.feedback}</li>
-                  <li>
-                    <a href="#">{t.aboutPage.githubStar}</a>
-                  </li>
-                  <li>
-                    <a href="#">{t.aboutPage.twitterFollow}</a>
-                  </li>
-                </ul>
-                <p>{t.aboutPage.closing}</p>
-              </section>
+                <section className="about-section">
+                  <h2>{t.aboutPage.whatTitle}</h2>
+                  <p>{t.aboutPage.whatIntro}</p>
+                  <p>{t.aboutPage.collectIntro}</p>
+                  <ul className="about-list">
+                    <li>{t.aboutPage.devTools}</li>
+                    <li>{t.aboutPage.designResources}</li>
+                    <li>{t.aboutPage.growthTools}</li>
+                    <li>{t.aboutPage.communityContrib}</li>
+                  </ul>
+                </section>
 
-              <section className="about-section product-links-section">
-                <h2>{t.aboutPage.productLinksTitle}</h2>
-                <div className="product-links-grid">
-                  {productLinks.map((link) => (
-                    <a
-                      className="product-link-card"
-                      href={link.href}
-                      key={link.label}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <span>{link.label}</span>
-                      <ArrowUpRight size={17} />
-                    </a>
-                  ))}
-                </div>
-              </section>
-            </>
-          ) : (
-            <SkeletonVisibility visible={showSettingsSkeleton}>
-              <AboutContentSkeleton />
-            </SkeletonVisibility>
-          )}
-        </article>
+                <section className="about-section">
+                  <p>{t.aboutPage.helpIntro}</p>
+                  <ul className="about-list">
+                    <li>{t.aboutPage.share}</li>
+                    <li>{t.aboutPage.recommend}</li>
+                    <li>{t.aboutPage.feedback}</li>
+                    <li>
+                      <a href="#">{t.aboutPage.githubStar}</a>
+                    </li>
+                    <li>
+                      <a href="#">{t.aboutPage.twitterFollow}</a>
+                    </li>
+                  </ul>
+                  <p>{t.aboutPage.closing}</p>
+                </section>
+
+                <section className="about-section product-links-section">
+                  <h2>{t.aboutPage.productLinksTitle}</h2>
+                  <div className="product-links-grid">
+                    {productLinks.map((link) => (
+                      <a
+                        className="product-link-card"
+                        href={link.href}
+                        key={link.label}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <span>{link.label}</span>
+                        <ArrowUpRight size={17} />
+                      </a>
+                    ))}
+                  </div>
+                </section>
+              </>
+            ) : (
+              <SkeletonVisibility visible={showSettingsSkeleton}>
+                <AboutContentSkeleton />
+              </SkeletonVisibility>
+            )}
+          </article>
+        </section>
       </main>
 
       <HomeFooter t={t} />
@@ -4646,35 +4678,37 @@ function LegalPage({
         themeMode={themeMode}
       />
 
-      <main className="content-page about-page">
-        <article className="about-content">
-          {siteSettingsLoaded ? (
-            <>
-              <h1>{content.title}</h1>
-              <p>{content.intro}</p>
-              {content.sections.map((section) => (
-                <section className="about-section" key={section.title}>
-                  <h2>{section.title}</h2>
-                  {section.paragraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                  {section.items?.length ? (
-                    <ul className="about-list">
-                      {section.items.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </section>
-              ))}
-              <p>{content.updatedAt}</p>
-            </>
-          ) : (
-            <SkeletonVisibility visible={showSettingsSkeleton}>
-              <AboutContentSkeleton />
-            </SkeletonVisibility>
-          )}
-        </article>
+      <main className="category-page public-page legal-page">
+        <PublicPageHero title={content.title} description={content.intro} />
+
+        <section className="public-page-body public-page-body-prose">
+          <article className="about-content">
+            {siteSettingsLoaded ? (
+              <>
+                {content.sections.map((section) => (
+                  <section className="about-section" key={section.title}>
+                    <h2>{section.title}</h2>
+                    {section.paragraphs.map((paragraph) => (
+                      <p key={paragraph}>{paragraph}</p>
+                    ))}
+                    {section.items?.length ? (
+                      <ul className="about-list">
+                        {section.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </section>
+                ))}
+                <p className="legal-updated-at">{content.updatedAt}</p>
+              </>
+            ) : (
+              <SkeletonVisibility visible={showSettingsSkeleton}>
+                <AboutContentSkeleton />
+              </SkeletonVisibility>
+            )}
+          </article>
+        </section>
       </main>
 
       <HomeFooter t={t} />
@@ -4689,7 +4723,7 @@ function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteName: stri
     return isZh
       ? {
           title: "隐私政策",
-          intro: `${siteName} 是一个开源工具导航站。我们只在实现站点功能所需范围内处理信息，不出售用户数据，也不会主动建立广告追踪画像。`,
+          intro: `${siteName} 是一个工具导航站。我们只在实现站点功能所需范围内处理信息，不出售用户数据，也不会主动建立广告追踪画像。`,
           updatedAt: "最后更新：2026-07-01",
           sections: [
             {
@@ -4727,7 +4761,7 @@ function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteName: stri
         }
       : {
           title: "Privacy Policy",
-          intro: `${siteName} is an open-source tool directory. We only process information needed to run site features. We do not sell user data or build advertising profiles.`,
+          intro: `${siteName} is a tool directory. We only process information needed to run site features. We do not sell user data or build advertising profiles.`,
           updatedAt: "Last updated: 2026-07-01",
           sections: [
             {
@@ -6437,198 +6471,179 @@ function SubmitPage({
         themeMode={themeMode}
       />
 
-      <main className="submit-main public-submit-main">
+      <main className="category-page public-page public-submit-page">
         {isPageLoading ? (
           <SkeletonVisibility visible={showPageSkeleton}>
             <SubmitPageSkeleton />
           </SkeletonVisibility>
         ) : (
           <>
-            <header className="submit-page-header">
-              <h1>{t.submitPage.title}</h1>
-            </header>
+            <PublicPageHero
+              title={t.submitPage.heading}
+              description={t.submitPage.description}
+            />
 
-            <section className="submit-intro-card">
-              <span className="eyebrow">{t.submitPage.eyebrow}</span>
-              <h2>{t.submitPage.heading}</h2>
-              <p>{t.submitPage.description}</p>
-
-              <div className="submit-info-grid">
-                <InfoPanel
-                  icon={<CheckCircle2 size={18} />}
-                  title={t.submitPage.cardSuitableTitle}
-                  description={t.submitPage.cardSuitableDescription}
-                />
-                <InfoPanel
-                  icon={<Clock3 size={18} />}
-                  title={t.submitPage.cardReviewTitle}
-                  description={t.submitPage.cardReviewDescription}
-                />
-                <InfoPanel
-                  icon={<Mail size={18} />}
-                  title={t.submitPage.cardNextTitle}
-                  description={t.submitPage.cardNextDescription}
-                />
-              </div>
-              <div className="submit-intro-footer">
-                <span>{t.submitPage.tip}</span>
-              </div>
-            </section>
-
-            <form className="public-submit-form" onSubmit={handleSubmit}>
-              <FormRow label={t.form.name}>
-                <input
-                  value={form.name}
-                  onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  placeholder={t.submitPage.namePlaceholder}
-                  required
-                />
-              </FormRow>
-
-              <FormRow label={t.form.description}>
-                <textarea
-                  value={form.description}
-                  onChange={(event) =>
-                    setForm({ ...form, description: event.target.value })
-                  }
-                  placeholder={t.submitPage.descriptionPlaceholder}
-                  rows={6}
-                  required
-                />
-              </FormRow>
-
-              <FormRow label={t.form.url}>
-                <div className="submit-url-field">
+            <div className="public-page-body public-page-body-form">
+              <form className="public-submit-form" onSubmit={handleSubmit}>
+                <FormRow label={t.form.name}>
                   <input
-                    value={form.url}
-                    onChange={(event) => setForm({ ...form, url: event.target.value })}
-                    onBlur={() =>
-                      setForm((current) => ({
-                        ...current,
-                        url: normalizeHttpUrlInput(current.url)
-                      }))
-                    }
-                    placeholder={t.submitPage.urlPlaceholder}
-                    inputMode="url"
+                    value={form.name}
+                    onChange={(event) => setForm({ ...form, name: event.target.value })}
+                    placeholder={t.submitPage.namePlaceholder}
                     required
                   />
+                </FormRow>
+
+                <FormRow label={t.form.description}>
+                  <textarea
+                    value={form.description}
+                    onChange={(event) =>
+                      setForm({ ...form, description: event.target.value })
+                    }
+                    placeholder={t.submitPage.descriptionPlaceholder}
+                    rows={6}
+                    required
+                  />
+                </FormRow>
+
+                <FormRow label={t.form.url}>
+                  <div className="submit-url-field">
+                    <input
+                      value={form.url}
+                      onChange={(event) => setForm({ ...form, url: event.target.value })}
+                      onBlur={() =>
+                        setForm((current) => ({
+                          ...current,
+                          url: normalizeHttpUrlInput(current.url)
+                        }))
+                      }
+                      placeholder={t.submitPage.urlPlaceholder}
+                      inputMode="url"
+                      required
+                    />
+                  </div>
+                </FormRow>
+
+                <FormRow label={t.form.tags}>
+                  <input
+                    value={tagText}
+                    onChange={(event) => setTagText(event.target.value)}
+                    placeholder={t.form.tagsPlaceholder}
+                  />
+                </FormRow>
+
+                <FormRow label={t.submitPage.categoryLabel}>
+                  <div className="category-radio-grid">
+                    {submissionCategories.map((category) => (
+                      <label className="radio-item" key={category}>
+                        <input
+                          checked={form.category === category}
+                          name="category"
+                          onChange={() => setForm({ ...form, category })}
+                          type="radio"
+                        />
+                        <span>{getCategoryLabel(category, t)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </FormRow>
+
+                <div className="submit-auth-row">
+                  <div>
+                    <strong>
+                      {authState.configured
+                        ? t.submitPage.githubConfigured
+                        : t.submitPage.githubNotConfigured}
+                    </strong>
+                    <span>{submitAuthDescription}</span>
+                  </div>
                 </div>
-              </FormRow>
 
-              <FormRow label={t.form.tags}>
-                <input
-                  value={tagText}
-                  onChange={(event) => setTagText(event.target.value)}
-                  placeholder={t.form.tagsPlaceholder}
-                />
-              </FormRow>
-
-              <FormRow label={t.submitPage.categoryLabel}>
-                <div className="category-radio-grid">
-                  {submissionCategories.map((category) => (
-                    <label className="radio-item" key={category}>
-                      <input
-                        checked={form.category === category}
-                        name="category"
-                        onChange={() => setForm({ ...form, category })}
-                        type="radio"
-                      />
-                      <span>{getCategoryLabel(category, t)}</span>
-                    </label>
-                  ))}
-                </div>
-              </FormRow>
-
-              <div className="submit-auth-row">
-                <div>
-                  <strong>
-                    {authState.configured
-                      ? t.submitPage.githubConfigured
-                      : t.submitPage.githubNotConfigured}
-                  </strong>
-                  <span>{submitAuthDescription}</span>
-                </div>
-              </div>
-
-              <div className="submit-form-actions">
-                <div className="submit-action-buttons">
-                  <button
-                    className="primary-button"
-                    disabled={!authState.configured || !authState.authenticated || isSubmitting}
-                    type="submit"
-                  >
-                    {isSubmitting ? t.form.saving : t.actions.submit}
-                  </button>
-                  {authState.authenticated ? (
+                <div className="submit-form-actions">
+                  <div className="submit-action-buttons">
                     <button
-                      className="ghost-button"
-                      type="button"
-                      onClick={() => void handleGitHubLogout()}
+                      className="primary-button"
+                      disabled={!authState.configured || !authState.authenticated || isSubmitting}
+                      type="submit"
                     >
-                      <LogOut size={16} />
-                      {t.actions.logoutGitHub}
+                      {isSubmitting ? t.form.saving : t.actions.submit}
                     </button>
-                  ) : (
-                    <button
-                      className="ghost-button"
-                      disabled={!authState.configured}
-                      type="button"
-                      onClick={handleGitHubLogin}
-                    >
-                      <Github size={16} />
-                      {t.actions.signInWithGitHub}
-                    </button>
-                  )}
+                    {authState.authenticated ? (
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => void handleGitHubLogout()}
+                      >
+                        <LogOut size={16} />
+                        {t.actions.logoutGitHub}
+                      </button>
+                    ) : (
+                      <button
+                        className="ghost-button"
+                        disabled={!authState.configured}
+                        type="button"
+                        onClick={handleGitHubLogin}
+                      >
+                        <Github size={16} />
+                        {t.actions.signInWithGitHub}
+                      </button>
+                    )}
+                  </div>
+                  <p>{t.submitPage.submitHint}</p>
                 </div>
-                <p>{t.submitPage.submitHint}</p>
-              </div>
 
-              {status ? (
-                <div className={`submit-status is-${statusTone}`} role="status">
-                  <span className="submit-status-content">
-                    <span className="submit-status-icon" aria-hidden="true">
-                      {statusTone === "success" ? (
-                        <CheckCircle2 size={18} />
-                      ) : (
-                        <CircleAlert size={18} />
-                      )}
+                {status ? (
+                  <div className={`submit-status is-${statusTone}`} role="status">
+                    <span className="submit-status-content">
+                      <span className="submit-status-icon" aria-hidden="true">
+                        {statusTone === "success" ? (
+                          <CheckCircle2 size={18} />
+                        ) : (
+                          <CircleAlert size={18} />
+                        )}
+                      </span>
+                      <span className="submit-status-message">{status}</span>
                     </span>
-                    <span className="submit-status-message">{status}</span>
-                  </span>
-                  {issueUrl ? (
-                    <a
-                      className="ghost-button compact submit-status-link"
-                      href={issueUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {t.actions.openIssue}
-                      <ArrowUpRight size={14} />
-                    </a>
-                  ) : null}
-                </div>
-              ) : null}
-            </form>
+                    {issueUrl ? (
+                      <a
+                        className="ghost-button compact submit-status-link"
+                        href={issueUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {t.actions.openIssue}
+                        <ArrowUpRight size={14} />
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
+              </form>
 
-            <section className="submit-guide-section">
-              <span className="eyebrow">{t.submit.title}</span>
-              <h2>{t.submitPage.guideTitle}</h2>
-              <p>{t.submitPage.guideDescription}</p>
-              <div className="submit-guide-grid">
-                <InfoPanel
-                  title={t.submitPage.guideContentTitle}
-                  description={t.submitPage.guideContentDescription}
-                />
-                <InfoPanel
-                  title={t.submitPage.guideReviewTitle}
-                  description={t.submitPage.guideReviewDescription}
-                />
-                <InfoPanel
-                  title={t.submitPage.guideAfterTitle}
-                  description={t.submitPage.guideAfterDescription}
-                />
-              </div>
-            </section>
+              <section className="submit-guide-section">
+                <div className="submit-guide-intro">
+                  <h2>{t.submitPage.guideIntroTitle}</h2>
+                  <p>{t.submitPage.guideIntroDescription}</p>
+                </div>
+                <div className="submit-guide-grid">
+                  <InfoPanel
+                    title={t.submitPage.guideTitle}
+                    description={t.submitPage.guideDescription}
+                  />
+                  <InfoPanel
+                    title={t.submitPage.guideContentTitle}
+                    description={t.submitPage.guideContentDescription}
+                  />
+                  <InfoPanel
+                    title={t.submitPage.guideReviewTitle}
+                    description={t.submitPage.guideReviewDescription}
+                  />
+                  <InfoPanel
+                    title={t.submitPage.guideAfterTitle}
+                    description={t.submitPage.guideAfterDescription}
+                  />
+                </div>
+              </section>
+            </div>
           </>
         )}
       </main>
@@ -6641,67 +6656,64 @@ function SubmitPage({
 function SubmitPageSkeleton() {
   return (
     <div className="submit-page-skeleton" aria-hidden="true">
-      <header className="submit-page-header">
+      <header className="category-page-hero public-page-hero submit-page-header">
         <span className="skeleton-shimmer skeleton-line submit-title-skeleton" />
       </header>
 
-      <section className="submit-intro-card">
-        <span className="skeleton-shimmer skeleton-line is-short" />
-        <span className="skeleton-shimmer skeleton-line is-medium" />
-        <span className="skeleton-shimmer skeleton-line is-long" />
-        <div className="submit-info-grid">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <article className="info-panel submit-info-skeleton" key={index}>
-              <span className="skeleton-shimmer info-icon" />
-              <span className="skeleton-shimmer skeleton-line is-medium" />
-              <span className="skeleton-shimmer skeleton-line is-long" />
-            </article>
+      <div className="public-page-body public-page-body-form">
+        <div className="public-submit-form">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div className="submit-form-row" key={index}>
+              <span className="skeleton-shimmer skeleton-line" />
+              <span
+                className={`skeleton-shimmer submit-input-skeleton ${
+                  index === 1 ? "is-textarea" : ""
+                }`}
+              />
+            </div>
           ))}
-        </div>
-      </section>
-
-      <div className="public-submit-form">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div className="submit-form-row" key={index}>
+          <div className="submit-form-row submit-category-skeleton-row">
             <span className="skeleton-shimmer skeleton-line" />
-            <span
-              className={`skeleton-shimmer submit-input-skeleton ${
-                index === 1 ? "is-textarea" : ""
-              }`}
-            />
+            <div className="category-radio-grid submit-category-skeleton">
+              {Array.from({ length: 18 }).map((_, index) => (
+                <span className="submit-category-skeleton-item" key={index}>
+                  <span className="skeleton-shimmer submit-radio-skeleton" />
+                  <span className="skeleton-shimmer skeleton-line is-short" />
+                </span>
+              ))}
+            </div>
           </div>
-        ))}
-        <div className="submit-form-row submit-category-skeleton-row">
-          <span className="skeleton-shimmer skeleton-line" />
-          <div className="category-radio-grid submit-category-skeleton">
-            {Array.from({ length: 18 }).map((_, index) => (
-              <span className="submit-category-skeleton-item" key={index}>
-                <span className="skeleton-shimmer submit-radio-skeleton" />
-                <span className="skeleton-shimmer skeleton-line is-short" />
-              </span>
+          <div className="submit-auth-row">
+            <div>
+              <span className="skeleton-shimmer skeleton-line is-medium" />
+              <span className="skeleton-shimmer skeleton-line is-short" />
+            </div>
+          </div>
+          <div className="submit-form-actions">
+            <div className="submit-action-buttons">
+              <span className="skeleton-shimmer submit-button-skeleton" />
+              <span className="skeleton-shimmer submit-button-skeleton is-secondary" />
+            </div>
+            <span className="skeleton-shimmer skeleton-line is-medium" />
+          </div>
+        </div>
+
+        <section className="submit-guide-section">
+          <div className="submit-guide-intro submit-guide-intro-skeleton">
+            <span className="skeleton-shimmer skeleton-line is-long submit-guide-intro-title-skeleton" />
+            <span className="skeleton-shimmer skeleton-line is-long submit-guide-intro-text-skeleton" />
+            <span className="skeleton-shimmer skeleton-line is-medium submit-guide-intro-text-skeleton" />
+          </div>
+          <div className="submit-guide-grid">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <article className="info-panel has-no-icon submit-info-skeleton" key={index}>
+                <span className="skeleton-shimmer skeleton-line is-medium submit-info-title-skeleton" />
+                <span className="skeleton-shimmer skeleton-line is-long submit-info-text-skeleton" />
+              </article>
             ))}
           </div>
-        </div>
-        <div className="submit-auth-row">
-          <div>
-            <span className="skeleton-shimmer skeleton-line is-medium" />
-            <span className="skeleton-shimmer skeleton-line is-short" />
-          </div>
-        </div>
-        <div className="submit-form-actions">
-          <div className="submit-action-buttons">
-            <span className="skeleton-shimmer submit-button-skeleton" />
-            <span className="skeleton-shimmer submit-button-skeleton is-secondary" />
-          </div>
-          <span className="skeleton-shimmer skeleton-line is-medium" />
-        </div>
+        </section>
       </div>
-
-      <section className="submit-guide-section">
-        <span className="skeleton-shimmer skeleton-line is-short" />
-        <span className="skeleton-shimmer skeleton-line is-medium" />
-        <span className="skeleton-shimmer skeleton-line is-long" />
-      </section>
     </div>
   );
 }
@@ -6731,7 +6743,7 @@ function InfoPanel({
   title: string;
 }) {
   return (
-    <article className="info-panel">
+    <article className={`info-panel${icon ? "" : " has-no-icon"}`}>
       {icon ? <span className="info-icon">{icon}</span> : null}
       <h3>{title}</h3>
       <p>{description}</p>
@@ -12744,6 +12756,7 @@ function AdminLinkCheckPanel({
   const [sourceCheckedAt, setSourceCheckedAt] = useState("");
   const [sourceChecking, setSourceChecking] = useState(false);
   const [sourceImporting, setSourceImporting] = useState(false);
+  const [sourceExporting, setSourceExporting] = useState(false);
   const [results, setResults] = useState<LinkCheckResult[]>([]);
   const [activeFilter, setActiveFilter] = useState("abnormal");
   const [checking, setChecking] = useState(false);
@@ -12859,6 +12872,25 @@ function AdminLinkCheckPanel({
       setStatus(getSourceErrorMessage(error, maintenanceText, t));
     } finally {
       setSourceImporting(false);
+    }
+  }
+
+  async function exportSource() {
+    setSourceExporting(true);
+    setStatus("");
+
+    try {
+      const source = await exportToolSourceData(token);
+      downloadTextFile(
+        "htools.json",
+        JSON.stringify(source, null, 2),
+        "application/json;charset=utf-8"
+      );
+      setStatus(maintenanceText.sourceExported(source.length));
+    } catch (error) {
+      setStatus(getLocalizedErrorMessage(error, t));
+    } finally {
+      setSourceExporting(false);
     }
   }
 
@@ -13033,7 +13065,7 @@ function AdminLinkCheckPanel({
           <div className="source-action-row">
             <button
               className="ghost-button"
-              disabled={sourceChecking || sourceImporting}
+              disabled={sourceChecking || sourceImporting || sourceExporting}
               type="button"
               onClick={() => void checkSource()}
             >
@@ -13042,12 +13074,21 @@ function AdminLinkCheckPanel({
             </button>
             <button
               className="primary-button"
-              disabled={sourceChecking || sourceImporting}
+              disabled={sourceChecking || sourceImporting || sourceExporting}
               type="button"
               onClick={() => void importSource()}
             >
               <Database size={16} />
               {sourceImporting ? maintenanceText.sourceImporting : maintenanceText.sourceImport}
+            </button>
+            <button
+              className="ghost-button"
+              disabled={sourceChecking || sourceImporting || sourceExporting}
+              type="button"
+              onClick={() => void exportSource()}
+            >
+              <Download size={16} />
+              {sourceExporting ? maintenanceText.sourceExporting : maintenanceText.sourceExport}
             </button>
           </div>
 

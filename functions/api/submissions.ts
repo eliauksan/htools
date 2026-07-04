@@ -180,7 +180,7 @@ function normalizeSubmissionLocale(value: unknown): SubmissionLocale {
 
 function splitSubmissionTags(value: string) {
   return value
-    .split(/[\s,，、。;；|｜/／\\]+/)
+    .split(/[\r\n,，、。;；|｜/／\\]+/)
     .map((tag) => tag.trim())
     .filter(Boolean);
 }
