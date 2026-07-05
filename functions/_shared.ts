@@ -218,6 +218,7 @@ export type ProxySettings = {
   enabled: boolean;
   baseUrl: string;
   mode: "prefix" | "edgeone-proxy" | "edgeone-advanced";
+  scope: "all" | "images";
 };
 
 export type FooterLink = {
@@ -1128,7 +1129,7 @@ function parseFeedItem(block: string, feedUrl: string, isAtom: boolean): ParsedF
   const author = cleanDisplayText(
     readXmlTag(block, ["author", "dc:creator", "name"])
   );
-  const coverImage = resolveUrl(readFeedCoverImage(block, rawContent), link || feedUrl);
+  const coverImage = resolveUrl(readFeedCoverImage(block), link || feedUrl);
 
   return {
     externalId: id,
@@ -1207,18 +1208,37 @@ function readFeedCategories(block: string) {
   return Array.from(categories).filter(Boolean).slice(0, 24);
 }
 
-function readFeedCoverImage(block: string, rawContent: string) {
+function readFeedCoverImage(block: string) {
   const mediaThumbnail = block.match(/<media:thumbnail\b([^>]*)\/?>/i);
   const mediaContent = block.match(/<media:content\b([^>]*)\/?>/i);
   const enclosure = block.match(/<enclosure\b([^>]*)\/?>/i);
-  const contentImage = rawContent.match(/<img\b[^>]*src=["']([^"']+)["']/i);
 
   return (
     readXmlAttribute(mediaThumbnail?.[1] ?? "", "url") ||
-    readXmlAttribute(mediaContent?.[1] ?? "", "url") ||
-    readXmlAttribute(enclosure?.[1] ?? "", "url") ||
-    cleanXmlValue(contentImage?.[1] ?? "")
+    readFeedMediaImageUrl(mediaContent?.[1] ?? "") ||
+    readFeedEnclosureImageUrl(enclosure?.[1] ?? "")
   );
+}
+
+function readFeedMediaImageUrl(attrs: string) {
+  const medium = readXmlAttribute(attrs, "medium").toLowerCase();
+  const type = readXmlAttribute(attrs, "type").toLowerCase();
+
+  if (medium && medium !== "image") {
+    return "";
+  }
+
+  if (type && !type.startsWith("image/")) {
+    return "";
+  }
+
+  return readXmlAttribute(attrs, "url");
+}
+
+function readFeedEnclosureImageUrl(attrs: string) {
+  const type = readXmlAttribute(attrs, "type").toLowerCase();
+
+  return type.startsWith("image/") ? readXmlAttribute(attrs, "url") : "";
 }
 
 function cleanXmlValue(value: string) {
@@ -2078,7 +2098,8 @@ export async function getProxySettings(env: Env): Promise<ProxySettings> {
     return {
       enabled: false,
       baseUrl: "",
-      mode: "prefix"
+      mode: "prefix",
+      scope: "all"
     };
   }
 
@@ -2090,20 +2111,27 @@ export async function getProxySettings(env: Env): Promise<ProxySettings> {
         typeof parsed.baseUrl === "string"
           ? normalizeProxyBaseUrl(parsed.baseUrl)
           : "",
-      mode: normalizeProxyMode(parsed.mode)
+      mode: normalizeProxyMode(parsed.mode),
+      scope: normalizeProxyScope(parsed.scope)
     };
   } catch {
     return {
       enabled: false,
       baseUrl: "",
-      mode: "prefix"
+      mode: "prefix",
+      scope: "all"
     };
   }
 }
 
 export async function saveProxySettings(
   env: Env,
-  payload: { enabled?: unknown; baseUrl?: unknown; mode?: unknown }
+  payload: {
+    enabled?: unknown;
+    baseUrl?: unknown;
+    mode?: unknown;
+    scope?: unknown;
+  }
 ) {
   const db = await getDatabase(env);
   const enabled = payload.enabled === true;
@@ -2119,7 +2147,8 @@ export async function saveProxySettings(
   const settings = {
     enabled,
     baseUrl,
-    mode: normalizeProxyMode(payload.mode)
+    mode: normalizeProxyMode(payload.mode),
+    scope: normalizeProxyScope(payload.scope)
   } satisfies ProxySettings;
 
   await db.prepare(
@@ -2189,10 +2218,21 @@ export async function saveSiteSettings(
   return settings;
 }
 
-export function proxifyUrl(value: string, settings: ProxySettings) {
+export function proxifyUrl(
+  value: string,
+  settings: ProxySettings,
+  options: { resourceType?: "link" | "image" } = {}
+) {
   const targetUrl = normalizeHttpUrl(value);
 
   if (!targetUrl || !settings.enabled || !settings.baseUrl) {
+    return targetUrl;
+  }
+
+  const scope = normalizeProxyScope(settings.scope);
+  const resourceType = options.resourceType ?? "link";
+
+  if (scope === "images" && resourceType !== "image") {
     return targetUrl;
   }
 
@@ -2700,6 +2740,10 @@ function normalizeProxyMode(value: unknown): ProxySettings["mode"] {
     value === "prefix"
     ? value
     : "prefix";
+}
+
+function normalizeProxyScope(value: unknown): ProxySettings["scope"] {
+  return value === "images" || value === "all" ? value : "all";
 }
 
 function createProxyQueryUrl(baseUrl: string, route: string, targetUrl: string) {

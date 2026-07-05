@@ -6,7 +6,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
-import { DEFAULT_PROXY_MODE, proxifyUrl } from "../proxy";
+import { DEFAULT_PROXY_MODE, DEFAULT_PROXY_SCOPE, proxifyUrl } from "../proxy";
 import type { ProxySettings } from "../types";
 
 const markdownSanitizeSchema = {
@@ -31,7 +31,8 @@ const collapsibleCodeLineThreshold = 6;
 const defaultProxySettings: ProxySettings = {
   enabled: false,
   baseUrl: "",
-  mode: DEFAULT_PROXY_MODE
+  mode: DEFAULT_PROXY_MODE,
+  scope: DEFAULT_PROXY_SCOPE
 };
 
 export default function MarkdownContent({
@@ -345,7 +346,9 @@ function MarkdownImage({
   ...props
 }: ImgHTMLAttributes<HTMLImageElement> & { proxySettings: ProxySettings }) {
   const safeSrc = sanitizeMarkdownImageSrc(src);
-  const proxiedSrc = safeSrc ? proxifyUrl(safeSrc, proxySettings) : "";
+  const proxiedSrc = safeSrc
+    ? proxifyUrl(safeSrc, proxySettings, { resourceType: "image" })
+    : "";
   const rawCaption = typeof alt === "string" ? alt.trim() : "";
   const caption = isMeaningfulImageCaption(rawCaption) ? rawCaption : "";
   const [failed, setFailed] = useState(false);

@@ -177,11 +177,13 @@ export type SourceSettings = {
 };
 
 export type ProxyMode = "prefix" | "edgeone-proxy" | "edgeone-advanced";
+export type ProxyScope = "all" | "images";
 
 export type ProxySettings = {
   enabled: boolean;
   baseUrl: string;
   mode: ProxyMode;
+  scope: ProxyScope;
 };
 
 export type FooterLink = {

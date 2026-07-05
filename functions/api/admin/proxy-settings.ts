@@ -11,6 +11,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
       enabled?: unknown;
       baseUrl?: unknown;
       mode?: unknown;
+      scope?: unknown;
     };
 
     return json({

@@ -143,8 +143,10 @@ import {
 } from "./i18n";
 import {
   DEFAULT_PROXY_MODE,
+  DEFAULT_PROXY_SCOPE,
   normalizeProxyBaseUrl,
   normalizeProxyMode,
+  normalizeProxyScope,
   proxifyUrl
 } from "./proxy";
 import type {
@@ -494,7 +496,8 @@ const DEFAULT_FOOTER_GROUP_SIGNATURES = new Set(
 const DEFAULT_PROXY_SETTINGS: ProxySettings = {
   enabled: false,
   baseUrl: "",
-  mode: DEFAULT_PROXY_MODE
+  mode: DEFAULT_PROXY_MODE,
+  scope: DEFAULT_PROXY_SCOPE
 };
 const EDGEONE_PROXY_PROJECT_URL = "https://github.com/shaoyouvip/Edgeone-proxy";
 const DEFAULT_SITE_SETTINGS: SiteSettings = {
@@ -791,6 +794,16 @@ function addSiteIconRetryParam(value: string, retryToken: number) {
   try {
     const url = new URL(value);
     url.searchParams.set("htools_icon_retry", String(retryToken));
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+function appendCacheBustParam(value: string) {
+  try {
+    const url = new URL(value);
+    url.searchParams.set("_t", String(Date.now()));
     return url.toString();
   } catch {
     return value;
@@ -1164,16 +1177,19 @@ function getAdminMaintenanceText(locale: Locale) {
       publicEnabledMessage: "\u7ad9\u70b9\u6e90\u5df2\u5f00\u542f\u3002",
       publicDisabledMessage: "\u7ad9\u70b9\u6e90\u5df2\u5173\u95ed\u3002",
       proxyTitle: "代理访问",
-      proxyDescription: "\u53ef\u7528\u4e8e\u89e3\u51b3\u90e8\u5206\u56fe\u7247\u6216\u94fe\u63a5\u8bbf\u95ee\u5f02\u5e38\u3002\u5f00\u542f\u540e\uff0c\u7ad9\u5185\u5916\u90e8\u94fe\u63a5\u548c\u5916\u90e8\u56fe\u7247\u8d44\u6e90\u4f1a\u901a\u8fc7\u4f60\u586b\u5199\u7684\u4ee3\u7406\u670d\u52a1\u8bbf\u95ee\uff0c\u7ad9\u5185\u529f\u80fd\u3001API \u548c\u7ad9\u70b9\u56fe\u6807\u4e0d\u4f1a\u88ab\u4ee3\u7406\u3002",
+      proxyDescription: "可用于解决部分图片或链接访问异常。开启后，会按下方代理范围通过你填写的代理服务访问外部资源；站内功能、API 和站点图标不会被代理。",
       proxyEnabled: "\u5df2\u5f00\u542f",
       proxyDisabled: "\u5df2\u5173\u95ed",
       proxyUrlLabel: "\u4ee3\u7406\u670d\u52a1\u5730\u5740",
       proxyPlaceholder: "https://your-proxy.example.com/",
+      proxyScopeLabel: "代理范围",
+      proxyScopeAll: "全站代理",
+      proxyScopeImages: "仅代理图片",
       proxyModeLabel: "\u4ee3\u7406\u8bbf\u95ee\u89c4\u5219",
       proxyModePrefix: "\u76f4\u63a5\u62fc\u63a5",
       proxyModeEdgeOneProxy: "Edgeone-Proxy \u6807\u51c6",
       proxyModeEdgeOneAdvanced: "Edgeone-Proxy \u9ad8\u7ea7",
-      proxyHelp: "\u76f4\u63a5\u62fc\u63a5\u4f7f\u7528\u201c\u4ee3\u7406\u5730\u5740 + \u76ee\u6807\u5730\u5740\u201d\uff1bEdgeone-Proxy \u6807\u51c6\u4f7f\u7528 `/proxy?url=`\uff1bEdgeone-Proxy \u9ad8\u7ea7\u4f7f\u7528 `/advanced-proxy?url=`\u3002",
+      proxyHelp: "全站代理会代理外部链接和外部图片；仅代理图片只代理工具预览图、文章图片、内容流封面等图片资源，普通外部链接保持直连。直接拼接使用“代理地址 + 目标地址”；Edgeone-Proxy 标准使用 `/proxy?url=`；Edgeone-Proxy 高级使用 `/advanced-proxy?url=`。",
       proxyWarning: "提示：请谨慎开启。部分站点、图片防盗链或登录跳转可能与代理不兼容，如果开启后页面显示异常，请先关闭代理或更换代理服务。",
       proxyProjectNote: "HTools 不内置代理服务，如需使用，可自行部署代理项目后填写部署地址。",
       proxyProjectLink: "Edgeone-Proxy \u9879\u76ee\u5730\u5740",
@@ -1366,17 +1382,20 @@ function getAdminMaintenanceText(locale: Locale) {
     publicDisabledMessage: "Site source disabled.",
     proxyTitle: "Proxy Access",
     proxyDescription:
-      "Can help with image or link access failures. When enabled, external links and external image resources use the proxy service you provide, while internal site features, APIs, and the site icon stay direct.",
+      "Can help with image or link access failures. When enabled, external resources use your proxy service according to the proxy scope below, while internal site features, APIs, and the site icon stay direct.",
     proxyEnabled: "Enabled",
     proxyDisabled: "Disabled",
     proxyUrlLabel: "Proxy service URL",
     proxyPlaceholder: "https://your-proxy.example.com/",
+    proxyScopeLabel: "Proxy scope",
+    proxyScopeAll: "Full-site proxy",
+    proxyScopeImages: "Images only",
     proxyModeLabel: "Proxy access rule",
     proxyModePrefix: "Direct prefix",
     proxyModeEdgeOneProxy: "Edgeone-Proxy Standard",
     proxyModeEdgeOneAdvanced: "Edgeone-Proxy Advanced",
     proxyHelp:
-      "Direct prefix uses proxy URL + target URL; Edgeone-Proxy Standard uses /proxy?url=; Edgeone-Proxy Advanced uses /advanced-proxy?url=.",
+      "Full-site proxy covers external links and external images. Images only covers tool previews, article images, content covers, and other image resources while external links stay direct. Direct prefix uses proxy URL + target URL; Edgeone-Proxy Standard uses /proxy?url=; Edgeone-Proxy Advanced uses /advanced-proxy?url=.",
     proxyWarning:
       "Tip: enable with care. Some sites, hotlink-protected images, or login redirects may not work through a proxy. If the site displays incorrectly, disable the proxy or change the proxy service first.",
     proxyProjectNote:
@@ -3285,7 +3304,8 @@ export function App() {
           setProxySettings({
             enabled: settings.enabled,
             baseUrl: normalizeProxyBaseUrl(settings.baseUrl),
-            mode: normalizeProxyMode(settings.mode)
+            mode: normalizeProxyMode(settings.mode),
+            scope: normalizeProxyScope(settings.scope)
           });
         }
       } catch {
@@ -4445,7 +4465,7 @@ function ArticleListItem({
 
 function ArticleDetailCover({ src }: { src: string }) {
   const proxySettings = useProxySettings();
-  const proxiedSrc = proxifyUrl(src, proxySettings);
+  const proxiedSrc = proxifyUrl(src, proxySettings, { resourceType: "image" });
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -6197,7 +6217,9 @@ function ToolPreviewImage({
   t: Messages;
   tool: Tool;
 }) {
-  const source = proxifyUrl(createToolPreviewSource(tool), proxySettings);
+  const source = proxifyUrl(createToolPreviewSource(tool), proxySettings, {
+    resourceType: "image"
+  });
   const isGitHubPreview = usesGitHubOpenGraphPreview(tool);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [failed, setFailed] = useState(false);
@@ -8340,11 +8362,11 @@ function AdminApp({
       }
     }
 
-    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [openAdminMenu]);
@@ -8906,11 +8928,11 @@ function AdminApp({
     return (
       <div className="admin-shell auth-shell">
         <section className="auth-card">
-          <div className="auth-card-actions" ref={adminMenuRootRef}>
+          <div className="auth-card-actions">
             <button className="ghost-button compact" type="button" onClick={onBackHome}>
               {t.actions.backHome}
             </button>
-            <div className="auth-menu-actions">
+            <div className="auth-menu-actions" ref={adminMenuRootRef}>
               <div className="menu-control">
                 <button
                   className="icon-button locale-button"
@@ -10698,7 +10720,9 @@ function ContentItemCard({
   const Icon = getCategoryIcon(item.category);
   const displayDate = formatAdminDate(item.published_at ?? item.updated_at);
   const displayTitle = getArticleDisplayTitle(item);
-  const coverSrc = item.coverImage ? proxifyUrl(item.coverImage, proxySettings) : "";
+  const coverSrc = item.coverImage
+    ? proxifyUrl(item.coverImage, proxySettings, { resourceType: "image" })
+    : "";
   const originalHref = proxifyUrl(item.url, proxySettings);
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(coverSrc && !coverFailed);
@@ -11273,7 +11297,9 @@ function AdminToolCard({
             <>
               <span>{getToolInitials(tool.name)}</span>
               <img
-                src={proxifyUrl(createAdminIconFromUrl(tool.url), proxySettings)}
+                src={proxifyUrl(createAdminIconFromUrl(tool.url), proxySettings, {
+                  resourceType: "image"
+                })}
                 alt=""
                 loading="lazy"
                 decoding="async"
@@ -11834,6 +11860,7 @@ function AdminSystemSettingsSkeleton() {
             <div className="proxy-settings-form">
               <AdminSettingsFieldSkeleton />
               <AdminSettingsFieldSkeleton />
+              <AdminSettingsFieldSkeleton />
               <span className="skeleton-shimmer skeleton-line is-long admin-settings-help-skeleton" />
               <span className="skeleton-shimmer skeleton-line is-medium admin-settings-help-skeleton" />
               <AdminSettingsActionsSkeleton />
@@ -12143,14 +12170,16 @@ function AdminSystemSettingsPanel({
         {
           enabled: nextSettings.enabled,
           baseUrl,
-          mode: normalizeProxyMode(nextSettings.mode)
+          mode: normalizeProxyMode(nextSettings.mode),
+          scope: normalizeProxyScope(nextSettings.scope)
         },
         token
       );
       const normalizedSettings = {
         enabled: settings.enabled,
         baseUrl: normalizeProxyBaseUrl(settings.baseUrl),
-        mode: normalizeProxyMode(settings.mode)
+        mode: normalizeProxyMode(settings.mode),
+        scope: normalizeProxyScope(settings.scope)
       };
       setProxyForm(normalizedSettings);
       onProxySettingsChange(normalizedSettings);
@@ -12481,7 +12510,8 @@ function AdminSystemSettingsPanel({
       const normalizedProxy = {
         enabled: proxy.enabled,
         baseUrl: normalizeProxyBaseUrl(proxy.baseUrl),
-        mode: normalizeProxyMode(proxy.mode)
+        mode: normalizeProxyMode(proxy.mode),
+        scope: normalizeProxyScope(proxy.scope)
       };
 
       setSourceSettings(source);
@@ -12503,6 +12533,7 @@ function AdminSystemSettingsPanel({
   const publicSourceEnabled = sourceSettings?.enabled ?? false;
   const publicSourceUrl =
     sourceSettings?.sourceUrl ?? new URL("/api/htools.json", window.location.origin).toString();
+  const publicSourceOpenUrl = appendCacheBustParam(publicSourceUrl);
   const proxyEnabled = proxyForm.enabled;
   const footerForm = getFooterFormValues(siteForm);
   const siteSettingsBusy =
@@ -12875,7 +12906,7 @@ function AdminSystemSettingsPanel({
             </button>
             <a
               className="ghost-button"
-              href={publicSourceUrl}
+              href={publicSourceOpenUrl}
               rel="noreferrer"
               target="_blank"
             >
@@ -12922,6 +12953,22 @@ function AdminSystemSettingsPanel({
                 type="url"
                 value={proxyForm.baseUrl}
               />
+            </label>
+            <label className="source-url-field">
+              {maintenanceText.proxyScopeLabel}
+              <select
+                disabled={proxySaving}
+                onChange={(event) =>
+                  setProxyForm({
+                    ...proxyForm,
+                    scope: normalizeProxyScope(event.target.value)
+                  })
+                }
+                value={normalizeProxyScope(proxyForm.scope)}
+              >
+                <option value="all">{maintenanceText.proxyScopeAll}</option>
+                <option value="images">{maintenanceText.proxyScopeImages}</option>
+              </select>
             </label>
             <label className="source-url-field">
               {maintenanceText.proxyModeLabel}

@@ -1,11 +1,16 @@
-import type { ProxyMode, ProxySettings } from "./types";
+import type { ProxyMode, ProxyScope, ProxySettings } from "./types";
 
 export const DEFAULT_PROXY_MODE: ProxyMode = "prefix";
+export const DEFAULT_PROXY_SCOPE: ProxyScope = "all";
 
 export function normalizeProxyMode(value: unknown): ProxyMode {
   return value === "edgeone-proxy" || value === "edgeone-advanced" || value === "prefix"
     ? value
     : DEFAULT_PROXY_MODE;
+}
+
+export function normalizeProxyScope(value: unknown): ProxyScope {
+  return value === "images" || value === "all" ? value : DEFAULT_PROXY_SCOPE;
 }
 
 export function normalizeProxyBaseUrl(value: string) {
@@ -32,10 +37,21 @@ export function normalizeProxyBaseUrl(value: string) {
   }
 }
 
-export function proxifyUrl(value: string, settings: ProxySettings) {
+export function proxifyUrl(
+  value: string,
+  settings: ProxySettings,
+  options: { resourceType?: "link" | "image" } = {}
+) {
   const trimmed = value.trim();
 
   if (!trimmed || !settings.enabled || !settings.baseUrl) {
+    return trimmed;
+  }
+
+  const scope = normalizeProxyScope(settings.scope);
+  const resourceType = options.resourceType ?? "link";
+
+  if (scope === "images" && resourceType !== "image") {
     return trimmed;
   }
 
