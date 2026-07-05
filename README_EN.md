@@ -117,4 +117,4 @@ The default tool source is only an online subscription source. It is not written
 
 ## Version
 
-Current version: `HTools v1.0.8`
+Current version: `HTools v1.0.9`

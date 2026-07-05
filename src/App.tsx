@@ -1967,6 +1967,33 @@ function normalizeMarkdownImageUrl(value: string) {
     .replace(/^['"]|['"]$/g, "");
 }
 
+function getContentItemPreviewImage(item: ContentItem) {
+  const explicitCoverImage = normalizeMarkdownImageUrl(item.coverImage);
+
+  if (isValidHttpUrl(explicitCoverImage)) {
+    return explicitCoverImage;
+  }
+
+  const searchableContent = item.content
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`\n]+`/g, "");
+  const markdownImageMatch = searchableContent.match(
+    /!\[[^\]]*\]\(\s*(<[^>]+>|[^)\s]+)(?:\s+["'][^"']*["'])?\s*\)/
+  );
+  const htmlImageMatch = searchableContent.match(
+    /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i
+  );
+  const imageUrl = normalizeMarkdownImageUrl(
+    markdownImageMatch?.[1] ??
+      htmlImageMatch?.[1] ??
+      htmlImageMatch?.[2] ??
+      htmlImageMatch?.[3] ??
+      ""
+  );
+
+  return isValidHttpUrl(imageUrl) ? imageUrl : "";
+}
+
 function createArticleHref(slug: string) {
   return `/articles/${encodeURIComponent(slug)}`;
 }
@@ -10720,8 +10747,9 @@ function ContentItemCard({
   const Icon = getCategoryIcon(item.category);
   const displayDate = formatAdminDate(item.published_at ?? item.updated_at);
   const displayTitle = getArticleDisplayTitle(item);
-  const coverSrc = item.coverImage
-    ? proxifyUrl(item.coverImage, proxySettings, { resourceType: "image" })
+  const previewImage = getContentItemPreviewImage(item);
+  const coverSrc = previewImage
+    ? proxifyUrl(previewImage, proxySettings, { resourceType: "image" })
     : "";
   const originalHref = proxifyUrl(item.url, proxySettings);
   const [coverFailed, setCoverFailed] = useState(false);

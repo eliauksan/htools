@@ -1228,7 +1228,7 @@ function readFeedMediaImageUrl(attrs: string) {
     return "";
   }
 
-  if (type && !type.startsWith("image/")) {
+  if (type && !isFeedImageType(type)) {
     return "";
   }
 
@@ -1238,7 +1238,13 @@ function readFeedMediaImageUrl(attrs: string) {
 function readFeedEnclosureImageUrl(attrs: string) {
   const type = readXmlAttribute(attrs, "type").toLowerCase();
 
-  return type.startsWith("image/") ? readXmlAttribute(attrs, "url") : "";
+  return isFeedImageType(type) ? readXmlAttribute(attrs, "url") : "";
+}
+
+function isFeedImageType(type: string) {
+  const normalized = type.split(";")[0].trim().toLowerCase();
+
+  return normalized === "image" || normalized.startsWith("image/");
 }
 
 function cleanXmlValue(value: string) {
