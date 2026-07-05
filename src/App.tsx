@@ -72,6 +72,7 @@ import {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
+  TouchEvent as ReactTouchEvent,
   ReactNode,
   Suspense,
   createContext,
@@ -4445,10 +4446,21 @@ function ArticleListItem({
 function ArticleDetailCover({ src }: { src: string }) {
   const proxySettings = useProxySettings();
   const proxiedSrc = proxifyUrl(src, proxySettings);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     setFailed(false);
+    setLoaded(false);
+  }, [proxiedSrc]);
+
+  useEffect(() => {
+    const image = imageRef.current;
+
+    if (image?.complete && image.naturalWidth > 0) {
+      setLoaded(true);
+    }
   }, [proxiedSrc]);
 
   if (!proxiedSrc || failed) {
@@ -4456,14 +4468,22 @@ function ArticleDetailCover({ src }: { src: string }) {
   }
 
   return (
-    <img
-      className="article-detail-cover"
-      src={proxiedSrc}
-      alt=""
-      loading="lazy"
-      decoding="async"
-      onError={() => setFailed(true)}
-    />
+    <figure
+      className={`article-detail-cover-frame ${loaded ? "is-loaded" : ""}`}
+      aria-hidden="true"
+    >
+      <img
+        className="article-detail-cover"
+        ref={imageRef}
+        src={proxiedSrc}
+        alt=""
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+      />
+    </figure>
   );
 }
 
@@ -5982,6 +6002,7 @@ function ToolPreviewActions({
   const proxiedDemoHref = proxifyUrl(demoHref, proxySettings);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const lastPointerTypeRef = useRef("");
+  const suppressNextClickRef = useRef(false);
   const [isTouchSplitActive, setIsTouchSplitActive] = useState(false);
   const [isInteractionDismissed, setIsInteractionDismissed] = useState(false);
 
@@ -6025,7 +6046,41 @@ function ToolPreviewActions({
     lastPointerTypeRef.current = event.pointerType;
   }
 
+  function openPreviewAction(anchor: HTMLAnchorElement) {
+    window.open(anchor.href, "_blank", "noopener,noreferrer");
+  }
+
+  function handlePreviewActionTouchEnd(event: ReactTouchEvent<HTMLAnchorElement>) {
+    if (!hasDemo) {
+      return;
+    }
+
+    if (!isTouchSplitActive) {
+      event.preventDefault();
+      suppressNextClickRef.current = true;
+      setIsTouchSplitActive(true);
+      setIsInteractionDismissed(false);
+      event.currentTarget.blur();
+      lastPointerTypeRef.current = "";
+      return;
+    }
+
+    event.preventDefault();
+    suppressNextClickRef.current = true;
+    setIsTouchSplitActive(false);
+    setIsInteractionDismissed(true);
+    event.currentTarget.blur();
+    lastPointerTypeRef.current = "";
+    openPreviewAction(event.currentTarget);
+  }
+
   function handlePreviewActionClick(event: ReactMouseEvent<HTMLAnchorElement>) {
+    if (suppressNextClickRef.current) {
+      event.preventDefault();
+      suppressNextClickRef.current = false;
+      return;
+    }
+
     if (!hasDemo) {
       setIsInteractionDismissed(true);
       blurActivatedLink(event);
@@ -6109,6 +6164,7 @@ function ToolPreviewActions({
           draggable={false}
           onDragStart={preventCardDrag}
           onPointerDown={handlePreviewPointerDown}
+          onTouchEnd={handlePreviewActionTouchEnd}
           onClick={handlePreviewActionClick}
         />
         {hasDemo ? (
@@ -6121,6 +6177,7 @@ function ToolPreviewActions({
             draggable={false}
             onDragStart={preventCardDrag}
             onPointerDown={handlePreviewPointerDown}
+            onTouchEnd={handlePreviewActionTouchEnd}
             onClick={handlePreviewActionClick}
           />
         ) : null}

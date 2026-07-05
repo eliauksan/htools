@@ -949,6 +949,7 @@ html[data-theme="dark"] .global-search-shortcut {
 .article-detail-card {
   display: grid;
   gap: 28px;
+  min-width: 0;
   color: var(--text);
 }
 
@@ -958,6 +959,7 @@ html[data-theme="dark"] .global-search-shortcut {
 
 .article-detail-head {
   display: grid;
+  min-width: 0;
   gap: 14px;
 }
 
@@ -982,6 +984,8 @@ html[data-theme="dark"] .global-search-shortcut {
   margin: 0;
   font-size: clamp(34px, 3.2vw, 48px);
   line-height: 1.08;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .article-detail-head p {
@@ -992,12 +996,47 @@ html[data-theme="dark"] .global-search-shortcut {
   line-height: 1.6;
 }
 
-.article-detail-cover {
+.article-detail-cover-frame {
+  position: relative;
+  overflow: hidden;
   width: 100%;
+  aspect-ratio: 2 / 1;
   max-height: 420px;
   border: 1px solid var(--border);
   border-radius: 8px;
+  background: var(--surface-2);
+  margin: 0;
+}
+
+.article-detail-cover-frame::before {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent, rgb(255 255 255 / 38%), transparent),
+    var(--surface-2);
+  content: "";
+  opacity: 0.72;
+  transform: translateX(-100%);
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.article-detail-cover-frame.is-loaded::before {
+  opacity: 0;
+  animation: none;
+}
+
+.article-detail-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.article-detail-cover-frame.is-loaded .article-detail-cover {
+  opacity: 1;
 }
 
 .article-detail-loading {
@@ -1058,9 +1097,14 @@ html[data-theme="dark"] .global-search-shortcut {
 .markdown-content {
   display: grid;
   gap: 18px;
+  min-width: 0;
   color: var(--text);
   font-size: 16px;
   line-height: 1.78;
+}
+
+.markdown-content > * {
+  min-width: 0;
 }
 
 .markdown-content h1,
@@ -1071,6 +1115,8 @@ html[data-theme="dark"] .global-search-shortcut {
 .markdown-content h6 {
   margin: 18px 0 0;
   line-height: 1.22;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .markdown-content h1 {
@@ -1098,6 +1144,7 @@ html[data-theme="dark"] .global-search-shortcut {
 .markdown-content pre,
 .markdown-content table,
 .markdown-content hr {
+  min-width: 0;
   margin: 0;
 }
 
@@ -1114,6 +1161,15 @@ html[data-theme="dark"] .global-search-shortcut {
   display: inline;
 }
 
+.markdown-content p,
+.markdown-content li,
+.markdown-content blockquote,
+.markdown-content th,
+.markdown-content td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .markdown-content strong {
   color: var(--text);
   font-weight: 760;
@@ -1121,6 +1177,7 @@ html[data-theme="dark"] .global-search-shortcut {
 
 .markdown-content a {
   color: var(--text);
+  overflow-wrap: anywhere;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -1131,6 +1188,9 @@ html[data-theme="dark"] .global-search-shortcut {
   background: var(--surface-2);
   padding: 0.1em 0.35em;
   font-size: 0.92em;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .markdown-content pre {
@@ -1169,7 +1229,9 @@ html[data-theme="dark"] .global-search-shortcut {
   font-size: 14px;
   line-height: 1.65;
   tab-size: 2;
+  overflow-wrap: normal;
   white-space: pre;
+  word-break: normal;
 }
 
 .markdown-code-toolbar {
@@ -1253,20 +1315,25 @@ html[data-theme="dark"] .global-search-shortcut {
 
 .markdown-content img {
   display: block;
+  width: 100%;
   max-width: 100%;
   height: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
+  object-fit: contain;
 }
 
 .markdown-image-frame {
   display: grid;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
 }
 
 .markdown-image-frame img {
-  justify-self: center;
+  justify-self: stretch;
 }
 
 .markdown-image-frame figcaption {
@@ -3111,11 +3178,12 @@ html[data-theme="dark"] .mobile-nav-drawer {
 }
 
 .tag-row-measure {
-  position: absolute;
-  left: 0;
-  top: 0;
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
   width: max-content;
   max-width: none;
+  contain: layout style paint;
   visibility: hidden;
   pointer-events: none;
 }
@@ -8915,6 +8983,74 @@ html[data-theme="dark"] .link-check-progress-track .link-check-progress-skeleton
   .article-item {
     align-items: flex-start;
     min-height: auto;
+    padding: 18px;
+  }
+
+  .article-item h3 {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 17px;
+    line-height: 1.28;
+    text-overflow: clip;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .article-item p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .article-date {
+    font-size: 13px;
+  }
+
+  .article-detail-card {
+    gap: 22px;
+  }
+
+  .article-detail-head {
+    gap: 12px;
+  }
+
+  .article-detail-head h1 {
+    font-size: 27px;
+    line-height: 1.15;
+  }
+
+  .article-detail-head p {
+    font-size: 15px;
+    line-height: 1.62;
+  }
+
+  .article-detail-meta {
+    font-size: 13px;
+  }
+
+  .article-detail-meta span {
+    min-height: 25px;
+  }
+
+  .markdown-content {
+    gap: 16px;
+    font-size: 15px;
+    line-height: 1.72;
+  }
+
+  .markdown-content h1 {
+    font-size: 22px;
+    line-height: 1.28;
+  }
+
+  .markdown-content h2 {
+    font-size: 20px;
+    line-height: 1.32;
+  }
+
+  .markdown-content h3 {
+    font-size: 17px;
+    line-height: 1.35;
   }
 
   .category-page {
