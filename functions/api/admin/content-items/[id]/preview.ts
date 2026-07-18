@@ -1,6 +1,8 @@
 import {
+  buildContentItemArticleContent,
   getDatabase,
   json,
+  jsonError,
   normalizeFeedItemSummary,
   normalizeFeedItemTitle,
   requireAdmin,
@@ -32,11 +34,14 @@ export const onRequestGet: PagesFunction<Env> = async ({
       .first<ContentItemRow>();
 
     if (!item) {
-      return json({ error: "Content item not found." }, { status: 404 });
+      return jsonError("Content item not found.", "NOT_FOUND", { status: 404 });
     }
 
     const contentBody = item.content || item.summary || item.title;
-    const content = `${contentBody}\n\n## \u539f\u6587\u94fe\u63a5\n\n[\u9605\u8bfb\u539f\u6587](${item.url})`;
+    const content = buildContentItemArticleContent({
+      body: contentBody,
+      originalUrl: item.url
+    });
     const now = new Date().toISOString();
     const title = normalizeFeedItemTitle(item.title, contentBody, item.summary);
     const summary = normalizeFeedItemSummary(item.summary, contentBody, title);

@@ -2,6 +2,8 @@ export type Env = {
   DB: D1Database;
   ADMIN_PASSWORD?: string;
   GITHUB_TOKEN?: string;
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
 };
 
 export type GitHubSettings = {
@@ -22,7 +24,7 @@ export type GitHubSettingsInput = {
   labels?: unknown;
 };
 
-export type GitHubSessionRow = {
+type GitHubSessionRow = {
   token: string;
   github_id: number;
   github_login: string;
@@ -122,9 +124,13 @@ export type ArticleRow = {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  content_item_id?: string | null;
+  source_content_version?: string;
 };
 
-export type ArticlePayload = {
+export type ArticleSummaryRow = Omit<ArticleRow, "content">;
+
+type ArticlePayload = {
   title?: unknown;
   slug?: unknown;
   summary?: unknown;
@@ -171,14 +177,49 @@ export type ContentItemRow = {
   created_at: string;
   updated_at: string;
   article_id: string | null;
+  content_version?: string;
   linked_article_id?: string | null;
   linked_article_slug?: string | null;
   linked_article_title?: string | null;
   linked_article_content?: string | null;
   linked_article_published?: number | null;
+  linked_article_category?: string | null;
+  linked_article_source_version?: string | null;
 };
 
-export type ContentSourcePayload = {
+export type ContentItemSummaryRow = Omit<
+  ContentItemRow,
+  "content" | "linked_article_content"
+>;
+
+export const CONTENT_ITEM_SUMMARY_COLUMNS = `
+  content_items.id,
+  content_items.source_id,
+  content_sources.title AS source_title,
+  content_sources.url AS source_url,
+  content_items.external_id,
+  content_items.title,
+  content_items.summary,
+  content_items.url,
+  content_items.author,
+  content_items.cover_image,
+  content_items.category,
+  content_items.tags,
+  content_items.published_at,
+  content_items.synced_at,
+  content_items.created_at,
+  content_items.updated_at,
+  content_items.article_id,
+  content_items.content_version,
+  articles.id AS linked_article_id,
+  articles.slug AS linked_article_slug,
+  articles.title AS linked_article_title,
+  articles.category AS linked_article_category,
+  articles.source_content_version AS linked_article_source_version,
+  articles.published AS linked_article_published
+`;
+
+type ContentSourcePayload = {
   title?: unknown;
   url?: unknown;
   siteUrl?: unknown;
@@ -189,7 +230,7 @@ export type ContentSourcePayload = {
   enabled?: unknown;
 };
 
-export type ParsedFeedItem = {
+type ParsedFeedItem = {
   externalId: string;
   title: string;
   summary: string;
@@ -201,7 +242,7 @@ export type ParsedFeedItem = {
   publishedAt: string | null;
 };
 
-export type ParsedFeed = {
+type ParsedFeed = {
   title: string;
   description: string;
   siteUrl: string;
@@ -213,7 +254,7 @@ export type AdminCategoryScope = "tools" | "articles" | "content";
 
 export type AdminCategorySettings = Record<AdminCategoryScope, string[]>;
 
-export type AdminPasswordSettings = {
+type AdminPasswordSettings = {
   algorithm: "PBKDF2-SHA256";
   iterations: number;
   salt: string;
@@ -226,6 +267,12 @@ export type ProxySettings = {
   baseUrl: string;
   mode: "prefix" | "edgeone-proxy" | "edgeone-advanced";
   scope: "all" | "images";
+};
+
+export type UmamiSettings = {
+  enabled: boolean;
+  scriptUrl: string;
+  websiteId: string;
 };
 
 export type FooterLink = {
@@ -249,13 +296,62 @@ export type FooterSettings = {
   groups: FooterLinkGroup[];
 };
 
+export type HomeHeroContent = {
+  titleTop: string;
+  titleBottom: string;
+  description: string;
+};
+
+export type HomeHeroSettings = {
+  zh: HomeHeroContent;
+  en: HomeHeroContent;
+};
+
+export type LocalizedMarkdownContent = {
+  zh: string;
+  en: string;
+};
+
+export type LocalizedLegalContent = LocalizedMarkdownContent;
+
 export type SiteSettings = {
   name: string;
   subtitle: string;
   iconUrl: string;
-  aboutContent: string;
+  aboutContent: LocalizedMarkdownContent;
+  privacyContent?: LocalizedLegalContent;
+  termsContent?: LocalizedLegalContent;
   footer?: FooterSettings;
+  homeHero?: HomeHeroSettings;
 };
+
+export type SiteSettingsPatch =
+  | {
+      section: "identity";
+      name?: unknown;
+      subtitle?: unknown;
+      iconUrl?: unknown;
+    }
+  | {
+      section: "about";
+      aboutContent?: unknown;
+    }
+  | {
+      section: "privacy";
+      privacyContent?: unknown;
+    }
+  | {
+      section: "terms";
+      termsContent?: unknown;
+    }
+  | {
+      section: "home";
+      homeHero?: unknown;
+    }
+  | {
+      section: "footer";
+      footer?: unknown;
+    };
 
 const encoder = new TextEncoder();
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -266,6 +362,7 @@ const GITHUB_SETTINGS_KEY = "github_settings";
 const GITHUB_SESSION_COOKIE = "htools_github_session";
 const GITHUB_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 const PROXY_SETTINGS_KEY = "proxy_settings";
+const UMAMI_SETTINGS_KEY = "umami_settings";
 const SITE_SETTINGS_KEY = "site_settings";
 const ADMIN_CATEGORY_SETTINGS_KEY = "admin_category_settings";
 const SITE_ICON_DATA_URL_MAX_LENGTH = 1500 * 1024;
@@ -374,7 +471,13 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
   name: "HTools",
   subtitle: "工具导航站",
   iconUrl: "",
-  aboutContent: DEFAULT_ABOUT_CONTENT
+  aboutContent: { zh: DEFAULT_ABOUT_CONTENT, en: "" },
+  privacyContent: { zh: "", en: "" },
+  termsContent: { zh: "", en: "" },
+  homeHero: {
+    zh: { titleTop: "", titleBottom: "", description: "" },
+    en: { titleTop: "", titleBottom: "", description: "" }
+  }
 };
 const ADMIN_CATEGORY_SCOPES = ["tools", "articles", "content"] as const;
 const DEFAULT_ADMIN_CATEGORY_SETTINGS: AdminCategorySettings = {
@@ -383,6 +486,10 @@ const DEFAULT_ADMIN_CATEGORY_SETTINGS: AdminCategorySettings = {
   content: []
 };
 const initializedDatabases = new WeakSet<D1Database>();
+const databaseInitializationPromises = new WeakMap<D1Database, Promise<void>>();
+const DATABASE_SCHEMA_VERSION_KEY = "database_schema_version";
+// Increment this whenever SCHEMA_STATEMENTS or compatibility column upgrades change.
+const DATABASE_SCHEMA_VERSION = 8;
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS tools (
     id TEXT PRIMARY KEY,
@@ -399,8 +506,14 @@ const SCHEMA_STATEMENTS = [
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
-  "CREATE INDEX IF NOT EXISTS idx_tools_category ON tools (category)",
-  "CREATE INDEX IF NOT EXISTS idx_tools_featured ON tools (featured)",
+  `CREATE INDEX IF NOT EXISTS idx_tools_latest_sort
+     ON tools (updated_at DESC, created_at DESC, id DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_tools_category_latest_sort
+     ON tools (category, updated_at DESC, created_at DESC, id DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_tools_featured_latest_sort
+     ON tools (featured, updated_at DESC, created_at DESC, id DESC)`,
+  "DROP INDEX IF EXISTS idx_tools_category",
+  "DROP INDEX IF EXISTS idx_tools_featured",
   `CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
@@ -418,11 +531,40 @@ const SCHEMA_STATEMENTS = [
     published INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    published_at TEXT
+    published_at TEXT,
+    content_item_id TEXT,
+    source_content_version TEXT NOT NULL DEFAULT ''
   )`,
-  "CREATE INDEX IF NOT EXISTS idx_articles_published ON articles (published, published_at)",
-  "CREATE INDEX IF NOT EXISTS idx_articles_slug ON articles (slug)",
-  "CREATE INDEX IF NOT EXISTS idx_articles_category ON articles (category, published_at)",
+  `CREATE INDEX IF NOT EXISTS idx_articles_public_sort
+     ON articles (
+       published,
+       COALESCE(published_at, updated_at, created_at) DESC,
+       id DESC
+     )`,
+  `CREATE INDEX IF NOT EXISTS idx_articles_public_category_sort
+     ON articles (
+       published,
+       category,
+       COALESCE(published_at, updated_at, created_at) DESC,
+       id DESC
+     )`,
+  `CREATE INDEX IF NOT EXISTS idx_articles_latest_sort
+     ON articles (
+       COALESCE(published_at, updated_at, created_at) DESC,
+       id DESC
+     )`,
+  `CREATE INDEX IF NOT EXISTS idx_articles_category_latest_sort
+     ON articles (
+       category,
+       COALESCE(published_at, updated_at, created_at) DESC,
+       id DESC
+     )`,
+  "CREATE INDEX IF NOT EXISTS idx_articles_name_sort ON articles (title, id)",
+  `CREATE INDEX IF NOT EXISTS idx_articles_category_name_sort
+     ON articles (category, title, id)`,
+  "DROP INDEX IF EXISTS idx_articles_slug",
+  "DROP INDEX IF EXISTS idx_articles_published",
+  "DROP INDEX IF EXISTS idx_articles_category",
   `CREATE TABLE IF NOT EXISTS content_sources (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -454,10 +596,28 @@ const SCHEMA_STATEMENTS = [
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     article_id TEXT,
+    content_version TEXT NOT NULL DEFAULT '',
     UNIQUE(source_id, external_id)
   )`,
-  "CREATE INDEX IF NOT EXISTS idx_content_items_source ON content_items (source_id)",
-  "CREATE INDEX IF NOT EXISTS idx_content_items_category ON content_items (category, published_at)",
+  `CREATE INDEX IF NOT EXISTS idx_content_items_latest_sort
+     ON content_items (
+       COALESCE(published_at, updated_at, created_at) DESC,
+       id DESC
+     )`,
+  `CREATE INDEX IF NOT EXISTS idx_content_items_source_latest_sort
+     ON content_items (
+       source_id,
+       COALESCE(published_at, updated_at, created_at) DESC,
+       id DESC
+     )`,
+  `CREATE INDEX IF NOT EXISTS idx_content_items_category_latest_sort
+     ON content_items (
+       category,
+       COALESCE(published_at, updated_at, created_at) DESC,
+       id DESC
+     )`,
+  "DROP INDEX IF EXISTS idx_content_items_source",
+  "DROP INDEX IF EXISTS idx_content_items_category",
   `CREATE TABLE IF NOT EXISTS github_oauth_states (
     state TEXT PRIMARY KEY,
     return_to TEXT NOT NULL,
@@ -478,7 +638,111 @@ const SCHEMA_STATEMENTS = [
     expires_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_github_sessions_expires_at
-    ON github_sessions (expires_at)`
+    ON github_sessions (expires_at)`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS articles_search USING fts5(
+    article_id UNINDEXED,
+    title,
+    summary,
+    content,
+    slug,
+    category,
+    tags,
+    tokenize='trigram'
+  )`,
+  `CREATE TABLE IF NOT EXISTS admin_login_attempts (
+    client_key TEXT PRIMARY KEY,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    window_started_at TEXT NOT NULL,
+    blocked_until TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_admin_login_attempts_updated_at
+     ON admin_login_attempts (updated_at)`,
+  `CREATE TRIGGER IF NOT EXISTS articles_search_ai
+   AFTER INSERT ON articles
+   BEGIN
+     INSERT INTO articles_search
+       (article_id, title, summary, content, slug, category, tags)
+     VALUES
+       (new.id, new.title, new.summary, new.content, new.slug, new.category, new.tags);
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS articles_search_au
+   AFTER UPDATE OF title, summary, content, slug, category, tags ON articles
+   BEGIN
+     DELETE FROM articles_search WHERE article_id = old.id;
+     INSERT INTO articles_search
+       (article_id, title, summary, content, slug, category, tags)
+     VALUES
+       (new.id, new.title, new.summary, new.content, new.slug, new.category, new.tags);
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS articles_search_ad
+   AFTER DELETE ON articles
+   BEGIN
+     DELETE FROM articles_search WHERE article_id = old.id;
+   END`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS content_items_search USING fts5(
+    item_id UNINDEXED,
+    source_id UNINDEXED,
+    title,
+    summary,
+    url,
+    author,
+    tags,
+    source_title,
+    tokenize='trigram'
+  )`,
+  `CREATE TRIGGER IF NOT EXISTS content_items_search_ai
+   AFTER INSERT ON content_items
+   BEGIN
+     INSERT INTO content_items_search
+       (item_id, source_id, title, summary, url, author, tags, source_title)
+     VALUES
+       (new.id, new.source_id, new.title, new.summary, new.url, new.author, new.tags,
+        COALESCE((SELECT title FROM content_sources WHERE id = new.source_id), ''));
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS content_items_search_au
+   AFTER UPDATE OF source_id, title, summary, url, author, tags ON content_items
+   BEGIN
+     DELETE FROM content_items_search WHERE item_id = old.id;
+     INSERT INTO content_items_search
+       (item_id, source_id, title, summary, url, author, tags, source_title)
+     VALUES
+       (new.id, new.source_id, new.title, new.summary, new.url, new.author, new.tags,
+        COALESCE((SELECT title FROM content_sources WHERE id = new.source_id), ''));
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS content_items_search_ad
+   AFTER DELETE ON content_items
+   BEGIN
+     DELETE FROM content_items_search WHERE item_id = old.id;
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS content_sources_search_au
+   AFTER UPDATE OF title ON content_sources
+   BEGIN
+     DELETE FROM content_items_search WHERE source_id = old.id;
+     INSERT INTO content_items_search
+       (item_id, source_id, title, summary, url, author, tags, source_title)
+     SELECT id, source_id, title, summary, url, author, tags, new.title
+     FROM content_items
+     WHERE source_id = new.id;
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS content_sources_search_ad
+   AFTER DELETE ON content_sources
+   BEGIN
+     DELETE FROM content_items_search WHERE source_id = old.id;
+   END`,
+  "DELETE FROM articles_search",
+  `INSERT INTO articles_search
+     (article_id, title, summary, content, slug, category, tags)
+   SELECT id, title, summary, content, slug, category, tags
+   FROM articles`,
+  "DELETE FROM content_items_search",
+  `INSERT INTO content_items_search
+     (item_id, source_id, title, summary, url, author, tags, source_title)
+   SELECT content_items.id, content_items.source_id, content_items.title,
+          content_items.summary, content_items.url, content_items.author,
+          content_items.tags, content_sources.title
+   FROM content_items
+   JOIN content_sources ON content_sources.id = content_items.source_id`
 ];
 
 const TOOL_COLUMN_STATEMENTS = [
@@ -491,8 +755,87 @@ const TOOL_COLUMN_STATEMENTS = [
     statement: "ALTER TABLE tools ADD COLUMN github_license TEXT NOT NULL DEFAULT ''"
   }
 ];
+const ARTICLE_COLUMN_STATEMENTS = [
+  {
+    name: "content_item_id",
+    statement: "ALTER TABLE articles ADD COLUMN content_item_id TEXT"
+  },
+  {
+    name: "source_content_version",
+    statement: "ALTER TABLE articles ADD COLUMN source_content_version TEXT NOT NULL DEFAULT ''"
+  }
+];
+const CONTENT_ITEM_COLUMN_STATEMENTS = [
+  {
+    name: "content_version",
+    statement: "ALTER TABLE content_items ADD COLUMN content_version TEXT NOT NULL DEFAULT ''"
+  }
+];
+type ApiErrorCode =
+  | "INVALID_REQUEST"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "CONFLICT"
+  | "RATE_LIMITED"
+  | "SERVER_ERROR"
+  | "TOOL_ALREADY_EXISTS"
+  | "GITHUB_NOT_CONFIGURED"
+  | "GITHUB_AUTH_REQUIRED"
+  | "INVALID_PASSWORD"
+  | "TURNSTILE_CONFIG_ERROR"
+  | "TURNSTILE_REQUIRED"
+  | "TURNSTILE_FAILED"
+  | "TURNSTILE_UNAVAILABLE"
+  | "SUBMISSION_RATE_LIMITED";
+
+type ApiErrorPayload = {
+  error: string;
+  code?: ApiErrorCode;
+  [key: string]: unknown;
+};
+
+type ApiActionSuccess = {
+  success: true;
+};
+
+type ApiDeleteSuccess = ApiActionSuccess & {
+  deleted: true;
+  resource: "tool" | "article" | "contentSource";
+  id: string;
+};
+
+function getApiErrorCode(status: number): ApiErrorCode {
+  if (status === 401) return "UNAUTHORIZED";
+  if (status === 403) return "FORBIDDEN";
+  if (status === 404) return "NOT_FOUND";
+  if (status === 409) return "CONFLICT";
+  if (status === 429) return "RATE_LIMITED";
+  if (status >= 500) return "SERVER_ERROR";
+  return "INVALID_REQUEST";
+}
+
+function withApiErrorCode(data: unknown, status: number) {
+  if (
+    status < 400 ||
+    typeof data !== "object" ||
+    data === null ||
+    !("error" in data) ||
+    typeof data.error !== "string" ||
+    ("code" in data && typeof data.code === "string")
+  ) {
+    return data;
+  }
+
+  return {
+    ...data,
+    code: getApiErrorCode(status)
+  };
+}
+
 export function json(data: unknown, init: ResponseInit = {}) {
-  return new Response(JSON.stringify(data), {
+  const status = init.status ?? 200;
+  return new Response(JSON.stringify(withApiErrorCode(data, status)), {
     ...init,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
@@ -501,8 +844,275 @@ export function json(data: unknown, init: ResponseInit = {}) {
   });
 }
 
+export function jsonError(
+  error: string,
+  code: ApiErrorCode,
+  init: ResponseInit & { status: number },
+  details: Omit<ApiErrorPayload, "error" | "code"> = {}
+) {
+  return json({ error, code, ...details }, init);
+}
+
+export function jsonActionSuccess(init: ResponseInit = {}) {
+  return json({ success: true } satisfies ApiActionSuccess, init);
+}
+
+export function jsonDeleted(
+  resource: ApiDeleteSuccess["resource"],
+  id: string,
+  init: ResponseInit = {}
+) {
+  return json(
+    { success: true, deleted: true, resource, id } satisfies ApiDeleteSuccess,
+    init
+  );
+}
+
+export const PUBLIC_API_CACHE_KEYS = {
+  tools: "tools-v2",
+  categories: "categories-v1",
+  articles: "articles-v2",
+  proxySettings: "proxy-settings-v1",
+  siteSettingsBasic: "site-settings-basic-v2",
+  siteSettingsFull: "site-settings-full-v2",
+  toolSource: "tool-source-v1"
+} as const;
+const PUBLIC_API_CACHE_VERSION_KEY = "public_api_cache_version";
+
+type PublicJsonCacheOptions = {
+  cacheKey: string;
+  cacheVersion: string;
+  ttlSeconds: number;
+  headers?: HeadersInit;
+  responseCacheControl?: string;
+  shouldCache?: (data: unknown) => boolean;
+  waitUntil?: (promise: Promise<unknown>) => void;
+};
+
+export async function cachedPublicJson(
+  request: Request,
+  load: () => Promise<unknown>,
+  options: PublicJsonCacheOptions
+) {
+  const cacheRequest = createPublicApiCacheRequest(
+    options.cacheKey,
+    options.cacheVersion
+  );
+  const cached = await readPublicApiCache(cacheRequest);
+  if (cached) {
+    return createPublicApiClientResponse(request, cached, options, "HIT");
+  }
+
+  const data = await load();
+  const body = JSON.stringify(data);
+  const etag = await createPublicApiEtag(body);
+  const shouldCache = options.shouldCache?.(data) ?? true;
+  const responseHeaders = createPublicApiHeaders(options.headers, etag);
+  responseHeaders.set(
+    "Cache-Control",
+    shouldCache
+      ? (options.responseCacheControl ?? "private, no-cache, max-age=0")
+      : "no-store"
+  );
+  responseHeaders.set("X-HTools-Cache", shouldCache ? "MISS" : "BYPASS");
+
+  if (shouldCache) {
+    const cacheHeaders = new Headers(responseHeaders);
+    cacheHeaders.set("Cache-Control", `public, max-age=${options.ttlSeconds}`);
+    cacheHeaders.delete("X-HTools-Cache");
+    const write = writePublicApiCache(
+      cacheRequest,
+      new Response(body, { headers: cacheHeaders })
+    );
+
+    if (options.waitUntil) {
+      try {
+        options.waitUntil(write);
+      } catch {
+        await write;
+      }
+    } else {
+      await write;
+    }
+  }
+
+  if (matchesIfNoneMatch(request, etag)) {
+    responseHeaders.delete("Content-Length");
+    responseHeaders.delete("Content-Encoding");
+    return new Response(null, { status: 304, headers: responseHeaders });
+  }
+
+  return new Response(body, { headers: responseHeaders });
+}
+
+export async function getPublicApiCacheVersion(env: Env) {
+  const db = await getDatabase(env);
+  const row = await db.prepare("SELECT value FROM app_settings WHERE key = ?")
+    .bind(PUBLIC_API_CACHE_VERSION_KEY)
+    .first<{ value: string }>();
+  return row?.value?.trim() || "0";
+}
+
+export async function invalidatePublicApiCache(env: Env) {
+  const db = await getDatabase(env);
+  const version = crypto.randomUUID();
+  await db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(key) DO UPDATE SET
+       value = excluded.value,
+       updated_at = CURRENT_TIMESTAMP`
+  )
+    .bind(PUBLIC_API_CACHE_VERSION_KEY, version)
+    .run();
+}
+
+function createPublicApiCacheRequest(cacheKey: string, cacheVersion: string) {
+  const key = encodeURIComponent(cacheKey);
+  const version = encodeURIComponent(cacheVersion);
+  return new Request(
+    `https://htools-public-api-cache.invalid/${key}/${version}`,
+    { method: "GET" }
+  );
+}
+
+async function readPublicApiCache(cacheKey: Request) {
+  try {
+    const cache = getDefaultCloudflareCache();
+    return cache ? await cache.match(cacheKey) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function writePublicApiCache(cacheKey: Request, response: Response) {
+  try {
+    const cache = getDefaultCloudflareCache();
+    if (cache) await cache.put(cacheKey, response);
+  } catch {
+    // Public APIs continue reading from D1 when Cache API is unavailable.
+  }
+}
+
+function createPublicApiHeaders(headers: HeadersInit | undefined, etag: string) {
+  const result = new Headers(headers);
+  result.set("Content-Type", "application/json; charset=utf-8");
+  result.set("ETag", etag);
+  return result;
+}
+
+async function createPublicApiEtag(body: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(body)
+  );
+  const value = Array.from(new Uint8Array(digest).slice(0, 12))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `"${value}"`;
+}
+
+function matchesIfNoneMatch(request: Request, etag: string) {
+  const value = request.headers.get("If-None-Match");
+  if (!value) return false;
+
+  return value.split(",").some((candidate) => {
+    const normalized = candidate.trim().replace(/^W\//, "");
+    return normalized === "*" || normalized === etag;
+  });
+}
+
+function createPublicApiClientResponse(
+  request: Request,
+  cached: Response,
+  options: PublicJsonCacheOptions,
+  cacheStatus: "HIT"
+) {
+  const headers = new Headers(cached.headers);
+  headers.set(
+    "Cache-Control",
+    options.responseCacheControl ?? "private, no-cache, max-age=0"
+  );
+  headers.set("X-HTools-Cache", cacheStatus);
+  const etag = headers.get("ETag") ?? "";
+
+  if (etag && matchesIfNoneMatch(request, etag)) {
+    headers.delete("Content-Length");
+    headers.delete("Content-Encoding");
+    return new Response(null, { status: 304, headers });
+  }
+
+  return new Response(cached.body, {
+    status: cached.status,
+    statusText: cached.statusText,
+    headers
+  });
+}
+
 export function badRequest(message: string) {
-  return json({ error: message }, { status: 400 });
+  return jsonError(message, "INVALID_REQUEST", { status: 400 });
+}
+
+export class InvalidRequestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidRequestError";
+  }
+}
+
+class UpstreamServiceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UpstreamServiceError";
+  }
+}
+
+export function writeErrorResponse(
+  error: unknown,
+  fallbackMessage: string,
+  headers?: HeadersInit
+) {
+  const message = error instanceof Error ? error.message : fallbackMessage;
+
+  if (error instanceof SyntaxError || error instanceof InvalidRequestError) {
+    return jsonError(message, "INVALID_REQUEST", { status: 400, headers });
+  }
+
+  if (error instanceof UpstreamServiceError) {
+    return jsonError(message, "SERVER_ERROR", { status: 502, headers });
+  }
+
+  return jsonError(message, "SERVER_ERROR", { status: 500, headers });
+}
+
+export function createSearchTerms(value: string, maximumPatternBytes = 50) {
+  const encoder = new TextEncoder();
+  let plain = "";
+  let escaped = "";
+  let byteLength = 2;
+
+  for (const character of value) {
+    const next = /[\\%_]/.test(character) ? `\\${character}` : character;
+    const nextLength = encoder.encode(next).length;
+    if (byteLength + nextLength > maximumPatternBytes) break;
+    plain += character;
+    escaped += next;
+    byteLength += nextLength;
+  }
+
+  return {
+    plain,
+    likePattern: `%${escaped}%`,
+    ftsPhrase: `"${plain.replace(/"/g, '""')}"`,
+    useFts: Array.from(plain).length >= 3
+  };
+}
+
+export function isFtsSearchUnavailable(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /no such table:\s*(articles|content_items)_search|no such module:\s*fts5/i.test(
+    message
+  );
 }
 
 export function toolFromRow(row: ToolRow) {
@@ -522,7 +1132,8 @@ export function toolSourceFromRow(row: ToolRow) {
   const tool = toolFromRow(row);
 
   return {
-    updatedAt: (tool.updated_at || tool.created_at || new Date().toISOString()).slice(0, 10),
+    createdAt: tool.created_at || tool.updated_at || new Date().toISOString(),
+    updatedAt: tool.updated_at || tool.created_at || new Date().toISOString(),
     id: tool.id,
     name: tool.name,
     description: tool.description,
@@ -531,6 +1142,8 @@ export function toolSourceFromRow(row: ToolRow) {
     image: tool.image,
     category: tool.category,
     tags: tool.tags,
+    githubLanguage: tool.githubLanguage,
+    githubLicense: tool.githubLicense,
     featured: tool.featured
   };
 }
@@ -552,6 +1165,28 @@ export function articleFromRow(row: ArticleRow) {
   };
 }
 
+export function articleSummaryFromRow(row: ArticleSummaryRow) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    summary: row.summary,
+    coverImage: row.cover_image ?? "",
+    category: row.category,
+    publishedAt: row.published_at,
+    tags: normalizeFeedItemTags(
+      safelyParseTags(row.tags),
+      row.title,
+      row.summary,
+      ""
+    ),
+    published: row.published === 1,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    published_at: row.published_at
+  };
+}
+
 export function contentSourceFromRow(row: ContentSourceRow) {
   return {
     id: row.id,
@@ -568,27 +1203,18 @@ export function contentSourceFromRow(row: ContentSourceRow) {
   };
 }
 
-export function contentItemFromRow(row: ContentItemRow) {
-  const title = normalizeFeedItemTitle(row.title, row.content, row.summary);
-  const summary = normalizeFeedItemSummary(row.summary, row.content, title);
+export function contentItemSummaryFromRow(row: ContentItemSummaryRow) {
+  const title = normalizeFeedItemTitle(row.title, row.summary, row.summary);
+  const summary = normalizeFeedItemSummary(row.summary, row.summary, title);
   const tags = normalizeFeedItemTags(
     safelyParseTags(row.tags),
     row.title,
     row.summary,
-    row.content
+    ""
   );
-  const hasLinkedArticle = isValidLinkedContentItemArticle(row, title);
-  const articleId =
-    row.linked_article_id === undefined
-      ? row.article_id
-      : hasLinkedArticle
-        ? row.linked_article_id
-        : null;
-  const articleSlug = hasLinkedArticle ? (row.linked_article_slug ?? "") : "";
-  const articlePublished =
-    hasLinkedArticle && row.linked_article_published !== undefined
-      ? row.linked_article_published === 1
-      : null;
+  const hasLinkedArticle = Boolean(
+    row.linked_article_id && row.linked_article_slug
+  );
 
   return {
     id: row.id,
@@ -598,7 +1224,6 @@ export function contentItemFromRow(row: ContentItemRow) {
     external_id: row.external_id,
     title,
     summary,
-    content: row.content,
     url: row.url,
     author: row.author,
     coverImage: row.cover_image ?? "",
@@ -608,37 +1233,23 @@ export function contentItemFromRow(row: ContentItemRow) {
     synced_at: row.synced_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
-    articleId,
-    articleSlug,
-    articlePublished
+    articleId: hasLinkedArticle ? row.linked_article_id : null,
+    articleSlug: hasLinkedArticle ? (row.linked_article_slug ?? "") : "",
+    articleCategory: hasLinkedArticle ? (row.linked_article_category ?? "") : "",
+    sourceHasUpdates: Boolean(
+      hasLinkedArticle &&
+        row.content_version &&
+        row.linked_article_source_version &&
+        row.content_version !== row.linked_article_source_version
+    ),
+    articlePublished:
+      hasLinkedArticle && row.linked_article_published !== undefined
+        ? row.linked_article_published === 1
+        : null
   };
 }
 
-function isValidLinkedContentItemArticle(row: ContentItemRow, title: string) {
-  if (row.linked_article_id === undefined) {
-    return Boolean(row.article_id);
-  }
-
-  if (!row.linked_article_id || !row.linked_article_slug) {
-    return false;
-  }
-
-  const articleContent = row.linked_article_content ?? "";
-
-  if (articleContent.includes(createContentItemMarker(row.id))) {
-    return true;
-  }
-
-  if ((row.linked_article_title ?? "").trim() !== title.trim()) {
-    return false;
-  }
-
-  const itemUrl = row.url.trim();
-
-  return !itemUrl || articleContent.includes(itemUrl);
-}
-
-function createContentItemMarker(id: string) {
+export function createContentItemMarker(id: string) {
   return `<!-- htools:content-item:${id} -->`;
 }
 
@@ -651,14 +1262,158 @@ export async function getDatabase(env: Env) {
   return env.DB;
 }
 
-async function ensureDatabaseSchema(db: D1Database) {
+export async function ensureDatabaseSchema(db: D1Database) {
   if (initializedDatabases.has(db)) {
     return;
   }
 
+  const pending = databaseInitializationPromises.get(db);
+  if (pending) {
+    await pending;
+    return;
+  }
+
+  const initialization = initializeDatabaseSchema(db);
+  databaseInitializationPromises.set(db, initialization);
+
+  try {
+    await initialization;
+    initializedDatabases.add(db);
+  } finally {
+    databaseInitializationPromises.delete(db);
+  }
+}
+
+const ADMIN_TURNSTILE_ENABLED_KEY = "admin_turnstile_enabled";
+
+type AdminTurnstileSettings = {
+  available: boolean;
+  enabled: boolean;
+  siteKey: string;
+};
+
+export async function getAdminTurnstileSettings(
+  env: Env
+): Promise<AdminTurnstileSettings> {
+  const siteKey = env.TURNSTILE_SITE_KEY?.trim() ?? "";
+  const secretKey = env.TURNSTILE_SECRET_KEY?.trim() ?? "";
+  const available = Boolean(siteKey && secretKey);
+  if (!available) return { available: false, enabled: false, siteKey: "" };
+
+  const db = await getDatabase(env);
+  const row = await db.prepare("SELECT value FROM app_settings WHERE key = ?")
+    .bind(ADMIN_TURNSTILE_ENABLED_KEY)
+    .first<{ value: string }>();
+  let enabled = true;
+  if (row?.value) {
+    try {
+      enabled = (JSON.parse(row.value) as { enabled?: unknown }).enabled !== false;
+    } catch {
+      enabled = true;
+    }
+  }
+  return { available, enabled, siteKey: enabled ? siteKey : "" };
+}
+
+export async function saveAdminTurnstileEnabled(env: Env, enabled: boolean) {
+  const siteKey = env.TURNSTILE_SITE_KEY?.trim() ?? "";
+  const secretKey = env.TURNSTILE_SECRET_KEY?.trim() ?? "";
+  if (enabled && !(siteKey && secretKey)) {
+    throw new InvalidRequestError("Cloudflare Turnstile environment variables are not configured.");
+  }
+  const db = await getDatabase(env);
+  await db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+  ).bind(ADMIN_TURNSTILE_ENABLED_KEY, JSON.stringify({ enabled })).run();
+  return getAdminTurnstileSettings(env);
+}
+
+export async function verifyTurnstileRequest(request: Request, env: Env, tokenValue: unknown) {
+  const settings = await getAdminTurnstileSettings(env);
+  if (!settings.enabled) return null;
+  let token = "";
+  if (typeof tokenValue === "string") token = tokenValue.trim();
+  const tokenMissing = token.length === 0;
+  if (tokenMissing) {
+    return jsonError("Cloudflare Turnstile verification is required.", "TURNSTILE_REQUIRED", {
+      status: 400
+    });
+  }
+
+  const form = new FormData();
+  form.set("secret", env.TURNSTILE_SECRET_KEY?.trim() ?? "");
+  form.set("response", token);
+  const remoteIp = request.headers.get("CF-Connecting-IP")?.trim();
+  if (remoteIp) form.set("remoteip", remoteIp);
+
+  try {
+    const response = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      { method: "POST", body: form }
+    );
+    if (!response.ok) throw new Error("Turnstile service request failed.");
+    const verification = (await response.json()) as { success?: boolean };
+    if (verification.success === true) return null;
+    return jsonError("Cloudflare Turnstile verification failed.", "TURNSTILE_FAILED", {
+      status: 403
+    });
+  } catch {
+    return jsonError(
+      "Cloudflare Turnstile verification service is unavailable.",
+      "TURNSTILE_UNAVAILABLE",
+      { status: 502 }
+    );
+  }
+}
+
+async function initializeDatabaseSchema(db: D1Database) {
+  const storedVersion = await readDatabaseSchemaVersion(db);
+  if (storedVersion === DATABASE_SCHEMA_VERSION) {
+    return;
+  }
+
+  if (storedVersion > DATABASE_SCHEMA_VERSION) {
+    throw new Error(
+      `Database schema version ${storedVersion} is newer than supported version ${DATABASE_SCHEMA_VERSION}.`
+    );
+  }
+
   await db.batch(SCHEMA_STATEMENTS.map((statement) => db.prepare(statement)));
   await ensureToolColumns(db);
-  initializedDatabases.add(db);
+  await ensureArticleColumns(db);
+  await ensureContentItemColumns(db);
+  await db.prepare(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_content_item_id
+     ON articles (content_item_id)
+     WHERE content_item_id IS NOT NULL`
+  ).run();
+  await db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(key) DO UPDATE SET
+       value = excluded.value,
+       updated_at = CURRENT_TIMESTAMP`
+  )
+    .bind(DATABASE_SCHEMA_VERSION_KEY, String(DATABASE_SCHEMA_VERSION))
+    .run();
+}
+
+async function readDatabaseSchemaVersion(db: D1Database) {
+  try {
+    const row = await db.prepare("SELECT value FROM app_settings WHERE key = ?")
+      .bind(DATABASE_SCHEMA_VERSION_KEY)
+      .first<{ value: string }>();
+    const version = Number(row?.value ?? 0);
+    return Number.isSafeInteger(version) && version >= 0 ? version : 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/no such table:\s*app_settings/i.test(message)) {
+      return 0;
+    }
+    throw error;
+  }
 }
 
 async function ensureToolColumns(db: D1Database) {
@@ -715,14 +1470,14 @@ export function validateToolPayload(payload: ToolPayload) {
   try {
     new URL(url);
   } catch {
-    throw new Error("url must be a valid URL.");
+    throw new InvalidRequestError("url must be a valid URL.");
   }
 
   if (image) {
     try {
       new URL(image);
     } catch {
-      throw new Error("image must be a valid URL.");
+      throw new InvalidRequestError("image must be a valid URL.");
     }
   }
 
@@ -730,7 +1485,7 @@ export function validateToolPayload(payload: ToolPayload) {
     try {
       new URL(demoUrl);
     } catch {
-      throw new Error("demoUrl must be a valid URL.");
+      throw new InvalidRequestError("demoUrl must be a valid URL.");
     }
   }
 
@@ -751,7 +1506,10 @@ export function validateToolPayload(payload: ToolPayload) {
 export function validateArticlePayload(payload: ArticlePayload) {
   const title = readRequiredString(payload.title, "title").slice(0, 140);
   const summary = readRequiredString(payload.summary, "summary").slice(0, 260);
-  const content = readRequiredString(payload.content, "content").slice(0, 60000);
+  const content = truncateMarkdown(
+    readRequiredString(payload.content, "content"),
+    60000
+  );
   const slug =
     typeof payload.slug === "string" && payload.slug.trim()
       ? createArticleSlug(payload.slug)
@@ -764,7 +1522,7 @@ export function validateArticlePayload(payload: ArticlePayload) {
     category.toLowerCase() === "all" ||
     category.toLowerCase() === "featured"
   ) {
-    throw new Error("category must be an article category.");
+    throw new InvalidRequestError("category must be an article category.");
   }
 
   const coverImage =
@@ -797,7 +1555,7 @@ export function validateArticlePayload(payload: ArticlePayload) {
         throw new Error();
       }
     } catch {
-      throw new Error("coverImage must be a valid URL.");
+      throw new InvalidRequestError("coverImage must be a valid URL.");
     }
   }
 
@@ -823,7 +1581,7 @@ export function validateContentSourcePayload(
   const url = normalizeHttpUrl(rawUrl);
 
   if (!url) {
-    throw new Error("url must be a valid URL.");
+    throw new InvalidRequestError("url must be a valid URL.");
   }
 
   const title = readOptionalString(payload.title).slice(0, 120);
@@ -842,7 +1600,7 @@ export function validateContentSourcePayload(
       category.toLowerCase() === "all" ||
       category.toLowerCase() === "featured")
   ) {
-    throw new Error("category must be a content category.");
+    throw new InvalidRequestError("category must be a content category.");
   }
   const tagValues = Array.isArray(payload.tags)
     ? payload.tags
@@ -867,32 +1625,302 @@ export function validateContentSourcePayload(
   };
 }
 
+const FEED_REQUEST_TIMEOUT_MS = 15_000;
+const FEED_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const FEED_MAX_REDIRECTS = 5;
+
 export async function fetchFeedPreview(feedUrl: string): Promise<ParsedFeed> {
-  const url = normalizeHttpUrl(feedUrl);
+  const url = normalizeSafeFeedUrl(feedUrl);
 
   if (!url) {
-    throw new Error("Feed URL must be a valid URL.");
+    throw new InvalidRequestError("Feed URL is not allowed.");
   }
 
-  const response = await fetch(url, {
-    headers: {
-      Accept:
-        "application/atom+xml, application/rss+xml, application/xml, text/xml, */*"
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Feed request failed with status ${response.status}.`);
-  }
-
-  const xml = await response.text();
-  const parsed = parseFeedXml(xml, url);
+  const response = await fetchFeedText(url);
+  const parsed = parseFeedXml(response.text, response.finalUrl);
 
   if (!parsed.items.length) {
-    throw new Error("No feed items found.");
+    throw new UpstreamServiceError("No feed items found.");
   }
 
   return parsed;
+}
+
+async function ensureArticleColumns(db: D1Database) {
+  const columns = await db.prepare("PRAGMA table_info(articles)").all<{ name: string }>();
+  const existing = new Set(columns.results.map((column) => column.name));
+  const statements = ARTICLE_COLUMN_STATEMENTS
+    .filter((column) => !existing.has(column.name))
+    .map((column) => db.prepare(column.statement));
+
+  if (statements.length) {
+    await db.batch(statements);
+  }
+}
+
+async function ensureContentItemColumns(db: D1Database) {
+  const columns = await db.prepare("PRAGMA table_info(content_items)").all<{ name: string }>();
+  const existing = new Set(columns.results.map((column) => column.name));
+  const statements = CONTENT_ITEM_COLUMN_STATEMENTS
+    .filter((column) => !existing.has(column.name))
+    .map((column) => db.prepare(column.statement));
+
+  if (statements.length) {
+    await db.batch(statements);
+  }
+}
+
+async function fetchFeedText(initialUrl: string) {
+  let currentUrl = initialUrl;
+  const deadline = Date.now() + FEED_REQUEST_TIMEOUT_MS;
+
+  for (let redirectCount = 0; redirectCount <= FEED_MAX_REDIRECTS; redirectCount += 1) {
+    const remainingTime = deadline - Date.now();
+    if (remainingTime <= 0) {
+      throw new UpstreamServiceError("Feed request timed out.");
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), remainingTime);
+
+    try {
+      const response = await fetch(currentUrl, {
+        headers: {
+          Accept:
+            "application/atom+xml, application/rss+xml, application/xml, text/xml, text/plain;q=0.9, */*;q=0.5"
+        },
+        redirect: "manual",
+        signal: controller.signal
+      });
+
+      if (isRedirectStatus(response.status)) {
+        const location = response.headers.get("location");
+        if (!location) {
+          throw new UpstreamServiceError(`Feed request failed with status ${response.status}.`);
+        }
+        if (redirectCount >= FEED_MAX_REDIRECTS) {
+          throw new UpstreamServiceError("Feed redirected too many times.");
+        }
+
+        let redirectedUrl = "";
+        try {
+          redirectedUrl = new URL(location, currentUrl).toString();
+        } catch {
+          throw new UpstreamServiceError("Feed redirect URL is not allowed.");
+        }
+        const nextUrl = normalizeSafeFeedUrl(redirectedUrl);
+        if (!nextUrl) {
+          throw new UpstreamServiceError("Feed redirect URL is not allowed.");
+        }
+        currentUrl = nextUrl;
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new UpstreamServiceError(`Feed request failed with status ${response.status}.`);
+      }
+      if (!isSupportedFeedContentType(response.headers.get("content-type"))) {
+        throw new UpstreamServiceError("Feed response type is not supported.");
+      }
+
+      const contentLength = readPositiveContentLength(response.headers);
+      if (contentLength !== null && contentLength > FEED_MAX_RESPONSE_BYTES) {
+        throw new UpstreamServiceError("Feed response is too large.");
+      }
+
+      return {
+        text: await readLimitedResponseText(response, FEED_MAX_RESPONSE_BYTES),
+        finalUrl: currentUrl
+      };
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new UpstreamServiceError("Feed request timed out.");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw new UpstreamServiceError("Feed redirected too many times.");
+}
+
+function isRedirectStatus(status: number) {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+function isSupportedFeedContentType(value: string | null) {
+  if (!value) return true;
+  const type = value.split(";", 1)[0].trim().toLowerCase();
+  return (
+    type.startsWith("text/") ||
+    type.includes("xml") ||
+    type.includes("rss") ||
+    type.includes("atom") ||
+    type === "application/octet-stream"
+  );
+}
+
+function readPositiveContentLength(headers: Headers) {
+  const value = Number(headers.get("content-length"));
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+async function readLimitedResponseText(response: Response, maximumBytes: number) {
+  if (!response.body) {
+    throw new UpstreamServiceError("Feed response body is empty.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let text = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    totalBytes += value.byteLength;
+    if (totalBytes > maximumBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new UpstreamServiceError("Feed response is too large.");
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+
+  text += decoder.decode();
+  if (!text.trim()) {
+    throw new UpstreamServiceError("Feed response body is empty.");
+  }
+  return text;
+}
+
+function normalizeSafeFeedUrl(value: string) {
+  const normalized = normalizeHttpUrl(value);
+  if (!normalized) return "";
+
+  try {
+    const url = new URL(normalized);
+    if (url.username || url.password || isBlockedFeedHostname(url.hostname)) {
+      return "";
+    }
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function isBlockedFeedHostname(value: string) {
+  const hostname = value.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    hostname.endsWith(".internal") ||
+    hostname.endsWith(".lan")
+  ) {
+    return true;
+  }
+  return hostname.includes(":")
+    ? isBlockedFeedIpv6(hostname)
+    : isBlockedFeedIpv4(hostname);
+}
+
+function isBlockedFeedIpv4(hostname: string) {
+  const bytes = readFeedIpv4Bytes(hostname);
+  if (!bytes) return false;
+  return isBlockedFeedIpv4Bytes(bytes);
+}
+
+function readFeedIpv4Bytes(hostname: string) {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return null;
+  const bytes = parts.map((part) => (/^\d+$/.test(part) ? Number(part) : Number.NaN));
+  if (bytes.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return null;
+  }
+  return bytes as [number, number, number, number];
+}
+
+function isBlockedFeedIpv4Bytes(bytes: [number, number, number, number]) {
+  const [a, b, c] = bytes as [number, number, number, number];
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    a >= 224
+  );
+}
+
+function isBlockedFeedIpv6(hostname: string) {
+  const words = parseFeedIpv6Words(hostname);
+  if (!words) return true;
+
+  const [first, second, third] = words;
+  const isUnspecified = words.every((word) => word === 0);
+  const isLoopback = words.slice(0, 7).every((word) => word === 0) && words[7] === 1;
+  if (isUnspecified || isLoopback) return true;
+
+  // Only globally routable unicast literals are useful as public feed hosts.
+  if ((first & 0xe000) !== 0x2000) return true;
+  if (first === 0x2001 && second === 0x0000) return true; // Teredo
+  if (first === 0x2001 && second === 0x0002) return true; // Benchmarking
+  if (first === 0x2001 && (second & 0xfff0) === 0x0010) return true; // ORCHIDv1
+  if (first === 0x2001 && (second & 0xfff0) === 0x0020) return true; // ORCHIDv2
+  if (first === 0x2001 && second === 0x0db8) return true; // Documentation
+  if ((first & 0xfff0) === 0x3fff) return true; // Documentation
+
+  if (first === 0x2002) {
+    return isBlockedFeedIpv4Bytes([
+      second >> 8,
+      second & 0xff,
+      third >> 8,
+      third & 0xff
+    ]);
+  }
+
+  return false;
+}
+
+function parseFeedIpv6Words(hostname: string) {
+  const sections = hostname.split("::");
+  if (sections.length > 2) return null;
+
+  const readSection = (section: string) => {
+    if (!section) return [] as number[];
+    const parts = section.split(":");
+    const words: number[] = [];
+    for (const part of parts) {
+      if (part.includes(".")) {
+        const bytes = readFeedIpv4Bytes(part);
+        if (!bytes) return null;
+        words.push((bytes[0] << 8) | bytes[1], (bytes[2] << 8) | bytes[3]);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/i.test(part)) return null;
+      words.push(Number.parseInt(part, 16));
+    }
+    return words;
+  };
+
+  const leading = readSection(sections[0]);
+  const trailing = readSection(sections[1] ?? "");
+  if (!leading || !trailing) return null;
+  if (sections.length === 1) {
+    return leading.length === 8 ? leading : null;
+  }
+
+  const missing = 8 - leading.length - trailing.length;
+  if (missing < 1) return null;
+  return [...leading, ...Array<number>(missing).fill(0), ...trailing];
 }
 
 export async function syncContentSource(db: D1Database, sourceId: string) {
@@ -901,11 +1929,11 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
     .first<ContentSourceRow>();
 
   if (!source) {
-    throw new Error("Content source not found.");
+    throw new InvalidRequestError("Content source not found.");
   }
 
   if (!source.category.trim()) {
-    throw new Error("Content source category is required.");
+    throw new InvalidRequestError("Content source category is required.");
   }
 
   const feed = await fetchFeedPreview(source.url);
@@ -913,106 +1941,171 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
   let imported = 0;
   let updated = 0;
   const sourceTags = safelyParseTags(source.tags);
-
-  await db.prepare(
-    `UPDATE content_sources
-     SET site_url = ?, description = ?, updated_at = ?, last_synced_at = ?
-     WHERE id = ?`
-  )
-    .bind(
+  const syncItems = Array.from(
+    new Map(
+      feed.items.slice(0, 50).map((item) => [item.externalId, item])
+    ).values()
+  );
+  const externalIds = Array.from(new Set(syncItems.map((item) => item.externalId)));
+  const existingRows = externalIds.length
+    ? await db.prepare(
+        `SELECT content_items.id, content_items.external_id,
+                content_items.title, content_items.summary, content_items.content,
+                content_items.url, content_items.article_id,
+                articles.source_content_version AS article_source_content_version
+         FROM content_items
+         LEFT JOIN articles ON articles.id = content_items.article_id
+         WHERE source_id = ?
+           AND external_id IN (${externalIds.map(() => "?").join(", ")})`
+      )
+        .bind(source.id, ...externalIds)
+        .all<{
+          id: string;
+          external_id: string;
+          title: string;
+          summary: string;
+          content: string;
+          url: string;
+          article_id: string | null;
+          article_source_content_version: string | null;
+        }>()
+    : { results: [] };
+  const existingByExternalId = new Map(
+    existingRows.results.map((row) => [row.external_id, row])
+  );
+  const statements: D1PreparedStatement[] = [
+    db.prepare(
+      `UPDATE content_sources
+       SET site_url = ?, description = ?, updated_at = ?, last_synced_at = ?
+       WHERE id = ?`
+    ).bind(
       source.site_url || feed.siteUrl,
       source.description || feed.description,
       now,
       now,
       source.id
     )
-    .run();
+  ];
+  const upsertRows: Array<Array<string | number | null>> = [];
 
-  for (const item of feed.items.slice(0, 50)) {
-    const existing = await db.prepare(
-      "SELECT id FROM content_items WHERE source_id = ? AND external_id = ?"
-    )
-      .bind(source.id, item.externalId)
-      .first<{ id: string }>();
+  for (const item of syncItems) {
+    const existingRow = existingByExternalId.get(item.externalId);
+    const existingId = existingRow?.id;
     const tags = normalizeContentTags([...sourceTags, ...item.tags]);
+    const id = existingId ?? createContentItemId();
+    const contentVersion = createContentVersion(
+      `${item.content || item.summary || item.title}\n\u0000${item.url}`
+    );
 
-    if (existing) {
-      await db.prepare(
-        `UPDATE content_items
-         SET title = ?, summary = ?, content = ?, url = ?, author = ?,
-             cover_image = ?, category = ?, tags = ?,
-             published_at = ?, synced_at = ?, updated_at = ?
-         WHERE id = ?`
-      )
-        .bind(
-          item.title,
-          item.summary,
-          item.content,
-          item.url,
-          item.author,
-          item.coverImage,
-          source.category,
-          JSON.stringify(tags),
-          item.publishedAt,
-          now,
-          now,
-          existing.id
-        )
-        .run();
+    if (
+      existingRow?.article_id &&
+      !existingRow.article_source_content_version
+    ) {
+      const previousVersion = createContentVersion(
+        `${existingRow.content || existingRow.summary || existingRow.title}\n\u0000${existingRow.url}`
+      );
+      statements.push(
+        db.prepare(
+          `UPDATE articles
+           SET source_content_version = ?
+           WHERE id = ? AND source_content_version = ''`
+        ).bind(previousVersion, existingRow.article_id)
+      );
+    }
+
+    upsertRows.push([
+      id,
+      source.id,
+      item.externalId,
+      item.title,
+      item.summary,
+      item.content,
+      item.url,
+      item.author,
+      item.coverImage,
+      source.category,
+      JSON.stringify(tags),
+      contentVersion,
+      item.publishedAt,
+      now,
+      now,
+      now
+    ]);
+
+    if (existingId) {
       updated += 1;
     } else {
-      await db.prepare(
-        `INSERT INTO content_items
-          (id, source_id, external_id, title, summary, content, url, author,
-           cover_image, category, tags, published_at, synced_at,
-           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-        .bind(
-          createContentItemId(),
-          source.id,
-          item.externalId,
-          item.title,
-          item.summary,
-          item.content,
-          item.url,
-          item.author,
-          item.coverImage,
-          source.category,
-          JSON.stringify(tags),
-          item.publishedAt,
-          now,
-          now,
-          now
-        )
-        .run();
       imported += 1;
+      existingByExternalId.set(item.externalId, {
+        id,
+        external_id: item.externalId,
+        title: item.title,
+        summary: item.summary,
+        content: item.content,
+        url: item.url,
+        article_id: null,
+        article_source_content_version: null
+      });
     }
   }
 
+  const upsertBatchSize = 6;
+  for (let index = 0; index < upsertRows.length; index += upsertBatchSize) {
+    const rows = upsertRows.slice(index, index + upsertBatchSize);
+    const placeholders = rows
+      .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .join(", ");
+    statements.push(
+      db.prepare(
+        `INSERT INTO content_items
+          (id, source_id, external_id, title, summary, content, url, author,
+           cover_image, category, tags, content_version, published_at, synced_at,
+           created_at, updated_at)
+         VALUES ${placeholders}
+         ON CONFLICT(source_id, external_id) DO UPDATE SET
+           title = excluded.title,
+           summary = excluded.summary,
+           content = excluded.content,
+           url = excluded.url,
+           author = excluded.author,
+           cover_image = excluded.cover_image,
+           category = excluded.category,
+           tags = excluded.tags,
+           content_version = excluded.content_version,
+           published_at = excluded.published_at,
+           synced_at = excluded.synced_at,
+           updated_at = excluded.updated_at`
+      ).bind(...rows.flat())
+    );
+  }
+
+  await db.batch(statements);
+
+  const syncResultLimit = 50;
   const rows = await db.prepare(
-    `SELECT content_items.*, content_sources.title AS source_title,
-            content_sources.url AS source_url,
-            articles.id AS linked_article_id,
-            articles.slug AS linked_article_slug,
-            articles.title AS linked_article_title,
-            articles.content AS linked_article_content,
-            articles.published AS linked_article_published
+    `SELECT ${CONTENT_ITEM_SUMMARY_COLUMNS}
      FROM content_items
      JOIN content_sources ON content_sources.id = content_items.source_id
      LEFT JOIN articles ON articles.id = content_items.article_id
      WHERE source_id = ?
-     ORDER BY COALESCE(content_items.published_at, content_items.updated_at, content_items.created_at) DESC
-     LIMIT 50`
+     ORDER BY COALESCE(content_items.published_at, content_items.updated_at, content_items.created_at) DESC,
+              content_items.id DESC
+     LIMIT ?`
   )
-    .bind(source.id)
-    .all<ContentItemRow>();
+    .bind(source.id, syncResultLimit + 1)
+    .all<ContentItemSummaryRow>();
+  const hasMore = rows.results.length > syncResultLimit;
+  const items = rows.results.slice(0, syncResultLimit);
 
   return {
     imported,
     updated,
     total: feed.items.length,
-    items: rows.results.map(contentItemFromRow)
+    items: items.map(contentItemSummaryFromRow),
+    limit: syncResultLimit,
+    offset: 0,
+    hasMore,
+    nextOffset: hasMore ? syncResultLimit : null
   };
 }
 
@@ -1030,7 +2123,7 @@ function readOptionalDateString(value: unknown, fieldName: string) {
   const timestamp = Date.parse(trimmed);
 
   if (!Number.isFinite(timestamp)) {
-    throw new Error(`${fieldName} must be a valid date.`);
+    throw new InvalidRequestError(`${fieldName} must be a valid date.`);
   }
 
   return new Date(timestamp).toISOString();
@@ -1473,6 +2566,49 @@ function convertHtmlCodeBlocks(value: string) {
   return convertHtmlPreCodeBlocks(convertHtmlCodeFigures(value));
 }
 
+function convertHtmlLists(value: string) {
+  let converted = value;
+
+  for (let pass = 0; pass < 24; pass += 1) {
+    let changed = false;
+    converted = converted.replace(
+      /<(ul|ol)\b[^>]*>((?:(?!<(?:ul|ol)\b)[\s\S])*?)<\/\1>/gi,
+      (_, type: string, inner: string) => {
+        changed = true;
+        const items = Array.from(
+          inner.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi),
+          (match) => match[1]
+        );
+
+        const markdownList = items
+          .map((item, index) => {
+            const prefix = type.toLowerCase() === "ol" ? `${index + 1}. ` : "- ";
+            const content = item
+              .replace(/<\/?p\b[^>]*>/gi, "")
+              .replace(/<br\s*\/?>/gi, "\n")
+              .trim();
+            const lines = content.split("\n");
+            return `${prefix}${lines[0]}${
+              lines.length > 1
+                ? `\n${lines
+                    .slice(1)
+                    .map((line) => `${" ".repeat(prefix.length)}${line}`)
+                    .join("\n")}`
+                : ""
+            }`;
+          })
+          .join("\n");
+
+        return `\n${markdownList}\n`;
+      }
+    );
+
+    if (!changed) break;
+  }
+
+  return converted;
+}
+
 function convertHtmlImages(value: string, baseUrl: string) {
   const withLinkedImages = value.replace(
     /<a\b[^>]*href=["']([^"']+)["'][^>]*>\s*(<img\b[^>]*>)\s*<\/a>/gi,
@@ -1483,7 +2619,7 @@ function convertHtmlImages(value: string, baseUrl: string) {
         return "";
       }
 
-      const link = resolveUrl(href.trim(), baseUrl) || href.trim();
+      const link = resolveMarkdownLink(href, baseUrl);
 
       if (!link || isSearchTagHref(link)) {
         return imageMarkdown;
@@ -1505,9 +2641,9 @@ function createMarkdownImage(imageTag: string, baseUrl: string) {
     readXmlAttribute(attrs, "data-src") ||
     readXmlAttribute(attrs, "data-original") ||
     readXmlAttribute(attrs, "data-lazy-src");
-  const src = resolveUrl(rawSrc, baseUrl) || rawSrc.trim();
+  const src = resolveMarkdownImage(rawSrc, baseUrl);
 
-  if (!src || /^(?:javascript|vbscript):/i.test(src)) {
+  if (!src) {
     return "";
   }
 
@@ -1527,7 +2663,7 @@ function cleanMarkdownImageAlt(value: string) {
   return cleaned.length > 80 ? "" : cleaned;
 }
 
-function convertHtmlTables(value: string) {
+function convertHtmlTables(value: string, baseUrl: string) {
   return value.replace(
     /<table\b[^>]*>([\s\S]*?)<\/table>/gi,
     (_, tableHtml: string) => {
@@ -1536,7 +2672,7 @@ function convertHtmlTables(value: string) {
         (rowMatch) =>
           Array.from(
             rowMatch[1].matchAll(/<t[hd]\b[^>]*>([\s\S]*?)<\/t[hd]>/gi),
-            (cellMatch) => cleanMarkdownTableCell(cellMatch[1])
+            (cellMatch) => cleanMarkdownTableCell(cellMatch[1], baseUrl)
           )
       ).filter((row) => row.some((cell) => cell.length > 0));
 
@@ -1566,7 +2702,7 @@ function createMarkdownTableRow(cells: string[]) {
   return `| ${cells.join(" | ")} |`;
 }
 
-function cleanMarkdownTableCell(value: string) {
+function cleanMarkdownTableCell(value: string, baseUrl: string) {
   return decodeXmlEntities(
     value
       .replace(/<br\s*\/?>/gi, " ")
@@ -1574,7 +2710,7 @@ function cleanMarkdownTableCell(value: string) {
         /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
         (_, href: string, label: string) => {
           const text = cleanDisplayText(label);
-          const link = href.trim();
+          const link = resolveMarkdownLink(href, baseUrl);
 
           if (!text) {
             return "";
@@ -1679,11 +2815,19 @@ function createMarkdownCodeBlock(code: string, language: string) {
   return `\n\n${fence}${normalizedLanguage}\n${cleanedCode}\n${fence}\n\n`;
 }
 
-function htmlToMarkdown(value: string, baseUrl: string) {
-  const cleaned = convertHtmlImages(
-    convertHtmlTables(convertHtmlCodeBlocks(cleanXmlValue(value))),
-    baseUrl
-  )
+export function htmlToMarkdown(value: string, baseUrl: string) {
+  const codeBlocks: string[] = [];
+  const codeProtected = convertHtmlCodeBlocks(cleanXmlMarkupValue(value)).replace(
+    /(`{3,})[^\n]*\n[\s\S]*?\n\1/g,
+    (block) => {
+      const index = codeBlocks.push(block) - 1;
+      return `@@HTOOLS_HTML_CODE_BLOCK_${index}@@`;
+    }
+  );
+  const converted = convertHtmlLists(
+    convertHtmlImages(convertHtmlTables(codeProtected, baseUrl), baseUrl)
+  );
+  const cleaned = converted
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<a\b[^>]*class=["'][^"']*\bheaderlink\b[^"']*["'][^>]*>\s*<\/a>/gi, "")
@@ -1693,19 +2837,22 @@ function htmlToMarkdown(value: string, baseUrl: string) {
     .replace(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi, "\n# $1\n\n")
     .replace(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi, "\n## $1\n\n")
     .replace(/<h3\b[^>]*>([\s\S]*?)<\/h3>/gi, "\n### $1\n\n")
-    .replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, "\n- $1")
+    .replace(/<h4\b[^>]*>([\s\S]*?)<\/h4>/gi, "\n#### $1\n\n")
+    .replace(/<h5\b[^>]*>([\s\S]*?)<\/h5>/gi, "\n##### $1\n\n")
+    .replace(/<h6\b[^>]*>([\s\S]*?)<\/h6>/gi, "\n###### $1\n\n")
+    .replace(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/gi, "\n\n*$1*\n\n")
     .replace(/<blockquote\b[^>]*>([\s\S]*?)<\/blockquote>/gi, "\n> $1\n\n")
     .replace(
       /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
       (_, href: string, label: string) => {
         const text = cleanDisplayText(label);
-        const link = href.trim();
+        const link = resolveMarkdownLink(href, baseUrl);
 
         if (!text) {
           return "";
         }
 
-        if (isSearchTagHref(link)) {
+        if (!link || isSearchTagHref(link)) {
           return text;
         }
 
@@ -1714,25 +2861,135 @@ function htmlToMarkdown(value: string, baseUrl: string) {
     )
     .replace(/<strong\b[^>]*>([\s\S]*?)<\/strong>/gi, "**$1**")
     .replace(/<b\b[^>]*>([\s\S]*?)<\/b>/gi, "**$1**")
+    .replace(/<em\b[^>]*>([\s\S]*?)<\/em>/gi, "_$1_")
+    .replace(/<i\b[^>]*>([\s\S]*?)<\/i>/gi, "_$1_")
+    .replace(/<del\b[^>]*>([\s\S]*?)<\/del>/gi, "~~$1~~")
+    .replace(/<s\b[^>]*>([\s\S]*?)<\/s>/gi, "~~$1~~")
     .replace(/<code\b[^>]*>([\s\S]*?)<\/code>/gi, "`$1`")
     .replace(/<[^>]+>/g, "")
     .replace(/\n{3,}/g, "\n\n")
+    .replace(/@@HTOOLS_HTML_CODE_BLOCK_(\d+)@@/g, (_, index: string) =>
+      codeBlocks[Number(index)] ?? ""
+    )
     .trim();
 
-  return normalizeMarkdownSpacing(decodeXmlEntities(cleaned))
-    .trim()
-    .slice(0, 60000);
+  return truncateMarkdown(
+    normalizeMarkdownSpacing(decodeXmlEntities(cleaned)).trim(),
+    60000
+  );
+}
+
+export function truncateMarkdown(value: string, maxLength: number) {
+  const normalized = value.trim();
+  if (normalized.length <= maxLength) return normalized;
+
+  const minimumBoundary = Math.floor(maxLength * 0.8);
+  const candidate = normalized.slice(0, maxLength);
+  const boundary = [
+    candidate.lastIndexOf("\n\n"),
+    candidate.lastIndexOf("\n"),
+    candidate.lastIndexOf(" ")
+  ].find((index) => index >= minimumBoundary);
+  let truncated = candidate.slice(0, boundary ?? maxLength).trimEnd();
+  let activeFence = "";
+  for (const line of truncated.split("\n")) {
+    const fenceLine = line.match(/^(`{3,})(.*)$/);
+    if (!fenceLine) continue;
+
+    if (!activeFence) {
+      activeFence = fenceLine[1];
+    } else if (
+      fenceLine[2].trim() === "" &&
+      fenceLine[1].length >= activeFence.length
+    ) {
+      activeFence = "";
+    }
+  }
+
+  if (activeFence) {
+    const suffix = `\n${activeFence}`;
+    truncated = truncated.slice(0, Math.max(0, maxLength - suffix.length)).trimEnd();
+    truncated += suffix;
+  }
+
+  return truncated;
+}
+
+export function buildContentItemArticleContent({
+  body,
+  contentItemId,
+  originalUrl,
+  maxLength = 60000
+}: {
+  body: string;
+  contentItemId?: string;
+  originalUrl: string;
+  maxLength?: number;
+}) {
+  const normalizedBody = body.trim();
+  const marker = contentItemId ? createContentItemMarker(contentItemId) : "";
+  const normalizedUrl = normalizeOriginalArticleUrl(originalUrl);
+  const hasOriginalUrl = Boolean(
+    normalizedUrl &&
+      (normalizedBody.includes(normalizedUrl) ||
+        normalizedBody.includes(originalUrl.trim()))
+  );
+  const suffixParts = [
+    marker && !normalizedBody.includes(marker) ? marker : "",
+    normalizedUrl && !hasOriginalUrl
+      ? `## \u539f\u6587\u94fe\u63a5\n\n[\u9605\u8bfb\u539f\u6587](${normalizedUrl})`
+      : ""
+  ].filter(Boolean);
+  const suffix = suffixParts.join("\n\n");
+  const separatorLength = normalizedBody && suffix ? 2 : 0;
+  const bodyLimit = Math.max(0, maxLength - suffix.length - separatorLength);
+  const safeBody = truncateMarkdown(normalizedBody, bodyLimit);
+
+  return [safeBody, suffix].filter(Boolean).join("\n\n").slice(0, maxLength);
+}
+
+export function createContentVersion(value: string) {
+  const normalized = value.replace(/\r\n?/g, "\n").trim();
+  let first = 2166136261;
+  let second = 2246822519;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const code = normalized.charCodeAt(index);
+    first = Math.imul(first ^ code, 16777619);
+    second = Math.imul(second ^ code, 3266489917);
+  }
+
+  return `${(first >>> 0).toString(16).padStart(8, "0")}${
+    (second >>> 0).toString(16).padStart(8, "0")
+  }`;
+}
+
+function normalizeOriginalArticleUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 2048) return "";
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return url.toString().replace(/\(/g, "%28").replace(/\)/g, "%29");
+  } catch {
+    return "";
+  }
 }
 
 function normalizeMarkdownSpacing(value: string) {
   const codeBlocks: string[] = [];
+  const listIndents: string[] = [];
   const protectedValue = value.replace(
     /(`{3,})[^\n]*\n[\s\S]*?\n\1/g,
     (block) => {
       const index = codeBlocks.push(block) - 1;
       return `@@HTOOLS_CODE_BLOCK_${index}@@`;
     }
-  );
+  ).replace(/^( {2,})(?=(?:[-*+] |\d+\. ))/gm, (indent) => {
+    const index = listIndents.push(indent) - 1;
+    return `@@HTOOLS_LIST_INDENT_${index}@@`;
+  });
 
   return protectedValue
     .replace(
@@ -1747,6 +3004,9 @@ function normalizeMarkdownSpacing(value: string) {
     .replace(/\n{3,}/g, "\n\n")
     .replace(/@@HTOOLS_CODE_BLOCK_(\d+)@@/g, (_, index: string) => {
       return codeBlocks[Number(index)] ?? "";
+    })
+    .replace(/@@HTOOLS_LIST_INDENT_(\d+)@@/g, (_, index: string) => {
+      return listIndents[Number(index)] ?? "";
     });
 }
 
@@ -1840,7 +3100,7 @@ export async function requireAdmin(request: Request, env: Env) {
   const token = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
 
   if (!token || !(await verifyToken(token, env))) {
-    return json({ error: "Unauthorized." }, { status: 401 });
+    return jsonError("Unauthorized.", "UNAUTHORIZED", { status: 401 });
   }
 
   return null;
@@ -1993,7 +3253,7 @@ export async function saveGitHubSettings(
 
   if (next.enabled) {
     if (!next.clientId || !next.clientSecret || !next.owner || !next.repo) {
-      throw new Error(
+      throw new InvalidRequestError(
         "clientId, clientSecret, owner, and repo are required when GitHub submissions are enabled."
       );
     }
@@ -2154,7 +3414,7 @@ export async function saveProxySettings(
       : "";
 
   if (enabled && !baseUrl) {
-    throw new Error("proxy base URL is required when proxy is enabled.");
+    throw new InvalidRequestError("proxy base URL is required when proxy is enabled.");
   }
 
   const settings = {
@@ -2193,14 +3453,17 @@ export async function getSiteSettings(env: Env): Promise<SiteSettings> {
   }
 }
 
-export async function saveSiteSettings(
+async function writeSiteSettings(
   env: Env,
   payload: {
     name?: unknown;
     subtitle?: unknown;
     iconUrl?: unknown;
     aboutContent?: unknown;
+    privacyContent?: unknown;
+    termsContent?: unknown;
     footer?: unknown;
+    homeHero?: unknown;
   }
 ) {
   const db = await getDatabase(env);
@@ -2208,16 +3471,18 @@ export async function saveSiteSettings(
     name: typeof payload.name === "string" ? payload.name : "",
     subtitle: typeof payload.subtitle === "string" ? payload.subtitle : "",
     iconUrl: typeof payload.iconUrl === "string" ? payload.iconUrl : "",
-    aboutContent:
-      typeof payload.aboutContent === "string" ? payload.aboutContent : undefined,
+    aboutContent: payload.aboutContent,
+    privacyContent: payload.privacyContent,
+    termsContent: payload.termsContent,
     footer:
       typeof payload.footer === "object" && payload.footer !== null
         ? (payload.footer as Partial<FooterSettings>)
-        : undefined
+        : undefined,
+    homeHero: payload.homeHero
   });
 
   if (typeof payload.iconUrl === "string" && payload.iconUrl.trim() && !settings.iconUrl) {
-    throw new Error("site icon must be a valid http/https URL or supported image data.");
+    throw new InvalidRequestError("site icon must be a valid http/https URL or supported image data.");
   }
 
   await db.prepare(
@@ -2229,6 +3494,134 @@ export async function saveSiteSettings(
     .run();
 
   return settings;
+}
+
+export async function getUmamiSettings(env: Env): Promise<UmamiSettings> {
+  const db = await getDatabase(env);
+  const row = await db.prepare("SELECT value FROM app_settings WHERE key = ?")
+    .bind(UMAMI_SETTINGS_KEY)
+    .first<{ value: string }>();
+
+  if (!row) {
+    return { enabled: false, scriptUrl: "", websiteId: "" };
+  }
+
+  try {
+    const parsed = JSON.parse(row.value) as Partial<UmamiSettings>;
+    const scriptUrl = normalizeUmamiScriptUrl(parsed.scriptUrl);
+    const websiteId = normalizeUmamiWebsiteId(parsed.websiteId);
+
+    return {
+      enabled: parsed.enabled === true && Boolean(scriptUrl && websiteId),
+      scriptUrl,
+      websiteId
+    };
+  } catch {
+    return { enabled: false, scriptUrl: "", websiteId: "" };
+  }
+}
+
+export async function saveUmamiSettings(
+  env: Env,
+  payload: {
+    enabled?: unknown;
+    scriptUrl?: unknown;
+    websiteId?: unknown;
+  }
+) {
+  const db = await getDatabase(env);
+  const enabled = payload.enabled === true;
+  const rawScriptUrl =
+    typeof payload.scriptUrl === "string" ? payload.scriptUrl.trim() : "";
+  const rawWebsiteId =
+    typeof payload.websiteId === "string" ? payload.websiteId.trim() : "";
+  const scriptUrl = normalizeUmamiScriptUrl(rawScriptUrl);
+  const websiteId = normalizeUmamiWebsiteId(rawWebsiteId);
+
+  if (rawScriptUrl && !scriptUrl) {
+    throw new InvalidRequestError(
+      "Umami script URL must be a valid http/https URL."
+    );
+  }
+
+  if (rawWebsiteId.length > 200) {
+    throw new InvalidRequestError("Umami Website ID is too long.");
+  }
+
+  if (enabled && (!scriptUrl || !websiteId)) {
+    throw new InvalidRequestError(
+      "Umami script URL and Website ID are required when analytics is enabled."
+    );
+  }
+
+  const settings = { enabled, scriptUrl, websiteId } satisfies UmamiSettings;
+
+  await db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`
+  )
+    .bind(UMAMI_SETTINGS_KEY, JSON.stringify(settings))
+    .run();
+
+  return settings;
+}
+
+export async function patchSiteSettings(env: Env, payload: SiteSettingsPatch) {
+  const current = await getSiteSettings(env);
+
+  if (payload.section === "identity") {
+    return writeSiteSettings(env, {
+      ...current,
+      name: payload.name,
+      subtitle: payload.subtitle,
+      iconUrl: payload.iconUrl
+    });
+  }
+
+  if (payload.section === "about") {
+    assertLocalizedMarkdownContent(payload.aboutContent, "about content");
+    return writeSiteSettings(env, {
+      ...current,
+      aboutContent: payload.aboutContent
+    });
+  }
+
+  if (payload.section === "privacy") {
+    assertLocalizedLegalContent(payload.privacyContent, "privacy content");
+    return writeSiteSettings(env, {
+      ...current,
+      privacyContent: payload.privacyContent
+    });
+  }
+
+  if (payload.section === "terms") {
+    assertLocalizedLegalContent(payload.termsContent, "terms content");
+    return writeSiteSettings(env, {
+      ...current,
+      termsContent: payload.termsContent
+    });
+  }
+
+  if (payload.section === "home") {
+    return writeSiteSettings(env, {
+      ...current,
+      homeHero: payload.homeHero
+    });
+  }
+
+  if (payload.section === "footer") {
+    if (typeof payload.footer !== "object" || payload.footer === null) {
+      throw new InvalidRequestError("footer is required.");
+    }
+
+    return writeSiteSettings(env, {
+      ...current,
+      footer: payload.footer
+    });
+  }
+
+  throw new InvalidRequestError("site settings section is invalid.");
 }
 
 export function proxifyUrl(
@@ -2272,7 +3665,10 @@ function normalizeSiteSettings(value: {
   subtitle?: unknown;
   iconUrl?: unknown;
   aboutContent?: unknown;
+  privacyContent?: unknown;
+  termsContent?: unknown;
   footer?: unknown;
+  homeHero?: unknown;
 }): SiteSettings {
   const name =
     typeof value.name === "string" && value.name.trim()
@@ -2291,12 +3687,79 @@ function normalizeSiteSettings(value: {
     name,
     subtitle,
     iconUrl,
-    aboutContent:
-      typeof value.aboutContent === "string" && value.aboutContent.trim()
-        ? value.aboutContent.trim().slice(0, 60000)
-        : DEFAULT_SITE_SETTINGS.aboutContent,
-    footer: normalizeFooterSettings(value.footer)
+    aboutContent: normalizeLocalizedAboutContent(value.aboutContent),
+    privacyContent: normalizeLocalizedLegalContent(value.privacyContent),
+    termsContent: normalizeLocalizedLegalContent(value.termsContent),
+    footer: normalizeFooterSettings(value.footer),
+    homeHero: normalizeHomeHeroSettings(value.homeHero)
   };
+}
+
+function normalizeLocalizedLegalContent(value: unknown): LocalizedLegalContent {
+  const source =
+    typeof value === "object" && value !== null
+      ? (value as Partial<LocalizedLegalContent>)
+      : {};
+
+  return {
+    zh: typeof source.zh === "string" ? source.zh.trim().slice(0, 60000) : "",
+    en: typeof source.en === "string" ? source.en.trim().slice(0, 60000) : ""
+  };
+}
+
+function normalizeLocalizedAboutContent(value: unknown): LocalizedMarkdownContent {
+  if (typeof value === "string") {
+    return {
+      zh: value.trim().slice(0, 60000),
+      en: ""
+    };
+  }
+
+  return normalizeLocalizedLegalContent(value);
+}
+
+function assertLocalizedLegalContent(value: unknown, label: string): asserts value is LocalizedLegalContent {
+  assertLocalizedMarkdownContent(value, label);
+}
+
+function assertLocalizedMarkdownContent(value: unknown, label: string): asserts value is LocalizedMarkdownContent {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    typeof (value as Partial<LocalizedLegalContent>).zh !== "string" ||
+    typeof (value as Partial<LocalizedLegalContent>).en !== "string"
+  ) {
+    throw new InvalidRequestError(`${label} is required.`);
+  }
+}
+
+function normalizeHomeHeroSettings(value: unknown): HomeHeroSettings {
+  const source =
+    typeof value === "object" && value !== null
+      ? (value as Partial<HomeHeroSettings>)
+      : {};
+
+  return {
+    zh: normalizeHomeHeroContent(source.zh),
+    en: normalizeHomeHeroContent(source.en)
+  };
+}
+
+function normalizeHomeHeroContent(value: unknown): HomeHeroContent {
+  const source =
+    typeof value === "object" && value !== null
+      ? (value as Partial<HomeHeroContent>)
+      : {};
+
+  return {
+    titleTop: normalizeHomeHeroText(source.titleTop, 80),
+    titleBottom: normalizeHomeHeroText(source.titleBottom, 80),
+    description: normalizeHomeHeroText(source.description, 240)
+  };
+}
+
+function normalizeHomeHeroText(value: unknown, maxLength: number) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
 function normalizeFooterSettings(value: unknown): FooterSettings {
@@ -2497,11 +3960,11 @@ export function createContentSourceId() {
   return `source-${crypto.randomUUID().slice(0, 10)}`;
 }
 
-export function createContentItemId() {
+function createContentItemId() {
   return `item-${crypto.randomUUID().slice(0, 10)}`;
 }
 
-export function createArticleSlug(value: string) {
+function createArticleSlug(value: string) {
   const slug = value
     .toLowerCase()
     .normalize("NFKD")
@@ -2539,7 +4002,7 @@ export async function createUniqueArticleSlug(
 
 function readRequiredString(value: unknown, field: string) {
   if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`${field} is required.`);
+    throw new InvalidRequestError(`${field} is required.`);
   }
 
   return value.trim();
@@ -2689,6 +4152,42 @@ export async function loadGitHubToolMetadata(
   });
 
   return metadata;
+}
+
+function resolveMarkdownLink(value: string, baseUrl: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("#")) return trimmed;
+
+  try {
+    const url = new URL(trimmed, baseUrl);
+    return ["http:", "https:", "mailto:"].includes(url.protocol)
+      ? url.toString()
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+function resolveMarkdownImage(value: string, baseUrl: string) {
+  const resolved = resolveUrl(value.trim(), baseUrl);
+  if (!resolved) return "";
+
+  try {
+    const url = new URL(resolved);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+function cleanXmlMarkupValue(value: string) {
+  return value
+    .replace(/^\s*<!\[CDATA\[/, "")
+    .replace(/\]\]>\s*$/, "")
+    .trim();
 }
 
 async function readGitHubMetadataCache(
@@ -2857,6 +4356,30 @@ function normalizeProxyBaseUrl(value: string) {
   } catch {
     return "";
   }
+}
+
+export function normalizeUmamiScriptUrl(value: unknown) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+
+  if (!trimmed || trimmed.length > 2048) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmed);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return "";
+    }
+
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+export function normalizeUmamiWebsiteId(value: unknown) {
+  return typeof value === "string" ? value.trim().slice(0, 200) : "";
 }
 
 function normalizeProxyMode(value: unknown): ProxySettings["mode"] {

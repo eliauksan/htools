@@ -1,4 +1,11 @@
-import { json, requireAdmin, saveProxySettings, type Env } from "../../_shared";
+import {
+  invalidatePublicApiCache,
+  json,
+  requireAdmin,
+  saveProxySettings,
+  writeErrorResponse,
+  type Env
+} from "../../_shared";
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
   const unauthorized = await requireAdmin(request, env);
@@ -14,12 +21,10 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
       scope?: unknown;
     };
 
-    return json({
-      settings: await saveProxySettings(env, payload)
-    });
+    const settings = await saveProxySettings(env, payload);
+    await invalidatePublicApiCache(env);
+    return json({ settings });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to save proxy settings.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to save proxy settings.");
   }
 };

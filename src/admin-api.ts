@@ -1,3 +1,5 @@
+import { readJson, requestJsonWithTimeout } from "./api-client";
+export { loadProxySettings, loadSiteConfiguration, loadSiteSettings } from "./public-api";
 import type {
   AdminCategoryAction,
   AdminCategoryActionResult,
@@ -7,13 +9,13 @@ import type {
   AdminSecuritySettings,
   Article,
   ArticleInput,
-  ContentItem,
+  ArticleSummary,
+  ContentItemSummary,
   ContentSource,
   ContentSourceInput,
   ContentSyncResponse,
   FactoryResetResponse,
   FeedPreview,
-  GitHubAuthState,
   GitHubSettings,
   GitHubSettingsInput,
   GitHubToolMetadata,
@@ -23,9 +25,10 @@ import type {
   HtoolsBackup,
   BackupRestoreResponse,
   SiteSettings,
+  SiteSettingsPatch,
   SourceSettings,
-  SubmissionInput,
-  SubmissionResult,
+  TurnstileSettings,
+  UmamiSettings,
   Tool,
   ToolSourceItem,
   ToolImportMode,
@@ -37,17 +40,24 @@ type ToolsResponse = {
   tools: Tool[];
 };
 
-export type ToolsLoadResult = {
-  tools: Tool[];
-  error?: string;
+type DeleteResponse = {
+  success: true;
+  deleted: true;
+  resource: "tool" | "article" | "contentSource";
+  id: string;
 };
 
 type ToolResponse = {
   tool: Tool;
 };
 
-type ArticlesResponse = {
-  articles: Article[];
+type AdminArticlesPageResponse = {
+  articles: ArticleSummary[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  total: number;
+  categoryCounts: Record<string, number>;
 };
 
 type ArticleResponse = {
@@ -63,7 +73,13 @@ type ContentSourceResponse = {
 };
 
 type ContentItemsResponse = {
-  items: ContentItem[];
+  items: ContentItemSummary[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  total: number;
+  sourceCounts: Record<string, number>;
+  categoryCounts: Record<string, number>;
 };
 
 type FeedPreviewResponse = {
@@ -74,6 +90,11 @@ type LoginResponse = {
   token: string;
 };
 
+export type AdminAuthConfig = {
+  turnstileEnabled: boolean;
+  turnstileSiteKey: string;
+};
+
 type GitHubSettingsResponse = {
   settings: GitHubSettings;
 };
@@ -82,16 +103,20 @@ type GitHubToolMetadataResponse = {
   metadata: GitHubToolMetadata;
 };
 
-type SubmissionResponse = {
-  submission: SubmissionResult;
-};
-
 type SourceSettingsResponse = {
   settings: SourceSettings;
 };
 
+type TurnstileSettingsResponse = {
+  settings: TurnstileSettings;
+};
+
 type ProxySettingsResponse = {
   settings: ProxySettings;
+};
+
+type UmamiSettingsResponse = {
+  settings: UmamiSettings;
 };
 
 type SiteSettingsResponse = {
@@ -106,66 +131,17 @@ type AdminCategorySettingsResponse = {
   settings: AdminCategorySettings;
 };
 
-type PublicCategorySettingsResponse = {
-  settings: AdminCategorySettings;
-};
-
 type AdminCategoryActionResponse = AdminCategoryActionResult;
 
-async function readJson<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const message =
-      typeof payload === "object" &&
-      payload !== null &&
-      "error" in payload &&
-      typeof payload.error === "string"
-        ? payload.error
-        : "Request failed";
-    throw new Error(message);
-  }
-
-  return payload as T;
-}
-
-export async function loadTools(): Promise<ToolsLoadResult> {
-  try {
-    const response = await fetch("/api/tools", {
-      headers: {
-        Accept: "application/json"
-      }
-    });
-    const data = await readJson<ToolsResponse>(response);
-    return {
-      tools: data.tools
-    };
-  } catch (error) {
-    return {
-      tools: [],
-      error: error instanceof Error ? error.message : "Request failed"
-    };
-  }
-}
-
-export async function loadArticles(): Promise<Article[]> {
-  const response = await fetch("/api/articles", {
+export async function loadAdminTools(token: string): Promise<Tool[]> {
+  const response = await fetch("/api/admin/tools", {
     headers: {
-      Accept: "application/json"
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`
     }
   });
-  const data = await readJson<ArticlesResponse>(response);
-  return data.articles;
-}
-
-export async function loadArticle(slug: string): Promise<Article> {
-  const response = await fetch(`/api/articles/${encodeURIComponent(slug)}`, {
-    headers: {
-      Accept: "application/json"
-    }
-  });
-  const data = await readJson<ArticleResponse>(response);
-  return data.article;
+  const data = await readJson<ToolsResponse>(response);
+  return data.tools;
 }
 
 export async function loadArticlePreview(
@@ -202,20 +178,30 @@ export async function loadContentItemArticlePreview(
   return data.article;
 }
 
-export async function login(password: string): Promise<string> {
+export async function loadAdminAuthConfig(): Promise<AdminAuthConfig> {
+  return requestJsonWithTimeout<AdminAuthConfig>("/api/auth/config", {
+    cache: "no-store",
+    headers: { Accept: "application/json" }
+  });
+}
+
+export async function login(
+  password: string,
+  turnstileToken = ""
+): Promise<string> {
   const response = await fetch("/api/auth/login", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ password })
+    body: JSON.stringify({ password: password.trim(), turnstileToken })
   });
   const data = await readJson<LoginResponse>(response);
   return data.token;
 }
 
 export async function createTool(input: ToolInput, token: string): Promise<Tool> {
-  const response = await fetch("/api/tools", {
+  const response = await fetch("/api/admin/tools", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -228,7 +214,7 @@ export async function createTool(input: ToolInput, token: string): Promise<Tool>
 }
 
 export async function updateTool(id: string, input: ToolInput, token: string): Promise<Tool> {
-  const response = await fetch(`/api/tools/${encodeURIComponent(id)}`, {
+  const response = await fetch(`/api/admin/tools/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -241,24 +227,64 @@ export async function updateTool(id: string, input: ToolInput, token: string): P
 }
 
 export async function deleteTool(id: string, token: string): Promise<void> {
-  const response = await fetch(`/api/tools/${encodeURIComponent(id)}`, {
+  const response = await fetch(`/api/admin/tools/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`
     }
   });
-  await readJson<{ ok: boolean }>(response);
+  await readJson<DeleteResponse>(response);
 }
 
-export async function loadAdminArticles(token: string): Promise<Article[]> {
-  const response = await fetch("/api/admin/articles", {
+export async function loadAdminArticles(
+  token: string,
+  params: {
+    category?: string;
+    query?: string;
+    sort?: "latest" | "name";
+    limit?: number;
+    cursor?: string;
+  } = {}
+): Promise<AdminArticlesPageResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.category) searchParams.set("category", params.category);
+  if (params.query) searchParams.set("q", params.query);
+  if (params.sort) searchParams.set("sort", params.sort);
+  if (params.limit !== undefined) searchParams.set("limit", String(params.limit));
+  if (params.cursor) searchParams.set("cursor", params.cursor);
+  const response = await fetch(
+    `/api/admin/articles${searchParams.size ? `?${searchParams}` : ""}`,
+    {
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${token}`
     }
+    }
+  );
+  return readJson<AdminArticlesPageResponse>(response);
+}
+
+export async function loadAdminArticle(id: string, token: string): Promise<Article> {
+  const response = await fetch(`/api/admin/articles/${encodeURIComponent(id)}`, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
   });
-  const data = await readJson<ArticlesResponse>(response);
-  return data.articles;
+  return (await readJson<ArticleResponse>(response)).article;
+}
+
+export async function updateArticlePublished(
+  id: string,
+  published: boolean,
+  token: string
+): Promise<ArticleSummary> {
+  const response = await fetch(`/api/admin/articles/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ published })
+  });
+  return (await readJson<{ article: ArticleSummary }>(response)).article;
 }
 
 export async function createArticle(
@@ -301,7 +327,7 @@ export async function deleteArticle(id: string, token: string): Promise<void> {
       Authorization: `Bearer ${token}`
     }
   });
-  await readJson<{ ok: boolean }>(response);
+  await readJson<DeleteResponse>(response);
 }
 
 export async function loadContentSources(
@@ -360,15 +386,17 @@ export async function deleteContentSource(
       Authorization: `Bearer ${token}`
     }
   });
-  await readJson<{ ok: boolean }>(response);
+  await readJson<DeleteResponse>(response);
 }
 
 export async function previewContentSource(
   input: ContentSourceInput,
-  token: string
+  token: string,
+  options: { signal?: AbortSignal } = {}
 ): Promise<FeedPreview> {
   const response = await fetch("/api/admin/content-sources/preview", {
     method: "POST",
+    signal: options.signal,
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json"
@@ -397,12 +425,39 @@ export async function syncContentSource(
 
 export async function loadContentItems(
   token: string,
-  params: { sourceId?: string } = {}
-): Promise<ContentItem[]> {
+  params: {
+    sourceId?: string;
+    category?: string;
+    query?: string;
+    sort?: "latest" | "name";
+    limit?: number;
+    cursor?: string;
+  } = {}
+): Promise<ContentItemsResponse> {
   const searchParams = new URLSearchParams();
 
   if (params.sourceId) {
     searchParams.set("sourceId", params.sourceId);
+  }
+
+  if (params.category) {
+    searchParams.set("category", params.category);
+  }
+
+  if (params.query) {
+    searchParams.set("q", params.query);
+  }
+
+  if (params.sort) {
+    searchParams.set("sort", params.sort);
+  }
+
+  if (params.limit !== undefined) {
+    searchParams.set("limit", String(params.limit));
+  }
+
+  if (params.cursor) {
+    searchParams.set("cursor", params.cursor);
   }
 
   const response = await fetch(
@@ -414,8 +469,7 @@ export async function loadContentItems(
       }
     }
   );
-  const data = await readJson<ContentItemsResponse>(response);
-  return data.items;
+  return readJson<ContentItemsResponse>(response);
 }
 
 export async function convertContentItemToArticle(
@@ -449,16 +503,6 @@ export async function loadAdminCategorySettings(
     }
   });
   const data = await readJson<AdminCategorySettingsResponse>(response);
-  return data.settings;
-}
-
-export async function loadCategorySettings(): Promise<AdminCategorySettings> {
-  const response = await fetch("/api/categories", {
-    headers: {
-      Accept: "application/json"
-    }
-  });
-  const data = await readJson<PublicCategorySettingsResponse>(response);
   return data.settings;
 }
 
@@ -521,14 +565,20 @@ export async function importTools(
   return readJson<ToolImportResponse>(response);
 }
 
-export async function loadSourceSettings(token: string): Promise<SourceSettings> {
-  const response = await fetch("/api/admin/source-settings", {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`
+export async function loadSourceSettings(
+  token: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<SourceSettings> {
+  const data = await requestJsonWithTimeout<SourceSettingsResponse>(
+    "/api/admin/source-settings",
+    {
+      signal: options.signal,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`
+      }
     }
-  });
-  const data = await readJson<SourceSettingsResponse>(response);
+  );
   return data.settings;
 }
 
@@ -548,16 +598,6 @@ export async function saveSourceSettings(
   return data.settings;
 }
 
-export async function loadProxySettings(): Promise<ProxySettings> {
-  const response = await fetch("/api/proxy-settings", {
-    headers: {
-      Accept: "application/json"
-    }
-  });
-  const data = await readJson<ProxySettingsResponse>(response);
-  return data.settings;
-}
-
 export async function saveProxySettings(
   input: ProxySettings,
   token: string
@@ -574,24 +614,62 @@ export async function saveProxySettings(
   return data.settings;
 }
 
-export async function loadSiteSettings(): Promise<SiteSettings> {
-  const response = await fetch("/api/site-settings", {
-    cache: "no-store",
-    headers: {
-      Accept: "application/json"
-    }
-  });
-  const data = await readJson<SiteSettingsResponse>(response);
+export async function loadTurnstileSettings(
+  token: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<TurnstileSettings> {
+  const data = await requestJsonWithTimeout<TurnstileSettingsResponse>(
+    "/api/admin/turnstile-settings",
+    { signal: options.signal, headers: { Accept: "application/json", Authorization: `Bearer ${token}` } }
+  );
   return data.settings;
 }
 
-export async function saveSiteSettings(
-  input: SiteSettings,
+export async function loadUmamiSettings(
+  token: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<UmamiSettings> {
+  const data = await requestJsonWithTimeout<UmamiSettingsResponse>(
+    "/api/admin/umami-settings",
+    {
+      signal: options.signal,
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+    }
+  );
+  return data.settings;
+}
+
+export async function saveUmamiSettings(
+  input: UmamiSettings,
+  token: string
+): Promise<UmamiSettings> {
+  const response = await fetch("/api/admin/umami-settings", {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+  return (await readJson<UmamiSettingsResponse>(response)).settings;
+}
+
+export async function saveTurnstileSettings(enabled: boolean, token: string) {
+  const response = await fetch("/api/admin/turnstile-settings", {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled })
+  });
+  return (await readJson<TurnstileSettingsResponse>(response)).settings;
+}
+
+export async function patchSiteSettings(
+  input: SiteSettingsPatch,
   token: string
 ): Promise<SiteSettings> {
   const response = await fetch("/api/admin/site-settings", {
     cache: "no-store",
-    method: "PUT",
+    method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json"
@@ -653,15 +731,19 @@ export async function resetFactorySettings(token: string): Promise<FactoryResetR
 }
 
 export async function loadAdminSecuritySettings(
-  token: string
+  token: string,
+  options: { signal?: AbortSignal } = {}
 ): Promise<AdminSecuritySettings> {
-  const response = await fetch("/api/admin/security", {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`
+  const data = await requestJsonWithTimeout<AdminSecuritySettingsResponse>(
+    "/api/admin/security",
+    {
+      signal: options.signal,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`
+      }
     }
-  });
-  const data = await readJson<AdminSecuritySettingsResponse>(response);
+  );
   return data.settings;
 }
 
@@ -681,23 +763,20 @@ export async function updateAdminPassword(
   return data.settings;
 }
 
-export async function loadGitHubAuthState(): Promise<GitHubAuthState> {
-  const response = await fetch("/api/github/me", {
-    headers: {
-      Accept: "application/json"
+export async function loadGitHubSettings(
+  token: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<GitHubSettings> {
+  const data = await requestJsonWithTimeout<GitHubSettingsResponse>(
+    "/api/admin/github-settings",
+    {
+      signal: options.signal,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`
+      }
     }
-  });
-  return readJson<GitHubAuthState>(response);
-}
-
-export async function loadGitHubSettings(token: string): Promise<GitHubSettings> {
-  const response = await fetch("/api/admin/github-settings", {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`
-    }
-  });
-  const data = await readJson<GitHubSettingsResponse>(response);
+  );
   return data.settings;
 }
 
@@ -727,7 +806,8 @@ export function loadGitHubToolMetadata(
   token: string,
   options: { forceRefresh?: boolean } = {}
 ): Promise<GitHubToolMetadata> {
-  const requestKey = url.trim().toLowerCase();
+  const requestMode = options.forceRefresh ? "force" : "cached";
+  const requestKey = `${token}\u0000${requestMode}\u0000${url.trim().toLowerCase()}`;
   const pendingRequest = pendingGitHubMetadataRequests.get(requestKey);
   if (pendingRequest) {
     return pendingRequest;
@@ -760,6 +840,26 @@ export function loadGitHubToolMetadata(
   return request;
 }
 
+export async function applyContentItemSourceUpdate(
+  id: string,
+  action: "ignore" | "sync-content",
+  token: string
+): Promise<Article> {
+  const response = await fetch(
+    `/api/admin/content-items/${encodeURIComponent(id)}/source-update`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ action })
+    }
+  );
+  const data = await readJson<ArticleResponse>(response);
+  return data.article;
+}
+
 export async function checkLinks(
   links: LinkCheckTarget[],
   timeout: number,
@@ -781,23 +881,4 @@ export async function checkLinks(
   });
 
   return readJson<LinkCheckResponse>(response);
-}
-
-export async function submitTool(input: SubmissionInput): Promise<SubmissionResult> {
-  const response = await fetch("/api/submissions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(input)
-  });
-  const data = await readJson<SubmissionResponse>(response);
-  return data.submission;
-}
-
-export async function logoutGitHub(): Promise<void> {
-  const response = await fetch("/api/github/logout", {
-    method: "POST"
-  });
-  await readJson<{ ok: boolean }>(response);
 }

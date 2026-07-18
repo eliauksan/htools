@@ -2,7 +2,7 @@ import {
   getDatabase,
   getGitHubSettings,
   isGitHubConfigured,
-  json,
+  jsonError,
   type Env
 } from "../../_shared";
 
@@ -12,7 +12,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const settings = await getGitHubSettings(env);
 
   if (!isGitHubConfigured(settings)) {
-    return json({ error: "GitHub submissions are not configured." }, { status: 400 });
+    return jsonError(
+      "GitHub submissions are not configured.",
+      "GITHUB_NOT_CONFIGURED",
+      { status: 400 }
+    );
   }
 
   const requestUrl = new URL(request.url);

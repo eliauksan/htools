@@ -1,6 +1,9 @@
 import {
   getDatabase,
+  invalidatePublicApiCache,
+  badRequest,
   json,
+  jsonError,
   requireAdmin,
   type ArticleRow,
   type ContentItemRow,
@@ -33,7 +36,9 @@ type BackupData = {
 
 const BACKUP_SOURCE = "htools-backup";
 const BACKUP_VERSION = "3";
+const MAX_BACKUP_BODY_BYTES = 10 * 1024 * 1024;
 const SAFE_SETTING_KEYS = [
+  "umami_settings",
   "source_public_enabled",
   "proxy_settings",
   "site_settings",
@@ -49,6 +54,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = await getDatabase(env);
     const data = await readBackupData(db);
+    validateBackupIntegrity(data);
     const counts = createBackupCounts(data);
 
     return json({
@@ -61,7 +67,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to export backup.";
-    return json({ error: message }, { status: 400 });
+    return jsonError(message, "SERVER_ERROR", { status: 500 });
   }
 };
 
@@ -71,12 +77,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return unauthorized;
   }
 
+  let data: BackupData;
+
   try {
-    const payload = (await request.json()) as unknown;
-    const data = normalizeBackupPayload(payload);
+    data = normalizeBackupPayload(await readLimitedJsonBody(request));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Backup file is invalid.";
+    return badRequest(message);
+  }
+
+  try {
     const db = await getDatabase(env);
 
     await restoreBackupData(db, data);
+    await invalidatePublicApiCache(env);
 
     return json({
       restored: true,
@@ -85,9 +100,52 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to restore backup.";
-    return json({ error: message }, { status: 400 });
+    return jsonError(message, "SERVER_ERROR", { status: 500 });
   }
 };
+
+async function readLimitedJsonBody(request: Request): Promise<unknown> {
+  const declaredLength = Number(request.headers.get("content-length"));
+
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BACKUP_BODY_BYTES) {
+    throw new Error("backup file exceeds the 10MB limit.");
+  }
+
+  if (!request.body) {
+    throw new Error("backup file is invalid.");
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    totalBytes += value.byteLength;
+
+    if (totalBytes > MAX_BACKUP_BODY_BYTES) {
+      await reader.cancel();
+      throw new Error("backup file exceeds the 10MB limit.");
+    }
+
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return JSON.parse(new TextDecoder().decode(body)) as unknown;
+}
 
 async function readBackupData(db: D1Database): Promise<BackupData> {
   const [tools, articles, contentSources, contentItems, settings] =
@@ -110,7 +168,7 @@ async function readBackupData(db: D1Database): Promise<BackupData> {
         .prepare(
           `SELECT key, value, updated_at
            FROM app_settings
-           WHERE key IN (?, ?, ?, ?)
+           WHERE key IN (?, ?, ?, ?, ?)
            ORDER BY key`
         )
         .bind(...SAFE_SETTING_KEYS)
@@ -165,9 +223,10 @@ async function restoreBackupData(db: D1Database, data: BackupData) {
         .prepare(
           `INSERT INTO articles (
              id, slug, title, summary, content, cover_image, category, tags,
-             published, created_at, updated_at, published_at
+             published, created_at, updated_at, published_at, content_item_id,
+             source_content_version
            )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           row.id,
@@ -181,7 +240,9 @@ async function restoreBackupData(db: D1Database, data: BackupData) {
           row.published,
           row.created_at,
           row.updated_at,
-          row.published_at
+          row.published_at,
+          row.content_item_id,
+          row.source_content_version ?? ""
         )
     ),
     ...data.contentSources.map((row) =>
@@ -213,9 +274,9 @@ async function restoreBackupData(db: D1Database, data: BackupData) {
           `INSERT INTO content_items (
              id, source_id, external_id, title, summary, content, url, author,
              cover_image, category, tags, published_at, synced_at, created_at,
-             updated_at, article_id
+             updated_at, article_id, content_version
            )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           row.id,
@@ -233,7 +294,8 @@ async function restoreBackupData(db: D1Database, data: BackupData) {
           row.synced_at,
           row.created_at,
           row.updated_at,
-          row.article_id
+          row.article_id,
+          row.content_version ?? ""
         )
     ),
     ...data.settings.map((row) =>
@@ -259,7 +321,7 @@ function normalizeBackupPayload(payload: unknown): BackupData {
   const data = readRecord(root.data, "backup.data");
   const now = new Date().toISOString();
 
-  return {
+  const normalized = {
     tools: readArray(data.tools, "tools").map((row, index) =>
       normalizeToolRow(row, index, now)
     ),
@@ -276,6 +338,83 @@ function normalizeBackupPayload(payload: unknown): BackupData {
       .map((row, index) => normalizeSettingRow(row, index, now))
       .filter((row): row is AppSettingRow => Boolean(row))
   };
+
+  validateBackupIntegrity(normalized);
+  return normalized;
+}
+
+function validateBackupIntegrity(data: BackupData) {
+  assertUnique(data.tools, (row) => row.id, "tool id");
+  assertUnique(data.articles, (row) => row.id, "article id");
+  assertUnique(data.articles, (row) => row.slug, "article slug");
+  assertUnique(
+    data.articles.filter((row) => Boolean(row.content_item_id)),
+    (row) => row.content_item_id ?? "",
+    "article content item"
+  );
+  assertUnique(data.contentSources, (row) => row.id, "content source id");
+  assertUnique(data.contentSources, (row) => row.url, "content source url");
+  assertUnique(data.contentItems, (row) => row.id, "content item id");
+  assertUnique(
+    data.contentItems,
+    (row) => `${row.source_id}\u0000${row.external_id}`,
+    "content item source and external id"
+  );
+  assertUnique(data.settings, (row) => row.key, "setting key");
+
+  const sourceIds = new Set(data.contentSources.map((row) => row.id));
+  const contentItemsById = new Map(data.contentItems.map((row) => [row.id, row]));
+  const articlesById = new Map(data.articles.map((row) => [row.id, row]));
+
+  for (const item of data.contentItems) {
+    if (!sourceIds.has(item.source_id)) {
+      throw new Error(`content item ${item.id} references a missing content source.`);
+    }
+
+    if (item.article_id) {
+      const article = articlesById.get(item.article_id);
+
+      if (!article) {
+        throw new Error(`content item ${item.id} references a missing article.`);
+      }
+
+      if (article.content_item_id !== item.id) {
+        throw new Error(`content item ${item.id} has an inconsistent article link.`);
+      }
+    }
+  }
+
+  for (const article of data.articles) {
+    if (article.content_item_id) {
+      const item = contentItemsById.get(article.content_item_id);
+
+      if (!item) {
+        throw new Error(`article ${article.id} references a missing content item.`);
+      }
+
+      if (item.article_id !== article.id) {
+        throw new Error(`article ${article.id} has an inconsistent content item link.`);
+      }
+    }
+  }
+}
+
+function assertUnique<T>(
+  rows: T[],
+  getKey: (row: T) => string,
+  field: string
+) {
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    const key = getKey(row);
+
+    if (seen.has(key)) {
+      throw new Error(`backup contains a duplicate ${field}.`);
+    }
+
+    seen.add(key);
+  }
 }
 
 function normalizeToolRow(value: unknown, index: number, now: string): ToolRow {
@@ -319,7 +458,9 @@ function normalizeArticleRow(
     published: readIntegerFlag(row.published, 1),
     created_at: createdAt,
     updated_at: readString(row.updated_at) || createdAt,
-    published_at: readNullableString(row.published_at)
+    published_at: readNullableString(row.published_at),
+    content_item_id: readNullableString(row.content_item_id),
+    source_content_version: readString(row.source_content_version)
   };
 }
 
@@ -370,7 +511,8 @@ function normalizeContentItemRow(
     synced_at: readString(row.synced_at) || now,
     created_at: createdAt,
     updated_at: readString(row.updated_at) || createdAt,
-    article_id: readNullableString(row.article_id)
+    article_id: readNullableString(row.article_id),
+    content_version: readString(row.content_version)
   };
 }
 

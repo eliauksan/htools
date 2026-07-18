@@ -16,7 +16,18 @@ export type Tool = {
 
 export type ToolInput = Omit<Tool, "id" | "created_at" | "updated_at">;
 
+export type PublicToolsPage = {
+  tools: Tool[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  total: number | null;
+  categoryCounts: Record<string, number> | null;
+  featuredTotal: number | null;
+};
+
 export type ToolSourceItem = {
+  createdAt: string;
   updatedAt: string;
   id: string;
   name: string;
@@ -26,6 +37,8 @@ export type ToolSourceItem = {
   image: string;
   category: string;
   tags: string[];
+  githubLanguage: string;
+  githubLicense: string;
   featured: boolean;
 };
 
@@ -62,6 +75,17 @@ export type Article = {
   publishedAt?: string | null;
 };
 
+export type ArticleSummary = Omit<Article, "content">;
+
+export type PublicArticlesPage = {
+  articles: ArticleSummary[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+  total: number | null;
+  categoryCounts: Record<string, number> | null;
+};
+
 export type ArticleInput = {
   slug: string;
   title: string;
@@ -96,7 +120,7 @@ export type ContentSourceInput = {
   enabled: boolean;
 };
 
-export type ContentItem = {
+type ContentItem = {
   id: string;
   sourceId: string;
   sourceTitle: string;
@@ -116,8 +140,12 @@ export type ContentItem = {
   updated_at?: string;
   articleId?: string | null;
   articleSlug?: string | null;
+  articleCategory?: string | null;
   articlePublished?: boolean | null;
+  sourceHasUpdates?: boolean;
 };
+
+export type ContentItemSummary = Omit<ContentItem, "content">;
 
 export type FeedPreview = {
   title: string;
@@ -141,7 +169,11 @@ export type ContentSyncResponse = {
   imported: number;
   updated: number;
   total: number;
-  items: ContentItem[];
+  items: ContentItemSummary[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextOffset: number | null;
 };
 
 export type AdminCategoryScope = "tools" | "articles" | "content";
@@ -157,7 +189,7 @@ export type AdminCategoryActionResult = {
 
 export type ToolImportMode = "skip" | "upsert";
 
-export type ToolImportError = {
+type ToolImportError = {
   index: number;
   message: string;
 };
@@ -186,6 +218,12 @@ export type ProxySettings = {
   scope: ProxyScope;
 };
 
+export type UmamiSettings = {
+  enabled: boolean;
+  scriptUrl: string;
+  websiteId: string;
+};
+
 export type FooterLink = {
   label: string;
   href: string;
@@ -207,13 +245,67 @@ export type FooterSettings = {
   groups: FooterLinkGroup[];
 };
 
+export type TurnstileSettings = {
+  available: boolean;
+  enabled: boolean;
+};
+
+export type HomeHeroContent = {
+  titleTop: string;
+  titleBottom: string;
+  description: string;
+};
+
+export type HomeHeroSettings = {
+  zh: HomeHeroContent;
+  en: HomeHeroContent;
+};
+
+export type LocalizedMarkdownContent = {
+  zh: string;
+  en: string;
+};
+
+export type LocalizedLegalContent = LocalizedMarkdownContent;
+
 export type SiteSettings = {
   name: string;
   subtitle: string;
   iconUrl: string;
-  aboutContent: string;
+  aboutContent: LocalizedMarkdownContent;
+  privacyContent?: LocalizedLegalContent;
+  termsContent?: LocalizedLegalContent;
   footer?: FooterSettings;
+  homeHero?: HomeHeroSettings;
 };
+
+export type SiteSettingsPatch =
+  | {
+      section: "identity";
+      name: string;
+      subtitle: string;
+      iconUrl: string;
+    }
+  | {
+      section: "about";
+      aboutContent: LocalizedMarkdownContent;
+    }
+  | {
+      section: "privacy";
+      privacyContent: LocalizedLegalContent;
+    }
+  | {
+      section: "terms";
+      termsContent: LocalizedLegalContent;
+    }
+  | {
+      section: "home";
+      homeHero: HomeHeroSettings;
+    }
+  | {
+      section: "footer";
+      footer: FooterSettings;
+    };
 
 export type AdminSecuritySettings = {
   passwordConfigured: boolean;
@@ -251,7 +343,7 @@ export type FactoryResetResponse = {
   counts: BackupCounts;
 };
 
-export type LinkCheckKind = "url" | "demoUrl";
+type LinkCheckKind = "url" | "demoUrl";
 
 export type LinkCheckTarget = {
   id: string;
@@ -273,14 +365,7 @@ export type LinkCheckResponse = {
   results: LinkCheckResult[];
 };
 
-export type Category = {
-  id: string;
-  name: string;
-  icon: string;
-  sort_order: number;
-};
-
-export type GitHubUser = {
+type GitHubUser = {
   login: string;
   name: string | null;
   avatar_url: string;
@@ -320,6 +405,7 @@ export type SubmissionInput = {
 };
 
 export type SubmissionResult = {
+  kind: "created" | "pending";
   issueUrl: string;
   issueNumber: number;
 };

@@ -1,9 +1,12 @@
 import {
   getAdminSecuritySettings,
+  InvalidRequestError,
   json,
+  jsonError,
   requireAdmin,
   saveAdminPassword,
   verifyPassword,
+  writeErrorResponse,
   type Env
 } from "../../_shared";
 
@@ -33,7 +36,11 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
     const newPassword = readPassword(payload.newPassword, "newPassword");
 
     if (!(await verifyPassword(currentPassword, env))) {
-      return json({ error: "Current password is incorrect." }, { status: 401 });
+      return jsonError(
+        "Current password is incorrect.",
+        "INVALID_PASSWORD",
+        { status: 401 }
+      );
     }
 
     await saveAdminPassword(env, newPassword);
@@ -42,16 +49,14 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
       settings: await getAdminSecuritySettings(env)
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to update admin password.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to update admin password.");
   }
 };
 
 function readPassword(value: unknown, field: string) {
   if (typeof value !== "string" || !value.trim()) {
-    throw new Error(`${field} is required.`);
+    throw new InvalidRequestError(`${field} is required.`);
   }
 
-  return value;
+  return value.trim();
 }

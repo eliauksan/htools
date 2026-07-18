@@ -1,9 +1,13 @@
 import {
   getDatabase,
   getAdminCategorySettings,
+  InvalidRequestError,
   json,
+  jsonError,
+  invalidatePublicApiCache,
   requireAdmin,
   saveAdminCategorySettings,
+  writeErrorResponse,
   type AdminCategoryScope,
   type Env
 } from "../../_shared";
@@ -25,7 +29,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to load categories.";
-    return json({ error: message }, { status: 400 });
+    return jsonError(message, "SERVER_ERROR", { status: 500 });
   }
 };
 
@@ -40,13 +44,11 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
       Record<AdminCategoryScope, unknown>
     >;
 
-    return json({
-      settings: await saveAdminCategorySettings(env, payload)
-    });
+    const settings = await saveAdminCategorySettings(env, payload);
+    await invalidatePublicApiCache(env);
+    return json({ settings });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to save categories.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to save categories.");
   }
 };
 
@@ -74,11 +76,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         : "";
 
     if (category === ADMIN_FEATURED_CATEGORY && action !== "delete") {
-      throw new Error("featured category can only be cleared.");
+      throw new InvalidRequestError("featured category can only be cleared.");
     }
 
     if (action === "migrate" && targetCategory === category) {
-      throw new Error("target category must be different.");
+      throw new InvalidRequestError("target category must be different.");
     }
 
     const db = await getDatabase(env);
@@ -92,12 +94,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       category,
       action === "migrate" ? targetCategory : ""
     );
+    await invalidatePublicApiCache(env);
 
     return json({ affected, settings });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to update category.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to update category.");
   }
 };
 
@@ -109,7 +110,7 @@ function readCategoryScope(value: unknown): AdminCategoryScope {
     return value as AdminCategoryScope;
   }
 
-  throw new Error("category scope is invalid.");
+  throw new InvalidRequestError("category scope is invalid.");
 }
 
 function readCategoryName(
@@ -118,13 +119,13 @@ function readCategoryName(
   options: { allowAll?: boolean } = {}
 ) {
   if (typeof value !== "string") {
-    throw new Error(`${field} is required.`);
+    throw new InvalidRequestError(`${field} is required.`);
   }
 
   const category = value.trim().slice(0, 48);
 
   if (!category) {
-    throw new Error(`${field} is invalid.`);
+    throw new InvalidRequestError(`${field} is invalid.`);
   }
 
   if (options.allowAll && isAllCategory(category)) {
@@ -132,7 +133,7 @@ function readCategoryName(
   }
 
   if (category !== ADMIN_FEATURED_CATEGORY && isReservedCategory(category)) {
-    throw new Error(`${field} is invalid.`);
+    throw new InvalidRequestError(`${field} is invalid.`);
   }
 
   return category;
@@ -190,7 +191,7 @@ async function migrateCategoryContent(
 ) {
   if (scope === "tools") {
     if (category === ADMIN_FEATURED_CATEGORY) {
-      throw new Error("featured category cannot be migrated.");
+      throw new InvalidRequestError("featured category cannot be migrated.");
     }
 
     return getChanges(

@@ -4,6 +4,7 @@ import {
   requireAdmin,
   saveGitHubSettings,
   toGitHubSettingsResponse,
+  writeErrorResponse,
   type Env,
   type GitHubSettingsInput
 } from "../../_shared";
@@ -31,8 +32,6 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
 
     return json({ settings: toGitHubSettingsResponse(settings, request) });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to save GitHub settings.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to save GitHub settings.");
   }
 };

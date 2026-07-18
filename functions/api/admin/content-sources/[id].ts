@@ -3,8 +3,11 @@ import {
   fetchFeedPreview,
   getDatabase,
   json,
+  jsonDeleted,
+  jsonError,
   requireAdmin,
   validateContentSourcePayload,
+  writeErrorResponse,
   type ContentSourceRow,
   type Env
 } from "../../../_shared";
@@ -27,7 +30,7 @@ export const onRequestPut: PagesFunction<Env> = async ({
       .first<ContentSourceRow>();
 
     if (!existing) {
-      return json({ error: "Content source not found." }, { status: 404 });
+      return jsonError("Content source not found.", "NOT_FOUND", { status: 404 });
     }
 
     const payload = validateContentSourcePayload(
@@ -68,11 +71,12 @@ export const onRequestPut: PagesFunction<Env> = async ({
       .bind(id)
       .first<ContentSourceRow>();
 
-    return json({ source: row ? contentSourceFromRow(row) : null });
+    if (!row) {
+      return jsonError("Content source could not be loaded after update.", "SERVER_ERROR", { status: 500 });
+    }
+    return json({ source: contentSourceFromRow(row) });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to update content source.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to update content source.");
   }
 };
 
@@ -88,7 +92,13 @@ export const onRequestDelete: PagesFunction<Env> = async ({
 
   const id = String(params.id ?? "");
   const db = await getDatabase(env);
+  const existing = await db.prepare("SELECT id FROM content_sources WHERE id = ?")
+    .bind(id)
+    .first<{ id: string }>();
+  if (!existing) {
+    return jsonError("Content source not found.", "NOT_FOUND", { status: 404 });
+  }
   await db.prepare("DELETE FROM content_items WHERE source_id = ?").bind(id).run();
   await db.prepare("DELETE FROM content_sources WHERE id = ?").bind(id).run();
-  return json({ ok: true });
+  return jsonDeleted("contentSource", id);
 };

@@ -12,7 +12,6 @@ export type Messages = {
   nav: {
     category: string;
     articles: string;
-    pricing: string;
     about: string;
     featured: string;
     tools: string;
@@ -33,28 +32,27 @@ export type Messages = {
     latestArticles: string;
     moreTools: string;
     morePosts: string;
-    updateTitle: (date: string) => string;
-    updateDescription: string;
     footerDescription: string;
     footerProduct: string;
     footerSupport: string;
     footerOther: string;
     footerMore: string;
-    price: string;
     email: string;
-    chat: string;
     blog: string;
     countdown: string;
-    cleaner: string;
     about: string;
     privacy: string;
     terms: string;
-    madeWith: string;
     copyright: string;
   };
   articlesPage: {
     title: string;
     description: string;
+  };
+  publicMeta: {
+    aboutDescription: string;
+    privacyDescription: string;
+    termsDescription: string;
   };
   aboutPage: {
     title: string;
@@ -81,7 +79,6 @@ export type Messages = {
     official: string;
     github: string;
     twitter: string;
-    productHunt: string;
   };
   actions: {
     submitTool: string;
@@ -92,7 +89,6 @@ export type Messages = {
     visit: string;
     demo: string;
     viewDetails: string;
-    openAdmin: string;
     close: string;
     home: string;
     backHome: string;
@@ -105,6 +101,7 @@ export type Messages = {
     githubSettings: string;
     copy: string;
     logout: string;
+    clearFilters: string;
   };
   search: {
     trigger: string;
@@ -126,7 +123,6 @@ export type Messages = {
   };
   footer: {
     version: string;
-    d1: string;
   };
   submit: {
     title: string;
@@ -134,8 +130,6 @@ export type Messages = {
     description: string;
   };
   submitPage: {
-    sidebarSettings: string;
-    sidebarSubmit: string;
     title: string;
     heading: string;
     description: string;
@@ -153,12 +147,32 @@ export type Messages = {
     descriptionPlaceholder: string;
     urlPlaceholder: string;
     categoryLabel: string;
-    githubConfigured: string;
     githubNotConfigured: string;
+    authStateUnavailableDescription: string;
+    retryAuthState: string;
     signedInAs: (login: string) => string;
     signInRequired: string;
     success: (issueNumber: number) => string;
     submitHint: string;
+    validationNameRequired: string;
+    validationNameTooLong: string;
+    validationUrlRequired: string;
+    validationUrlInvalid: string;
+    validationDescriptionRequired: string;
+    validationDescriptionTooLong: string;
+    validationCategoryRequired: string;
+    validationFixForm: string;
+    pendingSuccess: (issueNumber: number) => string;
+    existingTool: (name: string) => string;
+    sessionExpired: string;
+      rateLimited: string;
+      githubCheckFailed: string;
+      submissionFailed: string;
+      projectInfoTitle: string;
+    projectInfoDescription: string;
+    categoryDescription: string;
+    waitSeconds: (seconds: number) => string;
+    viewExistingTool: string;
   };
   tool: {
     featured: string;
@@ -173,30 +187,25 @@ export type Messages = {
     toolLibrary: string;
     settings: string;
     rootUser: string;
-    signedIn: string;
     refresh: string;
     collapseSidebar: string;
     expandSidebar: string;
     searchPlaceholder: string;
     manageTools: string;
-    cardDescription: string;
     sortLatest: string;
     sortName: string;
     emptyTitle: string;
     emptyDescription: string;
     password: string;
+    turnstileRequired: string;
+    turnstileServerFailed: string;
     tableTool: string;
-    tableCategory: string;
-    tableTags: string;
-    tableStatus: string;
-    tableActions: string;
     editTool: string;
     deleteTool: string;
-    editAria: (name: string) => string;
-    deleteAria: (name: string) => string;
+    editAction: string;
+    deleteAction: string;
   };
   linkCheck: {
-    navLabel: string;
     eyebrow: string;
     title: string;
     description: string;
@@ -205,10 +214,8 @@ export type Messages = {
     batchSize: string;
     batchSizeHelp: string;
     start: string;
-    checking: string;
     stop: string;
     reload: string;
-    reloading: string;
     clear: string;
     exportCsv: string;
     total: string;
@@ -238,7 +245,6 @@ export type Messages = {
     resultAbnormal: string;
     resultNetworkError: string;
     durationMs: (duration: number) => string;
-    openLink: string;
     emptyNotStarted: string;
     emptyNoBrokenLinks: string;
     emptyNoMatchingResults: string;
@@ -261,9 +267,7 @@ export type Messages = {
     tags: string;
     tagsPlaceholder: string;
     githubMetadata: string;
-    githubMetadataLoading: string;
     featuredTool: string;
-    saving: string;
     saveTool: string;
   };
   githubSettings: {
@@ -271,8 +275,6 @@ export type Messages = {
     description: string;
     enabled: string;
     disabled: string;
-    enabledPending: string;
-    disabledPending: string;
     statusEnabled: string;
     statusDisabled: string;
     clientId: string;
@@ -283,22 +285,18 @@ export type Messages = {
     labels: string;
     labelsPlaceholder: string;
     callbackUrl: string;
-    callbackHint: string;
     saved: string;
     saveFailed: string;
-    notLoaded: string;
   };
   status: {
-    loggedIn: string;
     loginFailed: string;
+    sessionExpired: string;
     githubLoginSuccess: string;
     githubLogoutSuccess: string;
     githubLogoutFailed: string;
-    submissionSuccess: string;
     toolUpdated: string;
     toolCreated: string;
     saveFailed: string;
-    deleteConfirm: (name: string) => string;
     deleteConfirmTitle: string;
     deleteConfirmDescription: string;
     deleteCancel: string;
@@ -310,7 +308,17 @@ export type Messages = {
     featuredDraftEnabled: string;
     featuredDraftDisabled: string;
     githubMetadataApplied: string;
-    githubMetadataFailed: string;
+  };
+  errors: {
+    requestFailed: string;
+    timeout: string;
+    unauthorized: string;
+    forbidden: string;
+    notFound: string;
+    conflict: string;
+    rateLimited: string;
+    serverError: string;
+    invalidRequest: string;
   };
   categories: Record<string, string>;
 };

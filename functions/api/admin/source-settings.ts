@@ -1,4 +1,12 @@
-import { getDatabase, json, requireAdmin, type Env } from "../../_shared";
+import {
+  getDatabase,
+  invalidatePublicApiCache,
+  json,
+  jsonError,
+  requireAdmin,
+  writeErrorResponse,
+  type Env
+} from "../../_shared";
 
 const SOURCE_PUBLIC_KEY = "source_public_enabled";
 const SOURCE_PATH = "/api/htools.json";
@@ -16,7 +24,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to load source settings.";
-    return json({ error: message }, { status: 400 });
+    return jsonError(message, "SERVER_ERROR", { status: 500 });
   }
 };
 
@@ -40,13 +48,13 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
       .bind(SOURCE_PUBLIC_KEY, JSON.stringify({ enabled }))
       .run();
 
+    await invalidatePublicApiCache(env);
+
     return json({
       settings: await readSourceSettings(env, request)
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to save source settings.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to save source settings.");
   }
 };
 

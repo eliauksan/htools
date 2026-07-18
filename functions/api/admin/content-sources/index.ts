@@ -4,8 +4,10 @@ import {
   fetchFeedPreview,
   getDatabase,
   json,
+  jsonError,
   requireAdmin,
   validateContentSourcePayload,
+  writeErrorResponse,
   type ContentSourceRow,
   type Env
 } from "../../../_shared";
@@ -73,10 +75,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .bind(id)
       .first<ContentSourceRow>();
 
-    return json({ source: row ? contentSourceFromRow(row) : null }, { status: 201 });
+    if (!row) {
+      return jsonError("Content source could not be loaded after creation.", "SERVER_ERROR", { status: 500 });
+    }
+    return json({ source: contentSourceFromRow(row) }, { status: 201 });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to create content source.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to create content source.");
   }
 };

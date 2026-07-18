@@ -3,6 +3,11 @@ import {
   type ArticleRow,
   type Env
 } from "./_shared";
+import {
+  createPublicArticleMetadata,
+  createPublicUrl,
+  parsePublicDate
+} from "./_public-discovery";
 
 const SITEMAP_HEADERS = {
   "Cache-Control": "public, max-age=300",
@@ -11,25 +16,24 @@ const SITEMAP_HEADERS = {
 
 type SitemapArticleRow = Pick<
   ArticleRow,
-  "slug" | "updated_at" | "published_at" | "created_at"
+  "slug" | "cover_image" | "updated_at" | "published_at" | "created_at"
 >;
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  const origin = new URL(request.url).origin;
   const urls = [
-    createUrlEntry(origin, "/", "daily", "1.0"),
-    createUrlEntry(origin, "/tools", "daily", "0.8"),
-    createUrlEntry(origin, "/articles", "daily", "0.8"),
-    createUrlEntry(origin, "/submit", "monthly", "0.5"),
-    createUrlEntry(origin, "/about", "monthly", "0.5"),
-    createUrlEntry(origin, "/privacy", "yearly", "0.3"),
-    createUrlEntry(origin, "/terms", "yearly", "0.3")
+    createUrlEntry(request.url, "/", "daily", "1.0"),
+    createUrlEntry(request.url, "/tools", "daily", "0.8"),
+    createUrlEntry(request.url, "/articles", "daily", "0.8"),
+    createUrlEntry(request.url, "/submit", "monthly", "0.5"),
+    createUrlEntry(request.url, "/about", "monthly", "0.5"),
+    createUrlEntry(request.url, "/privacy", "yearly", "0.3"),
+    createUrlEntry(request.url, "/terms", "yearly", "0.3")
   ];
 
   try {
     const db = await getDatabase(env);
     const result = await db.prepare(
-      `SELECT slug, updated_at, published_at, created_at
+      `SELECT slug, cover_image, updated_at, published_at, created_at
        FROM articles
        WHERE published = 1
        ORDER BY COALESCE(published_at, updated_at, created_at) DESC
@@ -37,15 +41,17 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     ).all<SitemapArticleRow>();
 
     urls.push(
-      ...result.results.map((article) =>
-        createUrlEntry(
-          origin,
-          `/articles/${encodeURIComponent(article.slug)}`,
+      ...result.results.map((article) => {
+        const metadata = createPublicArticleMetadata(request.url, article);
+
+        return createUrlEntry(
+          request.url,
+          metadata.url,
           "weekly",
           "0.7",
-          article.published_at ?? article.updated_at ?? article.created_at
-        )
-      )
+          metadata.dateModified
+        );
+      })
     );
   } catch {
     // Keep the sitemap useful even when a fresh deployment has not bound D1 yet.
@@ -61,7 +67,7 @@ function createSitemap(urls: string[]) {
 }
 
 function createUrlEntry(
-  origin: string,
+  requestUrl: string,
   path: string,
   changefreq: string,
   priority: string,
@@ -71,7 +77,7 @@ function createUrlEntry(
 
   return [
     "  <url>",
-    `    <loc>${escapeXml(new URL(path, origin).toString())}</loc>`,
+    `    <loc>${escapeXml(createPublicUrl(requestUrl, path))}</loc>`,
     normalizedLastmod ? `    <lastmod>${normalizedLastmod}</lastmod>` : "",
     `    <changefreq>${changefreq}</changefreq>`,
     `    <priority>${priority}</priority>`,
@@ -80,20 +86,9 @@ function createUrlEntry(
 }
 
 function normalizeSitemapDate(value: string) {
-  const date = parseDate(value);
+  const date = parsePublicDate(value);
 
-  return date ? date.toISOString().slice(0, 10) : "";
-}
-
-function parseDate(value: string) {
-  if (!value) {
-    return null;
-  }
-
-  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
-  const date = new Date(normalized);
-
-  return Number.isNaN(date.getTime()) ? null : date;
+  return date ? date.toISOString() : "";
 }
 
 function escapeXml(value: string) {

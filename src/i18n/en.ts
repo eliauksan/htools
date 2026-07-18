@@ -5,7 +5,6 @@ export const en: Messages = {
   nav: {
     category: "Tools",
     articles: "Articles",
-    pricing: "Pricing",
     about: "About Us",
     featured: "Featured",
     tools: "Tools",
@@ -28,29 +27,31 @@ export const en: Messages = {
     latestArticles: "Latest Articles",
     moreTools: "More Tools",
     morePosts: "More Posts",
-    updateTitle: (date) => `Update Log · ${date}`,
-    updateDescription: "See what new tools and features were added in this update.",
     footerDescription:
       "Explore curated tools and resources to accelerate your indie development journey.",
     footerProduct: "Product",
     footerSupport: "Support",
     footerOther: "Other",
     footerMore: "More",
-    price: "Pricing",
     email: "Email",
-    chat: "Telegram",
     blog: "Blog",
     countdown: "Home",
-    cleaner: "Repo Cleaner",
     about: "About Us",
     privacy: "Privacy Policy",
     terms: "Terms",
-    madeWith: "Made with",
     copyright: "© 2026 HTools. All rights reserved."
   },
   articlesPage: {
     title: "Articles",
     description: "Read tutorials, announcements, and resource roundups for practical ideas."
+  },
+  publicMeta: {
+    aboutDescription:
+      "Learn about this site's background, directory focus, and maintenance approach.",
+    privacyDescription:
+      "Learn how this site collects, uses, and protects information related to visits and features.",
+    termsDescription:
+      "Review the rules that apply when using this site's directory, articles, and submission features."
   },
   aboutPage: {
     title: "About Me",
@@ -81,7 +82,6 @@ export const en: Messages = {
     official: "Official",
     github: "Github",
     twitter: "Twitter",
-    productHunt: "ProductHunt"
   },
   actions: {
     submitTool: "Submit Tool",
@@ -92,7 +92,6 @@ export const en: Messages = {
     visit: "Visit",
     demo: "Demo",
     viewDetails: "View details",
-    openAdmin: "Open Admin",
     close: "Close",
     home: "Home",
     backHome: "Back Home",
@@ -104,7 +103,8 @@ export const en: Messages = {
     saveSettings: "Save Settings",
     githubSettings: "GitHub Submission Settings",
     copy: "Copy",
-    logout: "Logout"
+    logout: "Logout",
+    clearFilters: "Clear filters"
   },
   search: {
     trigger: "Search",
@@ -127,8 +127,7 @@ export const en: Messages = {
     description: "Try another category or a shorter search term."
   },
   footer: {
-    version: "HTools v1.0.10",
-    d1: "Cloudflare D1"
+    version: "HTools v1.0.10"
   },
   submit: {
     title: "Submit Tool",
@@ -137,10 +136,8 @@ export const en: Messages = {
       "Use GitHub authorization to submit a tool suggestion. Approved tools can be added to the directory."
   },
   submitPage: {
-    sidebarSettings: "Settings",
-    sidebarSubmit: "Submit Tool",
     title: "Submit Tool",
-    heading: "Submit a useful tool to HTools",
+    heading: "Submit Tool",
     description:
       "Share the project name, URL, description, and category. Submissions create GitHub issues for transparent review.",
     guideIntroTitle: "Help maintain a practical tool directory",
@@ -163,14 +160,37 @@ export const en: Messages = {
       "Use 1-2 sentences to explain what it does, who it helps, and what result it creates",
     urlPlaceholder: "e.g. github.com/owner/repo or https://example.com",
     categoryLabel: "Type",
-    githubConfigured: "GitHub submissions are enabled.",
     githubNotConfigured: "The site admin has not configured GitHub OAuth submissions yet.",
+    authStateUnavailableDescription:
+      "Check your connection and reload the status. The saved configuration is unchanged.",
+    retryAuthState: "Reload status",
     signedInAs: (login) => `Signed in with GitHub as @${login}`,
     signInRequired:
       "Sign in with GitHub first. Your submission will be created as a repository issue.",
     success: (issueNumber) => `Submitted successfully. Issue #${issueNumber} was created.`,
     submitHint:
-      "Submissions create public GitHub issues. Approved projects are organized into the tool library."
+      "Submissions create public GitHub issues. Approved projects are organized into the tool library.",
+    validationNameRequired: "Enter a tool name.",
+    validationNameTooLong: "Keep the name under 100 characters.",
+    validationUrlRequired: "Enter the project URL.",
+    validationUrlInvalid: "Enter a valid HTTP or HTTPS URL.",
+    validationDescriptionRequired: "Enter a description.",
+    validationDescriptionTooLong: "Keep the description under 1,000 characters.",
+    validationCategoryRequired: "Choose a category.",
+    validationFixForm: "Fix the highlighted form fields first.",
+    pendingSuccess: (issueNumber) =>
+      `This tool is already awaiting review (Issue #${issueNumber}).`,
+    existingTool: (name) => `“${name}” is already listed in the directory.`,
+    sessionExpired: "Your GitHub session has expired. Please sign in again.",
+    rateLimited: "Too many requests. Please try again shortly.",
+    githubCheckFailed: "GitHub could not complete the check. Please try again later.",
+    submissionFailed: "Submission failed. Check the project details and try again.",
+    projectInfoTitle: "Project information",
+    projectInfoDescription:
+      "Add the public project details that will be reviewed for the directory.",
+    categoryDescription: "Choose the single category that best matches the project.",
+    waitSeconds: (seconds) => `Wait ${seconds}s`,
+    viewExistingTool: "View existing tool"
   },
   tool: {
     featured: "Featured",
@@ -185,31 +205,25 @@ export const en: Messages = {
     toolLibrary: "Tool Library",
     settings: "Settings",
     rootUser: "Admin",
-    signedIn: "Signed in",
     refresh: "Refresh",
     collapseSidebar: "Collapse sidebar",
     expandSidebar: "Expand sidebar",
     searchPlaceholder: "Search tools...",
     manageTools: "Manage tools",
-    cardDescription:
-      "Manage HTools listings as project cards with editing, deletion, and external links in one place.",
     sortLatest: "Latest first",
     sortName: "Name sort",
     emptyTitle: "No matching tools",
     emptyDescription: "Try another search term or refresh the tool list.",
     password: "Password",
+    turnstileRequired: "Complete the verification first.",
+    turnstileServerFailed: "The verification service is temporarily unavailable. Try again later.",
     tableTool: "Tool",
-    tableCategory: "Category",
-    tableTags: "Tags",
-    tableStatus: "Status",
-    tableActions: "Actions",
     editTool: "Edit Tool",
     deleteTool: "Delete Tool",
-    editAria: (name) => `Edit ${name}`,
-    deleteAria: (name) => `Delete ${name}`
+    editAction: "Edit",
+    deleteAction: "Delete",
   },
   linkCheck: {
-    navLabel: "Link Check",
     eyebrow: "Link Health Check",
     title: "Link Check",
     description:
@@ -220,10 +234,8 @@ export const en: Messages = {
     batchSize: "Batch size",
     batchSizeHelp: "Check up to 10 links per batch.",
     start: "Start Check",
-    checking: "Checking...",
     stop: "Stop",
     reload: "Reload Links",
-    reloading: "Loading...",
     clear: "Clear Results",
     exportCsv: "Export CSV",
     total: "Target Links",
@@ -254,7 +266,6 @@ export const en: Messages = {
     resultAbnormal: "Abnormal",
     resultNetworkError: "Network Error",
     durationMs: (duration) => `${duration} ms`,
-    openLink: "Open",
     emptyNotStarted: "No check has started yet.",
     emptyNoBrokenLinks: "No abnormal links were found this time.",
     emptyNoMatchingResults: "No results match the current filter.",
@@ -277,19 +288,15 @@ export const en: Messages = {
     tags: "Tags",
     tagsPlaceholder: "Database, Auth, AI",
     githubMetadata: "GitHub Info",
-    githubMetadataLoading: "Fetching...",
     featuredTool: "Featured tool",
-    saving: "Saving...",
     saveTool: "Save Tool"
   },
   githubSettings: {
     title: "GitHub Submission Settings",
     description:
       "Configure the GitHub OAuth App and target repository. Public submissions create GitHub issues after user authorization.",
-    enabled: "Enable GitHub submissions",
-    disabled: "Disable GitHub submissions",
-    enabledPending: "Enabled. Save to apply.",
-    disabledPending: "Disabled. Save to apply.",
+    enabled: "Enable",
+    disabled: "Disable",
     statusEnabled: "Enabled",
     statusDisabled: "Disabled",
     clientId: "OAuth Client ID",
@@ -300,23 +307,18 @@ export const en: Messages = {
     labels: "Issue Labels",
     labelsPlaceholder: "tool-submission, pending-review",
     callbackUrl: "Callback URL",
-    callbackHint:
-      "Add this URL to Authorization callback URL in your GitHub OAuth App.",
     saved: "GitHub submission settings saved.",
     saveFailed: "Failed to save GitHub submission settings.",
-    notLoaded: "Settings are still loading."
   },
   status: {
-    loggedIn: "Logged in.",
     loginFailed: "Login failed.",
+    sessionExpired: "Your session has expired. Please log in again.",
     githubLoginSuccess: "GitHub signed in",
     githubLogoutSuccess: "GitHub signed out",
     githubLogoutFailed: "Failed to sign out of GitHub.",
-    submissionSuccess: "Submitted",
     toolUpdated: "Tool updated.",
     toolCreated: "Tool created.",
     saveFailed: "Save failed.",
-    deleteConfirm: (name) => `Delete ${name}?`,
     deleteConfirmTitle: "Are you sure?",
     deleteConfirmDescription:
       "This action cannot be undone. This will permanently delete the tool from the server.",
@@ -329,7 +331,17 @@ export const en: Messages = {
     featuredDraftEnabled: "Marked as featured. Save the tool to apply it.",
     featuredDraftDisabled: "Featured mark removed. Save the tool to apply it.",
     githubMetadataApplied: "GitHub repository info loaded.",
-    githubMetadataFailed: "Failed to load GitHub repository info."
+  },
+  errors: {
+    requestFailed: "Request failed. Try again shortly.",
+    timeout: "Request timed out. Try again shortly.",
+    unauthorized: "Your session has expired. Sign in again.",
+    forbidden: "You do not have permission to perform this action.",
+    notFound: "The requested content does not exist or has been removed.",
+    conflict: "This content has changed. Refresh and try again.",
+    rateLimited: "Too many requests. Try again shortly.",
+    serverError: "The server cannot process this request right now. Try again shortly.",
+    invalidRequest: "The submitted content is invalid. Check it and try again."
   },
   categories: {
     All: "All",

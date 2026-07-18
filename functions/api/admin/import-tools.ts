@@ -1,7 +1,10 @@
 import {
   createId,
+  badRequest,
   getDatabase,
+  invalidatePublicApiCache,
   json,
+  jsonError,
   requireAdmin,
   validateToolPayload,
   type Env,
@@ -18,6 +21,7 @@ type ImportError = {
 type StoredToolKey = {
   id: string;
   url: string;
+  updated_at: string;
 };
 
 const MAX_IMPORT_TOOLS = 1000;
@@ -28,14 +32,23 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return unauthorized;
   }
 
+  let mode: ImportMode;
+  let prepared: ReturnType<typeof prepareImportTools>;
+
+  try {
+    const payload = (await request.json()) as { tools?: unknown; mode?: unknown };
+    mode = readMode(payload.mode);
+    prepared = prepareImportTools(readImportTools(payload.tools));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Import file is invalid.";
+    return badRequest(message);
+  }
+
   try {
     const db = await getDatabase(env);
-    const payload = (await request.json()) as { tools?: unknown; mode?: unknown };
-    const tools = readImportTools(payload.tools);
-    const mode = readMode(payload.mode);
-    const prepared = prepareImportTools(tools);
-    const existing = await db.prepare("SELECT id, url FROM tools").all<StoredToolKey>();
-    const existingByUrl = new Map(existing.results.map((row) => [normalizeUrl(row.url), row.id]));
+    const existing = await db.prepare("SELECT id, url, updated_at FROM tools").all<StoredToolKey>();
+    const existingByUrl = new Map(existing.results.map((row) => [normalizeUrl(row.url), row]));
     const existingIds = new Set(existing.results.map((row) => row.id));
     const seenUrls = new Set<string>();
     const seenIds = new Set<string>();
@@ -53,15 +66,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         continue;
       }
 
-      const existingId = existingByUrl.get(urlKey);
+      const existingTool = existingByUrl.get(urlKey);
       seenUrls.add(urlKey);
 
-      if (existingId && mode === "skip") {
+      if (existingTool && mode === "skip") {
         skipped += 1;
         continue;
       }
 
-      if (existingId && mode === "upsert") {
+      if (existingTool && mode === "upsert") {
         statements.push(
           db.prepare(
             `UPDATE tools
@@ -79,8 +92,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
             item.payload.githubLanguage,
             item.payload.githubLicense,
             item.payload.featured ? 1 : 0,
-            new Date().toISOString(),
-            existingId
+            item.updatedAt ?? existingTool.updated_at,
+            existingTool.id
           )
         );
         updated += 1;
@@ -88,7 +101,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
 
       const id = createImportId(item.id, item.payload.name, existingIds, seenIds);
-      const now = new Date().toISOString();
+      const timestamps = resolveImportTimestamps(
+        item.createdAt,
+        item.updatedAt,
+        new Date().toISOString()
+      );
       seenIds.add(id);
       statements.push(
         db.prepare(
@@ -108,8 +125,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
           item.payload.githubLanguage,
           item.payload.githubLicense,
           item.payload.featured ? 1 : 0,
-          now,
-          now
+          timestamps.createdAt,
+          timestamps.updatedAt
         )
       );
       imported += 1;
@@ -117,6 +134,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     if (statements.length) {
       await db.batch(statements);
+      await invalidatePublicApiCache(env);
     }
 
     return json({
@@ -129,7 +147,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to import tools.";
-    return json({ error: message }, { status: 400 });
+    return jsonError(message, "SERVER_ERROR", { status: 500 });
   }
 };
 
@@ -153,10 +171,12 @@ function readMode(value: unknown): ImportMode {
   return value === "upsert" ? "upsert" : "skip";
 }
 
-function prepareImportTools(tools: unknown[]) {
+export function prepareImportTools(tools: unknown[]) {
   const valid: Array<{
     id: string;
     payload: ReturnType<typeof validateToolPayload>;
+    createdAt: string | null;
+    updatedAt: string | null;
   }> = [];
   const errors: ImportError[] = [];
 
@@ -166,10 +186,22 @@ function prepareImportTools(tools: unknown[]) {
         throw new Error("Item must be an object.");
       }
 
-      const item = tool as ToolPayload & { id?: unknown };
+      const item = tool as ToolPayload & {
+        id?: unknown;
+        createdAt?: unknown;
+        created_at?: unknown;
+        updatedAt?: unknown;
+        updated_at?: unknown;
+      };
       valid.push({
         id: readOptionalId(item.id),
-        payload: validateToolPayload(normalizeImportPayload(item))
+        payload: validateToolPayload(normalizeImportPayload(item)),
+        createdAt: normalizeImportTimestamp(
+          "createdAt" in item ? item.createdAt : item.created_at
+        ),
+        updatedAt: normalizeImportTimestamp(
+          "updatedAt" in item ? item.updatedAt : item.updated_at
+        )
       });
     } catch (error) {
       errors.push({
@@ -180,6 +212,25 @@ function prepareImportTools(tools: unknown[]) {
   });
 
   return { tools: valid, errors };
+}
+
+export function resolveImportTimestamps(
+  createdAt: string | null,
+  updatedAt: string | null,
+  fallback: string
+) {
+  const resolvedCreatedAt = createdAt ?? updatedAt ?? fallback;
+  return {
+    createdAt: resolvedCreatedAt,
+    updatedAt: updatedAt ?? resolvedCreatedAt
+  };
+}
+
+function normalizeImportTimestamp(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) throw new Error("updatedAt must be a valid date.");
+  return new Date(timestamp).toISOString();
 }
 
 function normalizeImportPayload(item: ToolPayload) {

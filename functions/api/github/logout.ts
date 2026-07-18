@@ -2,7 +2,7 @@ import {
   buildClearGitHubSessionCookie,
   getDatabase,
   getGitHubSession,
-  json,
+  jsonActionSuccess,
   type Env
 } from "../../_shared";
 
@@ -16,7 +16,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .run();
   }
 
-  const response = json({ ok: true });
+  const response = jsonActionSuccess();
   response.headers.append("Set-Cookie", buildClearGitHubSessionCookie(request));
   return response;
 };

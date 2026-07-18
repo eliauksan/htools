@@ -1,6 +1,7 @@
 import {
   getDatabase,
   json,
+  jsonError,
   requireAdmin,
   toolSourceFromRow,
   type Env,
@@ -27,6 +28,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to export tool source.";
-    return json({ error: message }, { status: 400 });
+    return jsonError(message, "SERVER_ERROR", { status: 500 });
   }
 };

@@ -1,4 +1,13 @@
-import { getDatabase, json, toolSourceFromRow, type Env, type ToolRow } from "../_shared";
+import {
+  PUBLIC_API_CACHE_KEYS,
+  cachedPublicJson,
+  getDatabase,
+  getPublicApiCacheVersion,
+  json,
+  toolSourceFromRow,
+  type Env,
+  type ToolRow
+} from "../_shared";
 
 const SOURCE_PUBLIC_KEY = "source_public_enabled";
 const SOURCE_HEADERS = {
@@ -14,28 +23,40 @@ export const onRequestOptions: PagesFunction<Env> = async () =>
     headers: SOURCE_HEADERS
   });
 
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+export const onRequestGet: PagesFunction<Env> = async ({ request, env, waitUntil }) => {
   try {
-    const db = await getDatabase(env);
+    const cacheVersion = await getPublicApiCacheVersion(env);
+    return await cachedPublicJson(request, async () => {
+      const db = await getDatabase(env);
 
-    if (!(await isSourcePublic(db))) {
-      return json(
-        { error: "Public source is disabled." },
-        { status: 404, headers: SOURCE_HEADERS }
-      );
-    }
+      if (!(await isSourcePublic(db))) {
+        throw new Error("Public source is disabled.");
+      }
 
-    const result = await db.prepare(
-      "SELECT * FROM tools ORDER BY updated_at DESC, created_at DESC"
-    ).all<ToolRow>();
+      const result = await db.prepare(
+        "SELECT * FROM tools ORDER BY updated_at DESC, created_at DESC"
+      ).all<ToolRow>();
 
-    return json(result.results.map(toolSourceFromRow), {
-      headers: SOURCE_HEADERS
+      return result.results.map(toolSourceFromRow);
+    }, {
+      cacheKey: PUBLIC_API_CACHE_KEYS.toolSource,
+      cacheVersion,
+      ttlSeconds: 30,
+      waitUntil,
+      headers: SOURCE_HEADERS,
+      responseCacheControl: "public, no-cache, max-age=0",
+      shouldCache: (data) => Array.isArray(data) && data.length > 0
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to load public source.";
-    return json({ error: message }, { status: 400, headers: SOURCE_HEADERS });
+    return json(
+      { error: message },
+      {
+        status: message === "Public source is disabled." ? 404 : 400,
+        headers: SOURCE_HEADERS
+      }
+    );
   }
 };
 

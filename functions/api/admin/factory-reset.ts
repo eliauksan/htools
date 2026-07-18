@@ -1,4 +1,11 @@
-import { getDatabase, json, requireAdmin, type Env } from "../../_shared";
+import {
+  getDatabase,
+  invalidatePublicApiCache,
+  json,
+  jsonError,
+  requireAdmin,
+  type Env
+} from "../../_shared";
 
 const SOURCE_PUBLIC_KEY = "source_public_enabled";
 const ADMIN_CATEGORY_SETTINGS_KEY = "admin_category_settings";
@@ -43,11 +50,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       ).bind(SOURCE_PUBLIC_KEY, JSON.stringify({ enabled: false }))
     ]);
 
+    await invalidatePublicApiCache(env);
+
     return json({ deleted, counts });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to reset factory settings.";
-    return json({ error: message }, { status: 400 });
+    return jsonError(message, "SERVER_ERROR", { status: 500 });
   }
 };
 

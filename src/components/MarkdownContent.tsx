@@ -8,6 +8,7 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { DEFAULT_PROXY_MODE, DEFAULT_PROXY_SCOPE, proxifyUrl } from "../proxy";
 import type { ProxySettings } from "../types";
+import type { Locale } from "../i18n";
 
 const markdownSanitizeSchema = {
   ...defaultSchema,
@@ -37,9 +38,11 @@ const defaultProxySettings: ProxySettings = {
 
 export default function MarkdownContent({
   content,
+  locale,
   proxySettings = defaultProxySettings
 }: {
   content: string;
+  locale?: Locale;
   proxySettings?: ProxySettings;
 }) {
   const { body, linkSections, originalLink } = useMemo(
@@ -123,6 +126,7 @@ export default function MarkdownContent({
                   className={className}
                   code={code}
                   codeProps={props}
+                  locale={locale}
                 />
               );
             }
@@ -173,17 +177,19 @@ export default function MarkdownContent({
 function MarkdownCodeBlock({
   className,
   code,
-  codeProps
+  codeProps,
+  locale
 }: {
   className?: string;
   code: string;
   codeProps: HTMLAttributes<HTMLElement>;
+  locale?: Locale;
 }) {
   const lines = useMemo(() => code.split("\n"), [code]);
   const shouldCollapse = lines.length > collapsibleCodeLineThreshold;
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const labels = getMarkdownCodeBlockLabels();
+  const labels = getMarkdownCodeBlockLabels(locale);
   const languageLabel = getCodeLanguageLabel(className, code);
 
   useEffect(() => {
@@ -261,12 +267,12 @@ function MarkdownCodeBlock({
   );
 }
 
-function getMarkdownCodeBlockLabels() {
-  const language =
-    typeof document === "undefined"
+function getMarkdownCodeBlockLabels(locale?: Locale) {
+  const language = locale ??
+    (typeof document === "undefined"
       ? "zh"
-      : document.documentElement.lang || navigator.language || "zh";
-  const isChinese = language.toLowerCase().startsWith("zh");
+      : document.documentElement.lang || navigator.language || "zh");
+  const isChinese = language === "zh" || language.toLowerCase().startsWith("zh");
 
   return isChinese
     ? {

@@ -4,7 +4,7 @@ import { zh } from "./zh";
 
 export type { Locale, Messages };
 
-export const defaultLocale: Locale = "zh";
+const defaultLocale: Locale = "zh";
 
 export const localeOptions: LocaleOption[] = [
   {

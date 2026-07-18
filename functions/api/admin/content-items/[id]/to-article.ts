@@ -1,15 +1,22 @@
 import {
   articleFromRow,
+  badRequest,
+  buildContentItemArticleContent,
+  createContentItemMarker,
+  createContentVersion,
   createArticleId,
   getDatabase,
+  invalidatePublicApiCache,
   json,
+  jsonError,
   normalizeFeedItemTags,
   normalizeFeedItemSummary,
   normalizeFeedItemTitle,
   requireAdmin,
   type ArticleRow,
   type ContentItemRow,
-  type Env
+  type Env,
+  writeErrorResponse
 } from "../../../../_shared";
 
 export const onRequestPost: PagesFunction<Env> = async ({
@@ -36,7 +43,7 @@ export const onRequestPost: PagesFunction<Env> = async ({
       .first<ContentItemRow>();
 
     if (!item) {
-      return json({ error: "Content item not found." }, { status: 404 });
+      return jsonError("Content item not found.", "NOT_FOUND", { status: 404 });
     }
 
     const payload = await request.json().catch(() => ({}));
@@ -53,10 +60,7 @@ export const onRequestPost: PagesFunction<Env> = async ({
       category.toLowerCase() === "all" ||
       category.toLowerCase() === "featured"
     ) {
-      return json(
-        { error: "Article category is required." },
-        { status: 400 }
-      );
+      return badRequest("Article category is required.");
     }
 
     const now = new Date().toISOString();
@@ -76,6 +80,11 @@ export const onRequestPost: PagesFunction<Env> = async ({
       item.summary,
       item.content
     );
+    const sourceContentVersion =
+      item.content_version ||
+      createContentVersion(
+        `${item.content || item.summary || item.title}\n\u0000${item.url}`
+      );
 
     if (item.article_id) {
       const existingArticle = await db.prepare("SELECT * FROM articles WHERE id = ?")
@@ -86,7 +95,19 @@ export const onRequestPost: PagesFunction<Env> = async ({
         existingArticle &&
         isContentItemLinkedArticle(item, existingArticle, articleTitle)
       ) {
-        return json({ article: articleFromRow(existingArticle) });
+        const updatedArticle = await updateExistingArticleSettings(
+          db,
+          existingArticle.id,
+          category,
+          published,
+          now,
+          sourceContentVersion
+        );
+        await invalidatePublicApiCache(env);
+        if (!updatedArticle) {
+          return jsonError("Article could not be loaded after update.", "SERVER_ERROR", { status: 500 });
+        }
+        return json({ article: articleFromRow(updatedArticle) });
       }
 
       await db.prepare(
@@ -96,6 +117,35 @@ export const onRequestPost: PagesFunction<Env> = async ({
       )
         .bind(now, id)
         .run();
+    }
+
+    const claimedArticle = await db.prepare(
+      "SELECT * FROM articles WHERE content_item_id = ? LIMIT 1"
+    )
+      .bind(item.id)
+      .first<ArticleRow>();
+
+    if (claimedArticle) {
+      await db.prepare(
+        `UPDATE content_items
+         SET article_id = ?, updated_at = ?
+         WHERE id = ?`
+      )
+        .bind(claimedArticle.id, now, id)
+        .run();
+      const updatedArticle = await updateExistingArticleSettings(
+        db,
+        claimedArticle.id,
+        category,
+        published,
+        now,
+        sourceContentVersion
+      );
+      await invalidatePublicApiCache(env);
+      if (!updatedArticle) {
+        return jsonError("Article could not be loaded after update.", "SERVER_ERROR", { status: 500 });
+      }
+      return json({ article: articleFromRow(updatedArticle) });
     }
 
     const existingArticle = await db.prepare(
@@ -108,28 +158,50 @@ export const onRequestPost: PagesFunction<Env> = async ({
       .first<ArticleRow>();
 
     if (existingArticle) {
-      await db.prepare(
-        `UPDATE content_items
-         SET article_id = ?, updated_at = ?
-         WHERE id = ?`
-      )
-        .bind(existingArticle.id, now, id)
-        .run();
+      await db.batch([
+        db.prepare(
+          `UPDATE articles
+           SET content_item_id = COALESCE(content_item_id, ?)
+           WHERE id = ?`
+        ).bind(item.id, existingArticle.id),
+        db.prepare(
+          `UPDATE content_items
+           SET article_id = ?, updated_at = ?
+           WHERE id = ?`
+        ).bind(existingArticle.id, now, id)
+      ]);
 
-      return json({ article: articleFromRow(existingArticle) });
+      const updatedArticle = await updateExistingArticleSettings(
+        db,
+        existingArticle.id,
+        category,
+        published,
+        now,
+        sourceContentVersion
+      );
+      await invalidatePublicApiCache(env);
+      if (!updatedArticle) {
+        return jsonError("Article could not be loaded after update.", "SERVER_ERROR", { status: 500 });
+      }
+      return json({ article: articleFromRow(updatedArticle) });
     }
 
     const articleId = createArticleId();
     const slug = await createUniqueContentArticleSlug(db, item);
     const contentBody = item.content || item.summary || item.title;
-    const content = `${contentBody}\n\n${createContentItemMarker(item.id)}\n\n## \u539f\u6587\u94fe\u63a5\n\n[\u9605\u8bfb\u539f\u6587](${item.url})`;
+    const content = buildContentItemArticleContent({
+      body: contentBody,
+      contentItemId: item.id,
+      originalUrl: item.url
+    });
     const publishedAt = item.published_at ?? (published ? now : null);
 
-    await db.prepare(
+    const insertArticle = db.prepare(
       `INSERT INTO articles
         (id, slug, title, summary, content, cover_image, category, tags,
-         published, created_at, updated_at, published_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         published, created_at, updated_at, published_at, content_item_id,
+         source_content_version)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         articleId,
@@ -143,27 +215,63 @@ export const onRequestPost: PagesFunction<Env> = async ({
         published ? 1 : 0,
         now,
         now,
-        publishedAt
-      )
-      .run();
+        publishedAt,
+        item.id,
+        sourceContentVersion
+      );
 
-    await db.prepare(
-      `UPDATE content_items
-       SET article_id = ?, updated_at = ?
-       WHERE id = ?`
-    )
-      .bind(articleId, now, id)
-      .run();
+    try {
+      await db.batch([
+        insertArticle,
+        db.prepare(
+          `UPDATE content_items
+         SET article_id = ?, content_version = ?, updated_at = ?
+         WHERE id = ?`
+        ).bind(articleId, sourceContentVersion, now, id)
+      ]);
+    } catch (error) {
+      if (!isContentItemClaimConflict(error)) throw error;
+      const concurrentArticle = await db.prepare(
+        "SELECT * FROM articles WHERE content_item_id = ? LIMIT 1"
+      )
+        .bind(item.id)
+        .first<ArticleRow>();
+      if (!concurrentArticle) throw error;
+
+      await db.prepare(
+        `UPDATE content_items
+         SET article_id = ?, updated_at = ?
+         WHERE id = ?`
+      )
+        .bind(concurrentArticle.id, now, id)
+        .run();
+      const updatedArticle = await updateExistingArticleSettings(
+        db,
+        concurrentArticle.id,
+        category,
+        published,
+        now,
+        sourceContentVersion
+      );
+      await invalidatePublicApiCache(env);
+      if (!updatedArticle) {
+        return jsonError("Article could not be loaded after update.", "SERVER_ERROR", { status: 500 });
+      }
+      return json({ article: articleFromRow(updatedArticle) });
+    }
 
     const article = await db.prepare("SELECT * FROM articles WHERE id = ?")
       .bind(articleId)
       .first<ArticleRow>();
 
-    return json({ article: article ? articleFromRow(article) : null });
+    await invalidatePublicApiCache(env);
+
+    if (!article) {
+      return jsonError("Article could not be loaded after creation.", "SERVER_ERROR", { status: 500 });
+    }
+    return json({ article: articleFromRow(article) }, { status: 201 });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to convert content item.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to convert content item.");
   }
 };
 
@@ -218,10 +326,6 @@ function formatContentTimestampSlug(date: Date) {
   ].join("");
 }
 
-function createContentItemMarker(id: string) {
-  return `<!-- htools:content-item:${id} -->`;
-}
-
 function isContentItemLinkedArticle(
   item: ContentItemRow,
   article: ArticleRow,
@@ -261,4 +365,48 @@ function safelyParseTags(value: string) {
   } catch {
     return [];
   }
+}
+
+async function updateExistingArticleSettings(
+  db: D1Database,
+  articleId: string,
+  category: string,
+  published: boolean,
+  now: string,
+  sourceContentVersion: string
+) {
+  await db.prepare(
+    `UPDATE articles
+     SET category = ?,
+         published = ?,
+         published_at = CASE
+           WHEN ? = 1 AND published_at IS NULL THEN ?
+           ELSE published_at
+         END,
+         source_content_version = CASE
+           WHEN source_content_version = '' THEN ?
+           ELSE source_content_version
+         END,
+         updated_at = ?
+     WHERE id = ?`
+  )
+    .bind(
+      category,
+      published ? 1 : 0,
+      published ? 1 : 0,
+      now,
+      sourceContentVersion,
+      now,
+      articleId
+    )
+    .run();
+
+  return db.prepare("SELECT * FROM articles WHERE id = ?")
+    .bind(articleId)
+    .first<ArticleRow>();
+}
+
+function isContentItemClaimConflict(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /UNIQUE constraint failed:\s*articles\.(?:content_item_id|slug)/i.test(message);
 }

@@ -3,6 +3,7 @@ import {
   json,
   requireAdmin,
   validateContentSourcePayload,
+  writeErrorResponse,
   type Env
 } from "../../../_shared";
 
@@ -29,8 +30,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to preview content source.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to preview content source.");
   }
 };

@@ -2,6 +2,7 @@ import {
   articleFromRow,
   getDatabase,
   json,
+  jsonError,
   requireAdmin,
   type ArticleRow,
   type Env
@@ -25,7 +26,7 @@ export const onRequestGet: PagesFunction<Env> = async ({
       .first<ArticleRow>();
 
     if (!row) {
-      return json({ error: "Article not found." }, { status: 404 });
+      return jsonError("Article not found.", "NOT_FOUND", { status: 404 });
     }
 
     return json({ article: articleFromRow(row) });

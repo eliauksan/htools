@@ -1,9 +1,13 @@
+import type { Env } from "./_shared";
 import {
-  getDatabase,
-  getSiteSettings,
-  type ArticleRow,
-  type Env
-} from "./_shared";
+  createPublicArticleMetadata,
+  createPublicUrl,
+  getPublicSiteUrl,
+  loadPublicArticles,
+  loadPublicSiteIdentity,
+  normalizePublicHttpUrl,
+  parsePublicArticleTags
+} from "./_public-discovery";
 
 const JSON_FEED_HEADERS = {
   "Cache-Control": "public, max-age=300",
@@ -11,9 +15,10 @@ const JSON_FEED_HEADERS = {
 };
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  const origin = new URL(request.url).origin;
-  const site = await loadPublicSiteSettings(env);
-  const articles = await loadPublishedArticles(env);
+  const siteUrl = getPublicSiteUrl(request.url);
+  const site = await loadPublicSiteIdentity(env);
+  const articles = await loadPublicArticles(env, 50);
+  const siteIcon = normalizePublicHttpUrl(site.iconUrl, request.url) || undefined;
 
   return new Response(
     JSON.stringify(
@@ -21,30 +26,23 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         version: "https://jsonfeed.org/version/1.1",
         title: site.name,
         description: site.subtitle,
-        home_page_url: origin,
-        feed_url: new URL("/rss.json", origin).toString(),
-        icon: site.iconUrl || undefined,
-        favicon: site.iconUrl || undefined,
+        home_page_url: siteUrl,
+        feed_url: createPublicUrl(request.url, "/rss.json"),
+        icon: siteIcon,
+        favicon: siteIcon,
         items: articles.map((article) => {
-          const url = new URL(
-            `/articles/${encodeURIComponent(article.slug)}`,
-            origin
-          ).toString();
-          const publishedAt = parseDate(
-            article.published_at ?? article.updated_at ?? article.created_at
-          );
-          const updatedAt = parseDate(article.updated_at ?? article.created_at);
+          const metadata = createPublicArticleMetadata(request.url, article);
 
           return {
-            id: url,
-            url,
+            id: metadata.url,
+            url: metadata.url,
             title: article.title,
             summary: stripMarkdown(article.summary || article.content),
             content_text: stripMarkdown(article.content || article.summary),
-            image: article.cover_image || undefined,
-            date_published: publishedAt?.toISOString(),
-            date_modified: updatedAt?.toISOString(),
-            tags: parseTags(article.tags)
+            image: metadata.image || undefined,
+            date_published: metadata.datePublished || undefined,
+            date_modified: metadata.dateModified || undefined,
+            tags: parsePublicArticleTags(article.tags)
           };
         })
       },
@@ -54,58 +52,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     { headers: JSON_FEED_HEADERS }
   );
 };
-
-async function loadPublishedArticles(env: Env) {
-  try {
-    const db = await getDatabase(env);
-    const result = await db.prepare(
-      `SELECT *
-       FROM articles
-       WHERE published = 1
-       ORDER BY COALESCE(published_at, updated_at, created_at) DESC
-       LIMIT 50`
-    ).all<ArticleRow>();
-
-    return result.results;
-  } catch {
-    return [];
-  }
-}
-
-async function loadPublicSiteSettings(env: Env) {
-  try {
-    return await getSiteSettings(env);
-  } catch {
-    return {
-      name: "HTools",
-      subtitle: "工具导航站",
-      iconUrl: ""
-    };
-  }
-}
-
-function parseTags(value: string) {
-  try {
-    const parsed = JSON.parse(value);
-
-    return Array.isArray(parsed)
-      ? parsed.filter((tag): tag is string => typeof tag === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseDate(value: string) {
-  if (!value) {
-    return null;
-  }
-
-  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
-  const date = new Date(normalized);
-
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
 function stripMarkdown(value: string) {
   return value

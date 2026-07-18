@@ -1,3 +1,8 @@
 ADMIN_PASSWORD=change-this-password
 
 GITHUB_TOKEN=github_pat_your_read_only_token
+
+# Optional Cloudflare Turnstile protection for administrator login and public tool submissions.
+# Create a Turnstile site, configure both values, then enable the service in the admin dashboard.
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=

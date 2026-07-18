@@ -1,12 +1,16 @@
 import {
   getDatabase,
+  invalidatePublicApiCache,
   json,
+  jsonDeleted,
+  jsonError,
   requireAdmin,
   toolFromRow,
   validateToolPayload,
+  writeErrorResponse,
   type Env,
   type ToolRow
-} from "../../_shared";
+} from "../../../_shared";
 
 export const onRequestPut: PagesFunction<Env> = async ({
   request,
@@ -14,12 +18,10 @@ export const onRequestPut: PagesFunction<Env> = async ({
   params
 }) => {
   const unauthorized = await requireAdmin(request, env);
-  if (unauthorized) {
-    return unauthorized;
-  }
+  if (unauthorized) return unauthorized;
 
   try {
-    const id = String(params.id);
+    const id = String(params.id ?? "");
     const db = await getDatabase(env);
     const payload = validateToolPayload((await request.json()) as object);
     const now = new Date().toISOString();
@@ -51,14 +53,13 @@ export const onRequestPut: PagesFunction<Env> = async ({
       .first<ToolRow>();
 
     if (!row) {
-      return json({ error: "Tool not found." }, { status: 404 });
+      return jsonError("Tool not found.", "NOT_FOUND", { status: 404 });
     }
 
+    await invalidatePublicApiCache(env);
     return json({ tool: toolFromRow(row) });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Unable to update tool.";
-    return json({ error: message }, { status: 400 });
+    return writeErrorResponse(error, "Unable to update tool.");
   }
 };
 
@@ -68,12 +69,14 @@ export const onRequestDelete: PagesFunction<Env> = async ({
   params
 }) => {
   const unauthorized = await requireAdmin(request, env);
-  if (unauthorized) {
-    return unauthorized;
-  }
+  if (unauthorized) return unauthorized;
 
-  const id = String(params.id);
+  const id = String(params.id ?? "");
   const db = await getDatabase(env);
-  await db.prepare("DELETE FROM tools WHERE id = ?").bind(id).run();
-  return json({ ok: true });
+  const result = await db.prepare("DELETE FROM tools WHERE id = ?").bind(id).run();
+  if (!result.meta.changes) {
+    return jsonError("Tool not found.", "NOT_FOUND", { status: 404 });
+  }
+  await invalidatePublicApiCache(env);
+  return jsonDeleted("tool", id);
 };
