@@ -936,15 +936,6 @@ export function getLocalizedErrorMessage(
   if (codeMessages[errorCode]) return codeMessages[errorCode];
 
   const businessCodeMessages: Record<string, string> = {
-    TOOL_ALREADY_EXISTS: isChinese
-      ? "该工具已收录在工具库中。"
-      : "This tool is already listed in the directory.",
-    GITHUB_NOT_CONFIGURED: isChinese
-      ? "GitHub 提交尚未配置。"
-      : "GitHub submissions are not configured.",
-    GITHUB_AUTH_REQUIRED: isChinese
-      ? "请先使用 GitHub 登录。"
-      : "Sign in with GitHub first.",
     INVALID_PASSWORD: isChinese ? "密码不正确。" : "Incorrect password.",
     TURNSTILE_CONFIG_ERROR: isChinese
       ? "Cloudflare Turnstile 配置不完整，请联系站点管理员。"
@@ -954,9 +945,6 @@ export function getLocalizedErrorMessage(
       : "Verification failed. Please try again.",
     TURNSTILE_REQUIRED: t.admin.turnstileRequired,
     TURNSTILE_UNAVAILABLE: t.admin.turnstileServerFailed,
-    SUBMISSION_RATE_LIMITED: isChinese
-      ? "提交过于频繁，请在 60 秒后重试。"
-      : "Please wait 60 seconds before submitting another tool."
   };
 
   if (businessCodeMessages[errorCode]) return businessCodeMessages[errorCode];
@@ -999,7 +987,7 @@ export function getLocalizedErrorMessage(
 
   if (
     message ===
-    "clientId, clientSecret, owner, and repo are required when GitHub submissions are enabled."
+    "owner and repo are required when GitHub submissions are enabled."
   ) {
     return getGitHubSettingsRequiredMessage(t);
   }
@@ -1063,8 +1051,8 @@ export function getLocalizedErrorMessage(
 
 function getGitHubSettingsRequiredMessage(t: Messages) {
   return isChineseLocaleText(t)
-    ? "启用 GitHub 提交时，请填写 OAuth Client ID、Client Secret、仓库 Owner 和仓库名称。"
-    : "OAuth Client ID, Client Secret, repository owner, and repository name are required when GitHub submissions are enabled.";
+    ? "启用 GitHub 提交时，请填写仓库 Owner 和仓库名称。"
+    : "Repository owner and repository name are required when GitHub submissions are enabled.";
 }
 
 export function getSourceErrorMessage(

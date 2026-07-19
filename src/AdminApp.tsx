@@ -1,6 +1,6 @@
 import { ArrowDownUp, ArrowRightLeft, ArrowUp, ArrowUpRight, Check, CheckCircle2, ChevronDown, ChevronRight, Circle, Copy, Eraser, FileText, Github, Languages, Link2, LogOut, PanelLeft, Plug, Plus, RefreshCw, Rss, Search, Settings, ShieldCheck, Star, SquarePen, Sun, Tags, Trash2, Upload, Wand2, X } from "lucide-react";
-import { ChangeEvent, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { ChangeEvent, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal, flushSync } from "react-dom";
 import { applyAdminCategoryAction, applyContentItemSourceUpdate, checkLinks, createArticle, createContentSource, createTool, deleteArticle, deleteContentSource, deleteTool, exportBackupData, exportToolSourceData, importTools, loadAdminArticle, loadAdminArticles, loadAdminAuthConfig, loadAdminCategorySettings, loadAdminSecuritySettings, loadAdminTools, loadContentItemArticlePreview, loadContentItems, loadContentSources, loadGitHubSettings, loadGitHubToolMetadata, loadProxySettings, loadSiteConfiguration, loadSiteSettings, loadSourceSettings, loadTurnstileSettings, loadUmamiSettings, login, patchSiteSettings, resetFactorySettings, restoreBackupData, saveAdminCategorySettings, saveGitHubSettings, saveProxySettings, saveSourceSettings, saveTurnstileSettings, saveUmamiSettings, syncContentSource, updateArticle, updateArticlePublished, updateAdminPassword, updateContentSource, convertContentItemToArticle, previewContentSource, updateTool, type AdminAuthConfig } from "./admin-api";
 import { localeOptions, translations, type Locale, type Messages } from "./i18n";
 import { normalizeProxyBaseUrl, normalizeProxyMode, normalizeProxyScope, proxifyUrl } from "./proxy";
@@ -175,6 +175,21 @@ function getStoredAdminFilter(key: string, fallback: string) {
   return localStorage.getItem(key) ?? fallback;
 }
 
+function startTouchButtonPress(event: ReactPointerEvent<HTMLButtonElement>) {
+  if (event.pointerType === "touch") {
+    event.currentTarget.classList.add("is-touch-pressing");
+  }
+}
+
+function releaseTouchButtonFocus(event: ReactPointerEvent<HTMLButtonElement>) {
+  if (event.pointerType !== "touch") return;
+  const button = event.currentTarget;
+  button.classList.remove("is-touch-pressing");
+  window.requestAnimationFrame(() => {
+    if (document.activeElement === button) button.blur();
+  });
+}
+
 function AdminSortButton({
   mode,
   onChange,
@@ -192,6 +207,9 @@ function AdminSortButton({
       type="button"
       aria-label={label}
       title={label}
+      onPointerCancel={releaseTouchButtonFocus}
+      onPointerDown={startTouchButtonPress}
+      onPointerUp={releaseTouchButtonFocus}
       onClick={() => onChange(mode === "latest" ? "name" : "latest")}
     >
       <ArrowDownUp size={16} />
@@ -217,11 +235,31 @@ function AdminFilterBar({
   searchPlaceholder: string;
   searchValue: string;
 }) {
+  const searchFieldRef = useRef<HTMLLabelElement>(null);
+
+  useEffect(() => {
+    function releaseSearchFocus(event: PointerEvent) {
+      if (event.pointerType !== "touch") return;
+      const searchField = searchFieldRef.current;
+      const input = searchField?.querySelector<HTMLInputElement>("input");
+      if (
+        input &&
+        document.activeElement === input &&
+        !searchField?.contains(event.target as Node)
+      ) {
+        input.blur();
+      }
+    }
+
+    document.addEventListener("pointerdown", releaseSearchFocus, true);
+    return () => document.removeEventListener("pointerdown", releaseSearchFocus, true);
+  }, []);
+
   return (
     <div className="admin-filter-row">
       {categoryControl}
       <div className="admin-search-row">
-        <label className="admin-search-field">
+        <label className="admin-search-field" ref={searchFieldRef}>
           <Search size={16} />
           <input
             value={searchValue}
@@ -233,6 +271,9 @@ function AdminFilterBar({
           className="ghost-button admin-clear-filter"
           disabled={!hasActiveFilter}
           type="button"
+          onPointerCancel={releaseTouchButtonFocus}
+          onPointerDown={startTouchButtonPress}
+          onPointerUp={releaseTouchButtonFocus}
           onClick={onClear}
         >
           <Eraser size={16} />
@@ -3588,6 +3629,10 @@ export default function AdminApp({
           {adminView === "system" ? (
             <AdminSystemSettingsPanel
               maintenanceText={maintenanceText}
+              onTokenChange={(nextToken) => {
+                localStorage.setItem("htools_token", nextToken);
+                setToken(nextToken);
+              }}
               onProxySettingsChange={onProxySettingsChange}
               onDataRestored={async () => {
                 await Promise.all([
@@ -5003,6 +5048,7 @@ function AdminCategoryFilter({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const focusTargetRef = useRef<"first" | "last" | null>(null);
+  const directTouchFocusUntilRef = useRef(0);
   const emptyText = categoryText.empty;
   const normalizedValue = normalizeAdminCategoryValue(value);
   const selectedLabel = normalizedValue
@@ -5140,7 +5186,7 @@ function AdminCategoryFilter({
     closeCategoryFilter(true);
   }
 
-  function scrollFilterToDialogTop() {
+  function scrollFilterToDialogTop(behavior: ScrollBehavior = "smooth") {
     const root = rootRef.current;
 
     if (!root) {
@@ -5152,7 +5198,7 @@ function AdminCategoryFilter({
 
     if (!scrollContainer) {
       target.scrollIntoView({
-        behavior: "smooth",
+        behavior,
         block: "start"
       });
       return;
@@ -5163,7 +5209,7 @@ function AdminCategoryFilter({
     const nextTop = scrollContainer.scrollTop + targetRect.top - containerRect.top;
 
     scrollContainer.scrollTo({
-      behavior: "smooth",
+      behavior,
       top: Math.max(0, nextTop)
     });
   }
@@ -5201,10 +5247,21 @@ function AdminCategoryFilter({
       return;
     }
 
-    if (alignToTopOnOpen) {
-      window.requestAnimationFrame(scrollFilterToDialogTop);
-      window.setTimeout(scrollFilterToDialogTop, 80);
-      window.setTimeout(scrollFilterToDialogTop, 180);
+    const hasDirectTouchFocus =
+      directTouchFocusUntilRef.current > performance.now();
+
+    if (alignToTopOnOpen && !hasDirectTouchFocus) {
+      window.requestAnimationFrame(() => scrollFilterToDialogTop());
+      window.setTimeout(() => scrollFilterToDialogTop(), 80);
+      window.setTimeout(() => scrollFilterToDialogTop(), 180);
+    }
+
+    if (hasDirectTouchFocus) {
+      const directFocusTimer = window.setTimeout(() => {
+        scrollFilterToDialogTop("auto");
+        searchRef.current?.focus({ preventScroll: true });
+      }, 120);
+      return () => window.clearTimeout(directFocusTimer);
     }
 
     const focusTimer = window.setTimeout(() => {
@@ -5274,6 +5331,19 @@ function AdminCategoryFilter({
           type="button"
           aria-expanded="false"
           aria-haspopup="listbox"
+          onPointerDown={(event) => {
+            if (
+              disabled ||
+              !alignToTopOnOpen ||
+              event.pointerType !== "touch"
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+            directTouchFocusUntilRef.current = performance.now() + 400;
+            flushSync(() => setOpen(true));
+          }}
           onClick={() => {
             if (!disabled) setOpen(true);
           }}
@@ -5547,6 +5617,9 @@ function AdminToolCard({
             className="icon-button admin-tool-copy-button"
             type="button"
             aria-label={`${t.actions.copy}: ${tool.url}`}
+            onPointerCancel={releaseTouchButtonFocus}
+            onPointerDown={startTouchButtonPress}
+            onPointerUp={releaseTouchButtonFocus}
             onClick={() => {
               actions.close();
               void copyToolLink("url", tool.url);
@@ -5562,6 +5635,9 @@ function AdminToolCard({
             aria-label={t.form.featuredTool}
             aria-pressed={tool.featured}
             disabled={isBusy}
+            onPointerCancel={releaseTouchButtonFocus}
+            onPointerDown={startTouchButtonPress}
+            onPointerUp={releaseTouchButtonFocus}
             onClick={() => {
               actions.close();
               onToggleFeatured();
@@ -5580,6 +5656,9 @@ function AdminToolCard({
             disabled={isBusy}
             ref={actions.triggerRef}
             onKeyDown={actions.handleTriggerKeyDown}
+            onPointerCancel={releaseTouchButtonFocus}
+            onPointerDown={startTouchButtonPress}
+            onPointerUp={releaseTouchButtonFocus}
             onClick={() => actions.setOpen((current) => !current)}
           >
             <ChevronDown size={17} />
@@ -5696,6 +5775,9 @@ function AdminArticleCard({
             }
             aria-pressed={article.published}
             disabled={isBusy}
+            onPointerCancel={releaseTouchButtonFocus}
+            onPointerDown={startTouchButtonPress}
+            onPointerUp={releaseTouchButtonFocus}
             onClick={() => {
               actions.close();
               onTogglePublished();
@@ -5718,6 +5800,9 @@ function AdminArticleCard({
             disabled={isBusy}
             ref={actions.triggerRef}
             onKeyDown={actions.handleTriggerKeyDown}
+            onPointerCancel={releaseTouchButtonFocus}
+            onPointerDown={startTouchButtonPress}
+            onPointerUp={releaseTouchButtonFocus}
             onClick={() => actions.setOpen((current) => !current)}
           >
             <ChevronDown size={17} />
@@ -5981,16 +6066,16 @@ function AdminSettingsActionsSkeleton({
 
 function AdminStatsSkeleton({
   className,
-  count
+  labels
 }: {
   className: string;
-  count: number;
+  labels: string[];
 }) {
   return (
     <div className={className}>
-      {Array.from({ length: count }).map((_, index) => (
-        <div key={index}>
-          <span className="skeleton-shimmer admin-stat-label-skeleton" />
+      {labels.map((label) => (
+        <div key={label}>
+          <span className="skeleton-shimmer admin-stat-label-skeleton">{label}</span>
           <span className="skeleton-shimmer admin-stat-value-skeleton" />
         </div>
       ))}
@@ -6034,8 +6119,6 @@ function GitHubSettingsForm({
   const [settings, setSettings] = useState<GitHubSettings | null>(null);
   const [form, setForm] = useState<GitHubSettingsInput>({
     enabled: false,
-    clientId: "",
-    clientSecret: "",
     owner: "",
     repo: "",
     labels: ["tool-submission"]
@@ -6049,17 +6132,12 @@ function GitHubSettingsForm({
   const settingsLoadAbortRef = useRef<AbortController | null>(null);
   const showSettingsSkeleton = useLoadingSkeleton(isLoadingSettings);
   const isDirty = Boolean(settings) && (
-    form.clientId !== settings?.clientId ||
-    Boolean(form.clientSecret?.trim()) ||
     form.owner !== settings?.owner ||
     form.repo !== settings?.repo ||
     JSON.stringify(form.labels) !== JSON.stringify(settings?.labels)
   );
   const hasSavedSubmissionConfig = Boolean(
-    settings?.clientId.trim() &&
-      settings.hasClientSecret &&
-      settings.owner.trim() &&
-      settings.repo.trim()
+    settings?.owner.trim() && settings.repo.trim()
   );
   const isDirtyRef = useRef(isDirty);
 
@@ -6099,8 +6177,6 @@ function GitHubSettingsForm({
         if (!isDirtyRef.current) {
           setForm({
             enabled: loaded.enabled,
-            clientId: loaded.clientId,
-            clientSecret: "",
             owner: loaded.owner,
             repo: loaded.repo,
             labels: loaded.labels
@@ -6141,21 +6217,14 @@ function GitHubSettingsForm({
     onStatus("");
 
     try {
-      const hasClientSecret = Boolean(
-        form.clientSecret?.trim() || settings?.hasClientSecret
-      );
-
       if (
         form.enabled &&
-        (!form.clientId.trim() ||
-          !hasClientSecret ||
-          !form.owner.trim() ||
-          !form.repo.trim())
+        (!form.owner.trim() || !form.repo.trim())
       ) {
         onStatus(
           getLocalizedErrorMessage(
             new Error(
-              "clientId, clientSecret, owner, and repo are required when GitHub submissions are enabled."
+              "owner and repo are required when GitHub submissions are enabled."
             ),
             t
           )
@@ -6167,8 +6236,6 @@ function GitHubSettingsForm({
       setSettings(saved);
       setForm({
         enabled: saved.enabled,
-        clientId: saved.clientId,
-        clientSecret: "",
         owner: saved.owner,
         repo: saved.repo,
         labels: saved.labels
@@ -6191,8 +6258,6 @@ function GitHubSettingsForm({
     try {
       const saved = await saveGitHubSettings({
         enabled: !settings.enabled,
-        clientId: settings.clientId,
-        clientSecret: String(),
         owner: settings.owner,
         repo: settings.repo,
         labels: settings.labels
@@ -6221,7 +6286,7 @@ function GitHubSettingsForm({
   if (settingsError) {
     return (
       <div className="settings-card-error" role="alert">
-        <h3>{maintenanceText.oauthTitle}</h3>
+        <h3>{maintenanceText.githubSubmissionTitle}</h3>
         <p>{settingsError}</p>
         <button
           className="ghost-button"
@@ -6242,41 +6307,15 @@ function GitHubSettingsForm({
     >
       <div className="settings-card-heading github-settings-heading">
         <div>
-          <h3>{maintenanceText.oauthTitle}</h3>
+          <h3>{maintenanceText.githubSubmissionTitle}</h3>
         </div>
         <SettingsStatusBadge
           disabledLabel={t.githubSettings.statusDisabled}
           enabled={settings?.enabled ?? false}
           enabledLabel={t.githubSettings.statusEnabled}
         />
-        <p id="github-settings-description">{maintenanceText.oauthDescription}</p>
+        <p id="github-settings-description">{maintenanceText.githubSubmissionDescription}</p>
       </div>
-
-      <label>
-        {t.githubSettings.clientId}
-        <input
-          value={form.clientId}
-          onChange={(event) =>
-            setForm({ ...form, clientId: event.target.value })
-          }
-        />
-      </label>
-
-      <label>
-        {t.githubSettings.clientSecret}
-        <input
-          value={form.clientSecret ?? ""}
-          onChange={(event) =>
-            setForm({ ...form, clientSecret: event.target.value })
-          }
-          placeholder={
-            settings?.hasClientSecret
-              ? t.githubSettings.clientSecretPlaceholder
-              : ""
-          }
-          type="password"
-        />
-      </label>
 
       <div className="settings-grid">
         <label>
@@ -6315,13 +6354,6 @@ function GitHubSettingsForm({
           placeholder={t.githubSettings.labelsPlaceholder}
         />
       </label>
-
-      {settings?.callbackUrl ? (
-        <label className="source-url-field">
-          <span>{t.githubSettings.callbackUrl}</span>
-          <input readOnly type="url" value={settings.callbackUrl} />
-        </label>
-      ) : null}
 
       <div className="source-public-actions github-settings-actions">
         <button
@@ -6377,13 +6409,10 @@ function GitHubSettingsFormSkeleton() {
   return (
     <div className="tool-form github-settings-form" aria-hidden="true">
       <AdminSettingsHeadingSkeleton withStatus />
-      <AdminSettingsFieldSkeleton />
-      <AdminSettingsFieldSkeleton />
       <div className="settings-grid">
         <AdminSettingsFieldSkeleton />
         <AdminSettingsFieldSkeleton />
       </div>
-      <AdminSettingsFieldSkeleton />
       <AdminSettingsFieldSkeleton />
       <AdminSettingsActionsSkeleton className="github-settings-actions" />
     </div>
@@ -6593,9 +6622,11 @@ function BackupRestoreCardSkeleton() {
 }
 
 function AdminLinkCheckSkeleton({
+  maintenanceText,
   section,
   t
 }: {
+  maintenanceText: ReturnType<typeof getAdminMaintenanceText>;
   section: AdminMaintenanceSection;
   t: Messages;
 }) {
@@ -6618,7 +6649,16 @@ function AdminLinkCheckSkeleton({
             <AdminSettingsActionsSkeleton className="source-action-row" />
             <AdminStatsSkeleton
               className="source-report-grid source-report-grid-skeleton"
-              count={8}
+              labels={[
+                maintenanceText.sourceTotal,
+                maintenanceText.sourceValid,
+                maintenanceText.sourceDuplicate,
+                maintenanceText.sourceExisting,
+                maintenanceText.sourceMissing,
+                maintenanceText.sourceWillCreate,
+                maintenanceText.sourceWillUpdate,
+                maintenanceText.sourceWillSkip
+              ]}
             />
           </div>
 
@@ -6626,7 +6666,11 @@ function AdminLinkCheckSkeleton({
             <AdminSettingsHeadingSkeleton className="link-check-heading" />
             <AdminStatsSkeleton
               className="source-report-grid source-export-summary source-report-grid-skeleton"
-              count={3}
+              labels={[
+                maintenanceText.sourceExportCount,
+                maintenanceText.sourceExportFormat,
+                maintenanceText.sourceExportScope
+              ]}
             />
             <AdminSettingsActionsSkeleton className="source-action-row" count={1} />
           </div>
@@ -6668,7 +6712,16 @@ function AdminLinkCheckSkeleton({
             </div>
           </div>
 
-          <AdminStatsSkeleton className="link-check-stats" count={5} />
+          <AdminStatsSkeleton
+            className="link-check-stats"
+            labels={[
+              t.linkCheck.total,
+              t.linkCheck.checked,
+              t.linkCheck.normal,
+              t.linkCheck.abnormal,
+              t.linkCheck.networkError
+            ]}
+          />
 
           <section className="link-check-progress">
             <div className="link-check-progress-head">
@@ -6689,25 +6742,8 @@ function AdminLinkCheckSkeleton({
               <button disabled type="button">{t.linkCheck.tabsStatus(0, 0)}</button>
               <button disabled type="button">{t.linkCheck.tabsAll(0)}</button>
             </div>
-            <div className="link-check-table-wrap admin-link-table-skeleton">
-              <table className="link-check-table" aria-hidden="true">
-                <thead>
-                  <tr>
-                    {Array.from({ length: 8 }).map((_, index) => (
-                      <th key={index}>
-                        <span className="skeleton-shimmer skeleton-line is-short" />
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="link-check-empty" colSpan={8}>
-                      <span className="skeleton-shimmer skeleton-line is-medium" />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div className="link-check-empty-state admin-link-empty-skeleton">
+              <span className="skeleton-shimmer skeleton-line is-medium" />
             </div>
           </section>
         </SkeletonLayoutMask>
@@ -6743,6 +6779,7 @@ function getAdminSystemSettingsGroupTitle(
 
 function AdminSystemSettingsPanel({
   maintenanceText,
+  onTokenChange,
   onProxySettingsChange,
   onDataRestored,
   onSiteSettingsChange,
@@ -6754,6 +6791,7 @@ function AdminSystemSettingsPanel({
   token
 }: {
   maintenanceText: ReturnType<typeof getAdminMaintenanceText>;
+  onTokenChange: (token: string) => void;
   onProxySettingsChange: (settings: ProxySettings) => void;
   onDataRestored: () => Promise<void>;
   onSiteSettingsChange: (settings: SiteSettings) => void;
@@ -6884,6 +6922,22 @@ function AdminSystemSettingsPanel({
   }
 
   function getSecurityErrorMessage(error: unknown) {
+    const errorCode =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof error.code === "string"
+        ? error.code
+        : "";
+
+    if (errorCode === "INVALID_PASSWORD") {
+      return maintenanceText.securityCurrentIncorrect;
+    }
+
+    if (errorCode === "PASSWORD_UNCHANGED") {
+      return maintenanceText.securityUnchanged;
+    }
+
     const message = getLocalizedErrorMessage(error, t);
 
     if (message === "currentPassword is required.") {
@@ -6896,6 +6950,10 @@ function AdminSystemSettingsPanel({
 
     if (message === "Current password is incorrect.") {
       return maintenanceText.securityCurrentIncorrect;
+    }
+
+    if (message === "New password must be different from the current password.") {
+      return maintenanceText.securityUnchanged;
     }
 
     return message;
@@ -8000,19 +8058,25 @@ function AdminSystemSettingsPanel({
       return;
     }
 
+    if (newPassword === currentPassword) {
+      rejectSecurityField("new", maintenanceText.securityUnchanged);
+      return;
+    }
+
     if (!acquireSettingsWriteLock(`security`)) return;
 
     setSecuritySaving(true);
 
     try {
-      const settings = await updateAdminPassword(
+      const result = await updateAdminPassword(
         {
           currentPassword,
           newPassword
         },
         token
       );
-      setSecuritySettings(settings);
+      onTokenChange(result.token);
+      setSecuritySettings(result.settings);
       setSecurityForm({
         currentPassword: "",
         newPassword: "",
@@ -8021,10 +8085,24 @@ function AdminSystemSettingsPanel({
       setSecurityInvalidField(null);
       setStatus(maintenanceText.securityUpdated);
     } catch (error) {
-      setSecurityInvalidField("current");
-      form
-        .querySelector<HTMLInputElement>('[data-security-field="current"]')
-        ?.focus();
+      const errorCode =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof error.code === "string"
+          ? error.code
+          : "";
+      const invalidField = errorCode === "INVALID_PASSWORD"
+        ? "current"
+        : errorCode === "PASSWORD_UNCHANGED"
+          ? "new"
+          : null;
+      setSecurityInvalidField(invalidField);
+      if (invalidField) {
+        form
+          .querySelector<HTMLInputElement>(`[data-security-field="${invalidField}"]`)
+          ?.focus();
+      }
       setStatus(getSecurityErrorMessage(error));
     } finally {
       releaseSettingsWriteLock(`security`);
@@ -8180,7 +8258,11 @@ function AdminSystemSettingsPanel({
       setBackupFileName("");
       setBackupPayload(null);
       setBackupFileInvalid(true);
-      setStatus(getLocalizedErrorMessage(error, t));
+      setStatus(
+        error instanceof Error && error.message === maintenanceText.backupTooLarge
+          ? maintenanceText.backupTooLarge
+          : maintenanceText.backupInvalid
+      );
     }
   }
 
@@ -9594,7 +9676,11 @@ function AdminLinkCheckPanel({
   if (isLoadingTools) {
     return (
       <SkeletonVisibility visible={showToolsLoadingSkeleton}>
-        <AdminLinkCheckSkeleton section={section} t={t} />
+        <AdminLinkCheckSkeleton
+          maintenanceText={maintenanceText}
+          section={section}
+          t={t}
+        />
       </SkeletonVisibility>
     );
   }
@@ -10096,11 +10182,13 @@ function AdminLinkCheckPanel({
           </button>
         </div>
 
-        <div
-          aria-busy={checking}
-          className="link-check-table-wrap"
-        >
-          <table className="link-check-table">
+        {filteredResults.length === 0 ? (
+          <div aria-busy={checking} className="link-check-empty-state">
+            {emptyMessage}
+          </div>
+        ) : (
+          <div aria-busy={checking} className="link-check-table-wrap">
+            <table className="link-check-table">
             <thead>
               <tr>
                 <th>{t.linkCheck.tableTool}</th>
@@ -10114,14 +10202,7 @@ function AdminLinkCheckPanel({
               </tr>
             </thead>
             <tbody>
-              {filteredResults.length === 0 ? (
-                <tr>
-                  <td className="link-check-empty" colSpan={8}>
-                    {emptyMessage}
-                  </td>
-                </tr>
-              ) : (
-                filteredResults.map((result, index) => {
+              {filteredResults.map((result, index) => {
                   const relatedTool = toolById.get(result.id);
                   const relatedToolUrl = relatedTool?.url ?? "";
                   const targetLabel =
@@ -10202,11 +10283,11 @@ function AdminLinkCheckPanel({
                       </td>
                     </tr>
                   );
-                })
-              )}
+                })}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        )}
       </section>
         </section>
       )}
@@ -10544,7 +10625,7 @@ function Dialog({
   }, []);
 
   useVisualViewportKeyboard({
-    active: true,
+    active: !isToolEditorDrawer,
     containerRef: panelRef
   });
 

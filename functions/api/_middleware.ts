@@ -12,6 +12,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const headers = new Headers(response.headers);
   headers.set("X-Robots-Tag", NO_INDEX_ROBOTS);
 
+  if ((headers.get("Content-Type") ?? "").includes("text/html")) {
+    headers.set("Content-Type", "application/json; charset=utf-8");
+    return new Response(
+      JSON.stringify({ error: "API endpoint not found.", code: "NOT_FOUND" }),
+      { status: 404, headers }
+    );
+  }
+
   return new Response(response.body, {
     headers,
     status: response.status,

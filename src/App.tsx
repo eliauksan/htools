@@ -149,10 +149,10 @@ import {
   type ThemeMode,
   type ToastInput
 } from "./admin-helpers";
+import SubmitPageContent from "./SubmitPage";
 
 const MarkdownContent = lazy(() => import("./components/MarkdownContent"));
 const AdminApp = lazy(() => import("./AdminApp"));
-const SubmitPageContent = lazy(() => import("./SubmitPage"));
 
 const UMAMI_SCRIPT_SELECTOR = 'script[data-htools-umami="true"]';
 const NO_INDEX_ROBOTS = "noindex, nofollow, noarchive";
@@ -1046,28 +1046,17 @@ export function App() {
         t={t}
         themeMode={themeMode}
       />
-      <Suspense
-        fallback={
-          <main
-            className="category-page public-page public-submit-page submit-route-fallback"
-            aria-busy="true"
-          />
-        }
-      >
-        <SubmitPageContent
-          categories={submissionCategories.map((value) => ({
-            value,
-            label: getCategoryLabel(value, t)
-          }))}
-          locale={locale}
-          normalizeUrl={normalizeHttpUrlInput}
-          parseTags={parseArticleTagsInput}
-          proxySettings={proxySettings}
-          resolveError={(error) => getLocalizedErrorMessage(error, t)}
-          siteSettingsLoaded={siteSettingsLoaded}
-          t={t}
-        />
-      </Suspense>
+      <SubmitPageContent
+        categories={submissionCategories.map((value) => ({
+          value,
+          label: getCategoryLabel(value, t)
+        }))}
+        locale={locale}
+        normalizeUrl={normalizeHttpUrlInput}
+        notify={notify}
+        parseTags={parseArticleTagsInput}
+        t={t}
+      />
       <HomeFooter t={t} />
     </div>
   ) : isArticleDetailRoute ? (

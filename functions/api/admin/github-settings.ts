@@ -16,7 +16,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   const settings = await getGitHubSettings(env);
-  return json({ settings: toGitHubSettingsResponse(settings, request) });
+  return json({ settings: toGitHubSettingsResponse(settings) });
 };
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
@@ -30,7 +30,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
     const payload = (await request.json()) as GitHubSettingsInput;
     const settings = await saveGitHubSettings(env, current, payload);
 
-    return json({ settings: toGitHubSettingsResponse(settings, request) });
+    return json({ settings: toGitHubSettingsResponse(settings) });
   } catch (error) {
     return writeErrorResponse(error, "Unable to save GitHub settings.");
   }

@@ -10,25 +10,24 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
       ? {
           title: "隐私政策",
           intro: `${siteName} 只在提供、保护和改进站点功能所需的范围内处理信息，不出售用户数据，也不将访问数据用于广告画像。`,
-          updatedAt: "最后更新：2026-07-16",
+          updatedAt: "最后更新：2026-07-20",
           sections: [
             {
               title: "我们会处理哪些信息",
               paragraphs: [
                 "你无需注册账号即可浏览公开内容。访问站点时，托管与安全基础设施可能处理 IP 地址、请求时间、访问页面、浏览器或设备信息，以及必要的安全和性能日志。",
-                "当你使用 GitHub 登录并提交工具时，站点会处理 GitHub 返回的基础公开资料、登录会话以及你主动填写的提交内容。"
+                "当你使用工具提交功能时，项目地址会发送给本站用于检查是否已收录；GitHub 仓库公开信息由你的浏览器直接向 GitHub 读取，名称、简介、分类和标签等表单内容只在浏览器中用于生成预填 Issue，并在跳转 GitHub 后由你确认。本站不接收或保存 GitHub 登录资料、访问令牌和未提交表单。"
               ],
               items: [
-                "GitHub 用户 ID、用户名、头像、主页地址等公开资料。",
-                "工具名称、项目与演示地址、描述、分类、标签等你主动提交的信息。",
-                "登录 Cookie、会话令牌、Cloudflare Turnstile 验证令牌与防滥用所需的安全信号。",
-                "保存在当前浏览器中的语言、主题、站点设置缓存和未提交的工具草稿。"
+                "用于重复检查的项目地址，以及你最终选择在 GitHub 公开提交的工具信息。",
+                "管理员浏览器本地保存的后台会话令牌，以及启用 Cloudflare Turnstile 时短暂处理的验证令牌和必要安全信号。",
+                "保存在当前浏览器中的语言、主题和站点设置缓存。"
               ]
             },
             {
               title: "信息如何使用",
               paragraphs: [
-                "我们使用这些信息提供页面和搜索结果、保存你的本地偏好、完成 GitHub 登录与工具提交、验证请求、阻止滥用、排查故障，并了解站点整体使用情况。",
+                "我们使用这些信息提供页面和搜索结果、保存你的本地偏好、检查重复工具、生成 GitHub Issue 预填内容、验证管理员请求、排查故障，并了解站点整体使用情况。",
                 "我们不会出售这些信息，也不会将其用于跨站广告追踪或自动化用户画像。"
               ]
             },
@@ -40,9 +39,9 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
               ]
             },
             {
-              title: "Cookie 与本地存储",
+              title: "浏览器存储与安全验证",
               paragraphs: [
-                "GitHub 登录使用必要的 Cookie 或会话令牌维持登录状态；Cloudflare Turnstile 在启用时可能使用其完成安全验证所需的技术。语言、主题、站点设置缓存和提交草稿保存在你的浏览器中，你可以通过浏览器设置清除。",
+                "Cloudflare Turnstile 在管理员登录启用时可能使用完成安全验证所需的技术。语言、主题和站点设置缓存保存在浏览器中；管理员登录后，后台会话令牌也保存在管理员当前浏览器中。这些数据可以通过浏览器设置清除。",
                 "本站不会仅因普通浏览而要求你创建站内用户账号。"
               ]
             },
@@ -56,7 +55,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
             {
               title: "第三方服务与外部资源",
               paragraphs: [
-                "站点可能使用 Cloudflare 提供托管、数据库、安全验证与网络服务，使用 GitHub 完成登录和 Issue 提交，并在启用后使用 Umami 进行访问统计。相关数据也会受到各服务提供方自身条款与隐私政策的约束。",
+                "站点可能使用 Cloudflare 提供托管、数据库、安全验证与网络服务，使用 GitHub 读取公开仓库信息并接收由你确认创建的 Issue，并在启用后使用 Umami 进行访问统计。相关数据也会受到各服务提供方自身条款与隐私政策的约束。",
                 "工具、文章、内容流中的外部链接和图片可能由第三方网站直接提供，或按管理员配置通过代理服务加载。访问这些资源时，相应网站或代理服务可能收到必要的网络请求信息。"
               ]
             },
@@ -64,7 +63,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
               title: "保存、安全与你的选择",
               paragraphs: [
                 "我们仅在实现相应功能、维护安全或满足合理管理需要的期限内保留信息，并采取与站点规模相适应的措施保护数据；但任何网络传输或存储方式都无法保证绝对安全。",
-                "你可以不使用 GitHub 登录与工具提交、在浏览器中清除本站 Cookie 和本地数据，或停止访问本站。若希望更正或删除由你提交且由本站控制的内容，可以联系维护者。"
+                "你可以不使用工具提交功能、清除浏览器中的本站本地数据，或停止访问本站。GitHub Issue 由你在 GitHub 页面确认创建；若希望更正或删除相关内容，请通过 GitHub 或联系维护者处理。"
               ]
             },
             {
@@ -78,25 +77,24 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
       : {
           title: "Privacy Policy",
           intro: `${siteName} processes information only as needed to provide, protect, and improve the site. We do not sell user data or use visit data for advertising profiles.`,
-          updatedAt: "Last updated: July 16, 2026",
+          updatedAt: "Last updated: July 20, 2026",
           sections: [
             {
               title: "Information We Process",
               paragraphs: [
                 "You can browse public content without creating an account. When you visit, hosting and security infrastructure may process your IP address, request time, pages visited, browser or device information, and necessary security and performance logs.",
-                "When you sign in with GitHub and submit a tool, the site processes basic public profile data returned by GitHub, your login session, and the submission details you provide."
+                "When you use tool submission, the project URL is sent to this site only to check whether it is already listed. Public repository data is requested directly from GitHub by your browser. Names, descriptions, categories, and tags remain in the browser while it prepares the issue, which you review after continuing to GitHub. This site does not receive or store GitHub login data, access tokens, or unsubmitted forms."
               ],
               items: [
-                "GitHub user ID, username, avatar, profile URL, and other public profile data.",
-                "Tool name, project and demo URLs, description, category, tags, and other details you submit.",
-                "Login cookies, session tokens, Cloudflare Turnstile tokens, and security signals needed to prevent abuse.",
-                "Language, theme, cached site settings, and unsubmitted tool drafts stored in your current browser."
+                "Project URLs used for duplicate checks and tool information you ultimately choose to submit publicly on GitHub.",
+                "The admin session token stored locally in an administrator's browser, plus short-lived Cloudflare Turnstile tokens and necessary security signals when verification is enabled.",
+                "Language, theme, and cached site settings stored in the current browser."
               ]
             },
             {
               title: "How We Use Information",
               paragraphs: [
-                "We use this information to deliver pages and search results, remember local preferences, complete GitHub login and tool submissions, validate requests, prevent abuse, troubleshoot problems, and understand overall site usage.",
+                "We use this information to deliver pages and search results, remember local preferences, check duplicate tools, prepare GitHub issue content, validate admin requests, troubleshoot problems, and understand overall site usage.",
                 "We do not sell this information or use it for cross-site advertising tracking or automated user profiling."
               ]
             },
@@ -108,9 +106,9 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
               ]
             },
             {
-              title: "Cookies and Local Storage",
+              title: "Browser Storage and Security Verification",
               paragraphs: [
-                "GitHub login uses necessary cookies or session tokens to maintain your session. When enabled, Cloudflare Turnstile may use technologies required to complete security checks. Language, theme, cached site settings, and submission drafts are stored in your browser and can be cleared through browser settings.",
+                "When enabled for administrator login, Cloudflare Turnstile may use technologies required to complete security checks. Language, theme, and cached site settings are stored in the browser. After an administrator signs in, the admin session token is also stored in that administrator's current browser. These data can be cleared through browser settings.",
                 "The site does not require you to create a site account merely to browse public content."
               ]
             },
@@ -124,7 +122,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
             {
               title: "Third-Party Services and External Resources",
               paragraphs: [
-                "The site may use Cloudflare for hosting, databases, security verification, and network services; GitHub for login and issue submission; and Umami for analytics when enabled. Data handled by these providers is also subject to their own terms and privacy policies.",
+                "The site may use Cloudflare for hosting, databases, security verification, and network services; GitHub for public repository data and issues you confirm; and Umami for analytics when enabled. Data handled by these providers is also subject to their own terms and privacy policies.",
                 "External links and images in tools, articles, and content feeds may load directly from third-party sites or through a proxy configured by the administrator. The relevant site or proxy may receive network request information needed to serve the resource."
               ]
             },
@@ -132,7 +130,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
               title: "Retention, Security, and Your Choices",
               paragraphs: [
                 "We retain information only as long as reasonably needed to provide the relevant feature, maintain security, or meet legitimate administrative needs, and use safeguards appropriate to the scale of the site. No method of online transmission or storage is completely secure.",
-                "You may choose not to use GitHub login or tool submission, clear site cookies and local data in your browser, or stop using the site. To correct or remove content you submitted and that the site controls, contact the maintainer."
+                "You may choose not to use tool submission, clear this site's local browser data, or stop using the site. GitHub issues are created only after you confirm them on GitHub; use GitHub or contact the maintainer to correct or remove related content."
               ]
             },
             {
@@ -149,7 +147,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
     ? {
         title: "服务条款",
         intro: `访问或使用 ${siteName} 即表示你同意合理、合法地使用本站，并尊重内容作者、项目维护者和其他用户的权利。`,
-        updatedAt: "最后更新：2026-07-16",
+        updatedAt: "最后更新：2026-07-20",
         sections: [
           {
             title: "服务范围与条款接受",
@@ -168,7 +166,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
           {
             title: "工具提交与公开信息",
             paragraphs: [
-              "你可以通过 GitHub 登录提交工具建议。提交内容会被发送到站点配置的 GitHub 仓库，可能形成公开 Issue，并由维护者决定是否收录、编辑、标注、拒绝或关闭。",
+              "你可以填写工具建议并前往站点配置的 GitHub 仓库。只有在你于 GitHub 页面确认后才会创建公开 Issue，并由维护者决定是否收录、编辑、标注、拒绝或关闭。",
               "提交即表示你确认有权提供相关信息，并允许本站在审核、整理和展示工具目录所需范围内复制、编辑和公开这些内容；原项目及其内容的权利仍归相应权利人所有。"
             ],
             items: [
@@ -193,7 +191,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
           {
             title: "统计、安全与隐私",
             paragraphs: [
-              "本站可能使用 Cloudflare 提供托管、安全验证和网络服务，并在管理员启用后使用 Umami 进行汇总访问统计。GitHub 登录、公开提交、Cookie、本地存储和其他信息处理方式以隐私政策为准。"
+              "本站可能使用 Cloudflare 提供托管、安全验证和网络服务，并在管理员启用后使用 Umami 进行汇总访问统计。GitHub 公开仓库信息、公开提交、管理员会话、本地存储和其他信息处理方式以隐私政策为准。"
             ]
           },
           {
@@ -220,7 +218,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
     : {
         title: "Terms of Service",
         intro: `By accessing or using ${siteName}, you agree to use the site reasonably and lawfully and to respect the rights of authors, project maintainers, and other users.`,
-        updatedAt: "Last updated: July 16, 2026",
+        updatedAt: "Last updated: July 20, 2026",
         sections: [
           {
             title: "Service Scope and Acceptance",
@@ -239,7 +237,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
           {
             title: "Tool Submissions and Public Information",
             paragraphs: [
-              "You may sign in with GitHub to submit tool suggestions. A submission is sent to the repository configured for the site, may become a public issue, and may be listed, edited, labeled, rejected, or closed by the maintainer.",
+              "You may fill in a tool suggestion and continue to the GitHub repository configured for the site. A public issue is created only after you confirm it on GitHub, and it may be listed, edited, labeled, rejected, or closed by the maintainer.",
               "By submitting, you confirm that you may provide the information and permit the site to copy, edit, and publish it as needed to review, organize, and display the tool directory. Rights in the original project and its content remain with their respective owners."
             ],
             items: [
@@ -264,7 +262,7 @@ export function getLegalPageContent(kind: LegalPageKind, locale: Locale, siteNam
           {
             title: "Analytics, Security, and Privacy",
             paragraphs: [
-              "The site may use Cloudflare for hosting, security verification, and network services, and may use Umami for aggregate traffic analytics after an administrator enables it. GitHub login, public submissions, cookies, local storage, and other data practices are described in the Privacy Policy."
+              "The site may use Cloudflare for hosting, security verification, and network services, and may use Umami for aggregate traffic analytics after an administrator enables it. GitHub public repository data, public submissions, admin sessions, local storage, and other data practices are described in the Privacy Policy."
             ]
           },
           {

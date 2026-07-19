@@ -14,6 +14,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const requestUrl = new URL(request.url);
 
+  if (!env.GITHUB_TOKEN?.trim()) {
+    return json(
+      {
+        error: "GITHUB_TOKEN is not configured.",
+        code: "GITHUB_TOKEN_NOT_CONFIGURED"
+      },
+      { status: 409 }
+    );
+  }
+
   try {
     const metadata = await loadGitHubToolMetadata(
       requestUrl.searchParams.get("url") ?? "",

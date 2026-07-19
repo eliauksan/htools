@@ -97,11 +97,7 @@ export const en: Messages = {
     backHome: "Back Home",
     addTool: "Add Tool",
     submit: "Submit",
-    signInWithGitHub: "Sign in with GitHub",
-    logoutGitHub: "Log out GitHub",
-    openIssue: "Open Issue",
     saveSettings: "Save Settings",
-    githubSettings: "GitHub Submission Settings",
     copy: "Copy",
     logout: "Logout",
     clearFilters: "Clear filters"
@@ -127,49 +123,48 @@ export const en: Messages = {
     description: "Try another category or a shorter search term."
   },
   footer: {
-    version: "HTools v1.0.10"
+    version: "HTools v1.0.13"
   },
   submit: {
     title: "Submit Tool",
     heading: "Submit a tool to HTools",
     description:
-      "Use GitHub authorization to submit a tool suggestion. Approved tools can be added to the directory."
+      "Fill in the project details, then continue to GitHub. Approved tools can be added to the directory."
   },
   submitPage: {
     title: "Submit Tool",
     heading: "Submit Tool",
     description:
-      "Share the project name, URL, description, and category. Submissions create GitHub issues for transparent review.",
+      "Share the project name, URL, description, and category, then continue to GitHub to confirm the issue.",
     guideIntroTitle: "Help maintain a practical tool directory",
     guideIntroDescription:
-      "HTools accepts tool recommendations through GitHub issues so submissions, discussion, and review stay open. We focus on whether each project is stable, clear, reachable, and genuinely useful to developers.",
+      "HTools accepts tool recommendations through GitHub issues. A GitHub repository URL can load public details automatically, and you make the final submission on GitHub so discussion and review stay transparent.",
     guideTitle: "Submission notes",
     guideDescription:
-      "Before submitting, make sure the project link is reachable and the name, description, and category help maintainers judge whether it fits.",
+      "Make sure the project URL is publicly reachable. GitHub projects can load repository details automatically, while other projects can be entered manually.",
     guideContentTitle: "Submission content",
     guideContentDescription:
-      "Provide the project name, link, short description, tags, and closest category. Separate tags with commas, semicolons, pipes, or slashes; spaces stay inside a tag.",
+      "Review the project name, URL, short description, tags, and closest category. Automatically loaded details can still be edited.",
     guideReviewTitle: "Review flow",
     guideReviewDescription:
-      "A successful submission creates a public issue. Maintainers decide whether to list it based on link quality, project status, and directory fit.",
+      "HTools first checks whether the project is already listed. New projects continue to GitHub with prepared issue content for your confirmation.",
     guideAfterTitle: "Good to know",
     guideAfterDescription:
-      "Use a long-lived official link instead of temporary redirects. If the category is not exact, maintainers can adjust it during review.",
+      "Automatic loading does not overwrite your manual edits. Prefer a stable official URL; maintainers can adjust the category during review.",
     namePlaceholder: "Enter tool name",
-    descriptionPlaceholder:
-      "Use 1-2 sentences to explain what it does, who it helps, and what result it creates",
-    urlPlaceholder: "e.g. github.com/owner/repo or https://example.com",
+    descriptionPlaceholder: "Use 1-2 sentences to describe the tool's main features and purpose",
+    urlPlaceholder: "e.g. https://github.com/shaoyouvip/htools or shaoyouvip/htools",
     categoryLabel: "Type",
-    githubNotConfigured: "The site admin has not configured GitHub OAuth submissions yet.",
-    authStateUnavailableDescription:
-      "Check your connection and reload the status. The saved configuration is unchanged.",
-    retryAuthState: "Reload status",
-    signedInAs: (login) => `Signed in with GitHub as @${login}`,
-    signInRequired:
-      "Sign in with GitHub first. Your submission will be created as a repository issue.",
-    success: (issueNumber) => `Submitted successfully. Issue #${issueNumber} was created.`,
-    submitHint:
-      "Submissions create public GitHub issues. Approved projects are organized into the tool library.",
+    settingsUnavailable: "GitHub submissions are disabled or unavailable.",
+    alreadyListed: "This project is already listed. No duplicate submission is needed.",
+    checkFailed: "Unable to check whether this project is already listed. Try again later.",
+    issueUrlFailed: "Unable to create the GitHub submission URL. Check the repository settings.",
+    githubMetadataAction: "GitHub Info",
+    githubMetadataSuccess: "GitHub repository information loaded.",
+    githubMetadataNotFound: "No public GitHub repository was found.",
+    githubMetadataRateLimited: "The GitHub public API rate limit was reached. Try again later.",
+    githubMetadataFailed: "Unable to load GitHub repository information. Check the project URL.",
+    submitHint: "You will continue to GitHub to review and create a public issue.",
     validationNameRequired: "Enter a tool name.",
     validationNameTooLong: "Keep the name under 100 characters.",
     validationUrlRequired: "Enter the project URL.",
@@ -177,20 +172,10 @@ export const en: Messages = {
     validationDescriptionRequired: "Enter a description.",
     validationDescriptionTooLong: "Keep the description under 1,000 characters.",
     validationCategoryRequired: "Choose a category.",
-    validationFixForm: "Fix the highlighted form fields first.",
-    pendingSuccess: (issueNumber) =>
-      `This tool is already awaiting review (Issue #${issueNumber}).`,
-    existingTool: (name) => `“${name}” is already listed in the directory.`,
-    sessionExpired: "Your GitHub session has expired. Please sign in again.",
-    rateLimited: "Too many requests. Please try again shortly.",
-    githubCheckFailed: "GitHub could not complete the check. Please try again later.",
-    submissionFailed: "Submission failed. Check the project details and try again.",
     projectInfoTitle: "Project information",
     projectInfoDescription:
-      "Add the public project details that will be reviewed for the directory.",
-    categoryDescription: "Choose the single category that best matches the project.",
-    waitSeconds: (seconds) => `Wait ${seconds}s`,
-    viewExistingTool: "View existing tool"
+      "Add the public project details. GitHub repositories can load the name, description, and tags automatically.",
+    categoryDescription: "Choose the single category that best matches the project."
   },
   tool: {
     featured: "Featured",
@@ -293,28 +278,21 @@ export const en: Messages = {
   },
   githubSettings: {
     title: "GitHub Submission Settings",
-    description:
-      "Configure the GitHub OAuth App and target repository. Public submissions create GitHub issues after user authorization.",
+    description: "Configure the target GitHub repository for public tool suggestions.",
     enabled: "Enable",
     disabled: "Disable",
     statusEnabled: "Enabled",
     statusDisabled: "Disabled",
-    clientId: "OAuth Client ID",
-    clientSecret: "OAuth Client Secret",
-    clientSecretPlaceholder: "••••••••",
     owner: "Repository Owner",
     repo: "Repository Name",
     labels: "Issue Labels",
     labelsPlaceholder: "tool-submission, pending-review",
-    callbackUrl: "Callback URL",
     saved: "GitHub submission settings saved.",
     saveFailed: "Failed to save GitHub submission settings.",
   },
   status: {
     loginFailed: "Login failed.",
     sessionExpired: "Your session has expired. Please log in again.",
-    githubLogoutSuccess: "GitHub signed out",
-    githubLogoutFailed: "Failed to sign out of GitHub.",
     toolUpdated: "Tool updated.",
     toolCreated: "Tool created.",
     saveFailed: "Save failed.",

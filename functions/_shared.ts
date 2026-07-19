@@ -8,8 +8,6 @@ export type Env = {
 
 export type GitHubSettings = {
   enabled: boolean;
-  clientId: string;
-  clientSecret: string;
   owner: string;
   repo: string;
   labels: string[];
@@ -17,23 +15,9 @@ export type GitHubSettings = {
 
 export type GitHubSettingsInput = {
   enabled?: unknown;
-  clientId?: unknown;
-  clientSecret?: unknown;
   owner?: unknown;
   repo?: unknown;
   labels?: unknown;
-};
-
-type GitHubSessionRow = {
-  token: string;
-  github_id: number;
-  github_login: string;
-  github_name: string | null;
-  avatar_url: string;
-  html_url: string;
-  access_token: string;
-  created_at: string;
-  expires_at: string;
 };
 
 export type GitHubToolMetadata = {
@@ -359,8 +343,6 @@ const ADMIN_PASSWORD_KEY = "admin_password";
 const ADMIN_PASSWORD_ITERATIONS = 100000;
 const DATABASE_NOT_BOUND_MESSAGE = "请检查您的项目是否已正确绑定数据库。";
 const GITHUB_SETTINGS_KEY = "github_settings";
-const GITHUB_SESSION_COOKIE = "htools_github_session";
-const GITHUB_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 const PROXY_SETTINGS_KEY = "proxy_settings";
 const UMAMI_SETTINGS_KEY = "umami_settings";
 const SITE_SETTINGS_KEY = "site_settings";
@@ -489,7 +471,7 @@ const initializedDatabases = new WeakSet<D1Database>();
 const databaseInitializationPromises = new WeakMap<D1Database, Promise<void>>();
 const DATABASE_SCHEMA_VERSION_KEY = "database_schema_version";
 // Increment this whenever SCHEMA_STATEMENTS or compatibility column upgrades change.
-const DATABASE_SCHEMA_VERSION = 8;
+const DATABASE_SCHEMA_VERSION = 9;
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS tools (
     id TEXT PRIMARY KEY,
@@ -618,27 +600,25 @@ const SCHEMA_STATEMENTS = [
      )`,
   "DROP INDEX IF EXISTS idx_content_items_source",
   "DROP INDEX IF EXISTS idx_content_items_category",
-  `CREATE TABLE IF NOT EXISTS github_oauth_states (
-    state TEXT PRIMARY KEY,
-    return_to TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at TEXT NOT NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_github_oauth_states_expires_at
-    ON github_oauth_states (expires_at)`,
-  `CREATE TABLE IF NOT EXISTS github_sessions (
-    token TEXT PRIMARY KEY,
-    github_id INTEGER NOT NULL,
-    github_login TEXT NOT NULL,
-    github_name TEXT,
-    avatar_url TEXT NOT NULL,
-    html_url TEXT NOT NULL,
-    access_token TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expires_at TEXT NOT NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_github_sessions_expires_at
-    ON github_sessions (expires_at)`,
+  "DROP INDEX IF EXISTS idx_github_oauth_states_expires_at",
+  "DROP INDEX IF EXISTS idx_github_sessions_expires_at",
+  "DROP TABLE IF EXISTS github_oauth_states",
+  "DROP TABLE IF EXISTS github_sessions",
+  "DELETE FROM app_settings WHERE key LIKE 'github_submission_cooldown:%'",
+  `UPDATE app_settings
+   SET value = CASE WHEN json_valid(value) THEN
+     '{"enabled":' ||
+       CASE WHEN json_extract(value, '$.enabled') = 1 THEN 'true' ELSE 'false' END ||
+       ',"owner":' || json_quote(TRIM(COALESCE(json_extract(value, '$.owner'), ''))) ||
+       ',"repo":' || json_quote(TRIM(COALESCE(json_extract(value, '$.repo'), ''))) ||
+       ',"labels":' || CASE
+         WHEN json_type(value, '$.labels') = 'array' THEN json_extract(value, '$.labels')
+         ELSE '["tool-submission"]'
+       END || '}'
+     ELSE '{"enabled":false,"owner":"","repo":"","labels":["tool-submission"]}'
+   END,
+     updated_at = CURRENT_TIMESTAMP
+   WHERE key = 'github_settings'`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS articles_search USING fts5(
     article_id UNINDEXED,
     title,
@@ -779,15 +759,12 @@ type ApiErrorCode =
   | "CONFLICT"
   | "RATE_LIMITED"
   | "SERVER_ERROR"
-  | "TOOL_ALREADY_EXISTS"
-  | "GITHUB_NOT_CONFIGURED"
-  | "GITHUB_AUTH_REQUIRED"
   | "INVALID_PASSWORD"
+  | "PASSWORD_UNCHANGED"
   | "TURNSTILE_CONFIG_ERROR"
   | "TURNSTILE_REQUIRED"
   | "TURNSTILE_FAILED"
-  | "TURNSTILE_UNAVAILABLE"
-  | "SUBMISSION_RATE_LIMITED";
+  | "TURNSTILE_UNAVAILABLE";
 
 type ApiErrorPayload = {
   error: string;
@@ -1304,12 +1281,12 @@ export async function getAdminTurnstileSettings(
   const row = await db.prepare("SELECT value FROM app_settings WHERE key = ?")
     .bind(ADMIN_TURNSTILE_ENABLED_KEY)
     .first<{ value: string }>();
-  let enabled = true;
+  let enabled = false;
   if (row?.value) {
     try {
-      enabled = (JSON.parse(row.value) as { enabled?: unknown }).enabled !== false;
+      enabled = (JSON.parse(row.value) as { enabled?: unknown }).enabled === true;
     } catch {
-      enabled = true;
+      enabled = false;
     }
   }
   return { available, enabled, siteKey: enabled ? siteKey : "" };
@@ -3115,8 +3092,6 @@ export async function getGitHubSettings(env: Env): Promise<GitHubSettings> {
   if (!row) {
     return {
       enabled: false,
-      clientId: "",
-      clientSecret: "",
       owner: "",
       repo: "",
       labels: ["tool-submission"]
@@ -3127,9 +3102,6 @@ export async function getGitHubSettings(env: Env): Promise<GitHubSettings> {
     const parsed = JSON.parse(row.value) as Partial<GitHubSettings>;
     return {
       enabled: parsed.enabled === true,
-      clientId: typeof parsed.clientId === "string" ? parsed.clientId : "",
-      clientSecret:
-        typeof parsed.clientSecret === "string" ? parsed.clientSecret : "",
       owner: typeof parsed.owner === "string" ? parsed.owner : "",
       repo: typeof parsed.repo === "string" ? parsed.repo : "",
       labels: Array.isArray(parsed.labels)
@@ -3139,8 +3111,6 @@ export async function getGitHubSettings(env: Env): Promise<GitHubSettings> {
   } catch {
     return {
       enabled: false,
-      clientId: "",
-      clientSecret: "",
       owner: "",
       repo: "",
       labels: ["tool-submission"]
@@ -3229,17 +3199,12 @@ function isReservedAdminCategory(category: string) {
 
 export async function saveGitHubSettings(
   env: Env,
-  current: GitHubSettings,
+  _current: GitHubSettings,
   payload: GitHubSettingsInput
 ) {
   const db = await getDatabase(env);
   const next: GitHubSettings = {
     enabled: payload.enabled === true,
-    clientId: readOptionalString(payload.clientId),
-    clientSecret:
-      typeof payload.clientSecret === "string" && payload.clientSecret.trim()
-        ? payload.clientSecret.trim()
-        : current.clientSecret,
     owner: readOptionalString(payload.owner),
     repo: readOptionalString(payload.repo),
     labels: Array.isArray(payload.labels)
@@ -3252,9 +3217,9 @@ export async function saveGitHubSettings(
   };
 
   if (next.enabled) {
-    if (!next.clientId || !next.clientSecret || !next.owner || !next.repo) {
+    if (!next.owner || !next.repo) {
       throw new InvalidRequestError(
-        "clientId, clientSecret, owner, and repo are required when GitHub submissions are enabled."
+        "owner and repo are required when GitHub submissions are enabled."
       );
     }
   }
@@ -3270,53 +3235,13 @@ export async function saveGitHubSettings(
   return next;
 }
 
-export function toGitHubSettingsResponse(settings: GitHubSettings, request: Request) {
-  const callbackUrl = new URL("/api/github/callback", request.url).toString();
-
+export function toGitHubSettingsResponse(settings: GitHubSettings) {
   return {
     enabled: settings.enabled,
-    clientId: settings.clientId,
     owner: settings.owner,
     repo: settings.repo,
-    labels: settings.labels,
-    hasClientSecret: Boolean(settings.clientSecret),
-    callbackUrl
+    labels: settings.labels
   };
-}
-
-export function isGitHubConfigured(settings: GitHubSettings) {
-  return Boolean(
-    settings.enabled &&
-      settings.clientId &&
-      settings.clientSecret &&
-      settings.owner &&
-      settings.repo
-  );
-}
-
-export async function getGitHubSession(request: Request, env: Env) {
-  const token = readCookie(request, GITHUB_SESSION_COOKIE);
-
-  if (!token) {
-    return null;
-  }
-
-  const db = await getDatabase(env);
-  const row = await db.prepare(
-    "SELECT * FROM github_sessions WHERE token = ? AND expires_at > ?"
-  )
-    .bind(token, new Date().toISOString())
-    .first<GitHubSessionRow>();
-
-  return row ?? null;
-}
-
-export function buildGitHubSessionCookie(request: Request, token: string) {
-  return buildCookie(request, GITHUB_SESSION_COOKIE, token, GITHUB_SESSION_TTL_SECONDS);
-}
-
-export function buildClearGitHubSessionCookie(request: Request) {
-  return buildCookie(request, GITHUB_SESSION_COOKIE, "", 0);
 }
 
 export async function createToken(env: Env) {
@@ -4541,21 +4466,6 @@ function base64UrlToBytes(value: string) {
   return bytes;
 }
 
-function readCookie(request: Request, name: string) {
-  const cookieHeader = request.headers.get("Cookie") ?? "";
-  const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
-  const prefix = `${name}=`;
-  const cookie = cookies.find((item) => item.startsWith(prefix));
-  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : "";
-}
-
-function buildCookie(request: Request, name: string, value: string, maxAgeSeconds: number) {
-  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
-  return `${name}=${encodeURIComponent(
-    value
-  )}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; SameSite=Lax${secure}`;
-}
-
 async function verifyToken(token: string, env: Env) {
   const secret = getSecret(env);
   const [issuedAt, signature] = token.split(".");
@@ -4570,7 +4480,17 @@ async function verifyToken(token: string, env: Env) {
   }
 
   const expected = await sign(issuedAt, secret);
-  return timingSafeEqual(signature, expected);
+  if (!timingSafeEqual(signature, expected)) {
+    return false;
+  }
+
+  const passwordSettings = await getAdminPasswordSettings(env);
+  if (!passwordSettings) {
+    return true;
+  }
+
+  const passwordUpdatedAt = Date.parse(passwordSettings.updatedAt);
+  return !Number.isFinite(passwordUpdatedAt) || timestamp >= passwordUpdatedAt;
 }
 
 async function sign(value: string, secret: string) {

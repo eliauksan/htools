@@ -365,35 +365,14 @@ export type LinkCheckResponse = {
   results: LinkCheckResult[];
 };
 
-type GitHubUser = {
-  login: string;
-  name: string | null;
-  avatar_url: string;
-  html_url: string;
-};
-
-export type GitHubAuthState = {
-  configured: boolean;
-  authenticated: boolean;
-  user: GitHubUser | null;
-};
-
 export type GitHubSettings = {
   enabled: boolean;
-  clientId: string;
   owner: string;
   repo: string;
   labels: string[];
-  hasClientSecret: boolean;
-  callbackUrl: string;
 };
 
-export type GitHubSettingsInput = Omit<
-  GitHubSettings,
-  "hasClientSecret" | "callbackUrl"
-> & {
-  clientSecret?: string;
-};
+export type GitHubSettingsInput = GitHubSettings;
 
 export type SubmissionInput = {
   name: string;
@@ -402,10 +381,4 @@ export type SubmissionInput = {
   category: string;
   locale?: "zh" | "en";
   tags: string[];
-};
-
-export type SubmissionResult = {
-  kind: "created" | "pending";
-  issueUrl: string;
-  issueNumber: number;
 };

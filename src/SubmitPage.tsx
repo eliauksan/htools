@@ -1,11 +1,4 @@
 import {
-  ArrowUpRight,
-  CheckCircle2,
-  CircleAlert,
-  Github,
-  LogOut
-} from "lucide-react";
-import {
   type FormEvent,
   type ReactNode,
   useCallback,
@@ -14,56 +7,48 @@ import {
   useRef,
   useState
 } from "react";
-import type { Locale, Messages } from "./i18n";
-import { proxifyUrl } from "./proxy";
+import type { ToastInput } from "./admin-helpers";
 import {
-  SubmissionApiError,
-  loadGitHubAuthState,
-  loadSubmissionTurnstileConfig,
-  logoutGitHub,
-  submitTool,
-  type SubmissionTurnstileConfig
+  BrowserGitHubMetadataError,
+  loadBrowserGitHubMetadata
+} from "./github-metadata";
+import type { Locale, Messages } from "./i18n";
+import {
+  buildGitHubIssueUrl,
+  checkSubmissionUrl,
+  loadSubmissionSettings,
+  type SubmissionSettings
 } from "./submit-api";
-import TurnstileWidget from "./components/TurnstileWidget";
-import type {
-  GitHubAuthState,
-  ProxySettings,
-  SubmissionInput
-} from "./types";
+import { getGitHubRepoPath } from "./tool-helpers";
+import type { SubmissionInput } from "./types";
 
-type StatusTone = "success" | "error" | "info";
-type StatusScope = "auth" | "submit";
-const SUBMISSION_DRAFT_KEY = "htools-submission-draft-v1";
-
-type SubmissionDraft = Pick<SubmissionInput, "name" | "description" | "url" | "category"> & {
-  tagText: string;
-};
+const LEGACY_SUBMISSION_DRAFT_KEY = "htools-submission-draft-v1";
+const GITHUB_REPOSITORY_SHORTHAND = /^([a-z\d](?:[a-z\d-]{0,38}))\/([a-z\d._-]+)\/?$/i;
 
 type SubmitPageProps = {
   categories: Array<{ label: string; value: string }>;
   locale: Locale;
   normalizeUrl: (value: string) => string;
+  notify: (toast: ToastInput) => void;
   parseTags: (value: string) => string[];
-  proxySettings: ProxySettings;
-  resolveError: (error: unknown) => string;
-  siteSettingsLoaded: boolean;
   t: Messages;
+};
+
+type AppliedMetadata = {
+  description: string;
+  name: string;
+  tagText: string;
+  url: string;
 };
 
 export default function SubmitPage({
   categories,
   locale,
   normalizeUrl,
+  notify,
   parseTags,
-  proxySettings,
-  resolveError,
   t
 }: SubmitPageProps) {
-  const [authState, setAuthState] = useState<GitHubAuthState>({
-    configured: false,
-    authenticated: false,
-    user: null
-  });
   const [form, setForm] = useState<SubmissionInput>({
     name: "",
     description: "",
@@ -72,23 +57,32 @@ export default function SubmitPage({
     tags: []
   });
   const [tagText, setTagText] = useState("");
-  const [status, setStatus] = useState("");
-  const [statusTone, setStatusTone] = useState<StatusTone>("info");
-  const [statusScope, setStatusScope] = useState<StatusScope>("auth");
-  const [issueUrl, setIssueUrl] = useState("");
-  const [resultKind, setResultKind] = useState<"created" | "pending" | "existing" | null>(null);
-  const [submittedName, setSubmittedName] = useState("");
-  const [cooldownSeconds, setCooldownSeconds] = useState(0);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [authStateError, setAuthStateError] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [turnstileConfig, setTurnstileConfig] = useState<SubmissionTurnstileConfig | null>(null);
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
-  const submittingRef = useRef(false);
-  const authRefreshRequestRef = useRef(0);
-  const [draftLoaded, setDraftLoaded] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [settings, setSettings] = useState<SubmissionSettings | null>(null);
+  const [settingsUnavailable, setSettingsUnavailable] = useState(false);
+  const [isGitHubMetadataLoading, setIsGitHubMetadataLoading] = useState(false);
+  const [isCheckingUrl, setIsCheckingUrl] = useState(false);
+  const [duplicateBlocksSubmit, setDuplicateBlocksSubmit] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const formUrlRef = useRef("");
+  const lastAppliedMetadataRef = useRef<AppliedMetadata | null>(null);
+  const metadataRequestRef = useRef(0);
+  const duplicateRequestRef = useRef(0);
+  const settingsRequestRef = useRef(0);
+  const submittingRef = useRef(false);
+  const automaticLookupTimerRef = useRef<number | null>(null);
+  const automaticLookupPendingRef = useRef<{
+    promise: Promise<void>;
+    url: string;
+  } | null>(null);
+  const normalizeProjectUrl = useCallback((value: string) => {
+    const shorthand = GITHUB_REPOSITORY_SHORTHAND.exec(value.trim());
+    if (shorthand) {
+      return `https://github.com/${shorthand[1]}/${shorthand[2].replace(/\.git$/i, "")}`;
+    }
+    return normalizeUrl(value);
+  }, [normalizeUrl]);
+
   const validation = useMemo(() => {
     const errors: Record<string, string> = {};
     const name = form.name.trim();
@@ -100,7 +94,7 @@ export default function SubmitPage({
     if (!url) errors.url = t.submitPage.validationUrlRequired;
     else {
       try {
-        const parsed = new URL(normalizeUrl(url));
+        const parsed = new URL(normalizeProjectUrl(url));
         if (!/^https?:$/.test(parsed.protocol)) throw new Error();
       } catch {
         errors.url = t.submitPage.validationUrlInvalid;
@@ -112,274 +106,283 @@ export default function SubmitPage({
     }
     if (!form.category) errors.category = t.submitPage.validationCategoryRequired;
     return errors;
-  }, [form, normalizeUrl, t.submitPage]);
+  }, [form, normalizeProjectUrl, t.submitPage]);
   const isFormValid = Object.keys(validation).length === 0;
+  const normalizedProjectUrl = normalizeProjectUrl(form.url);
+  const githubRepoPath = getGitHubRepoPath(normalizedProjectUrl);
 
   useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const timer = window.setInterval(
-      () => setCooldownSeconds((current) => Math.max(0, current - 1)),
-      1000
-    );
-    return () => window.clearInterval(timer);
-  }, [cooldownSeconds > 0]);
+    formUrlRef.current = form.url;
+  }, [form.url]);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(SUBMISSION_DRAFT_KEY);
-      if (saved) {
-        const draft = JSON.parse(saved) as Partial<SubmissionDraft>;
-        const category = categories.some((item) => item.value === draft.category)
-          ? draft.category!
-          : categories[0]?.value ?? "Other Tools";
-        setForm((current) => ({
-          ...current,
-          name: typeof draft.name === "string" ? draft.name : "",
-          description: typeof draft.description === "string" ? draft.description : "",
-          url: typeof draft.url === "string" ? draft.url : "",
-          category
-        }));
-        setTagText(typeof draft.tagText === "string" ? draft.tagText : "");
+    window.localStorage.removeItem(LEGACY_SUBMISSION_DRAFT_KEY);
+    return () => {
+      if (automaticLookupTimerRef.current !== null) {
+        window.clearTimeout(automaticLookupTimerRef.current);
       }
-    } catch {
-      window.localStorage.removeItem(SUBMISSION_DRAFT_KEY);
-    } finally {
-      setDraftLoaded(true);
-    }
-  }, [categories]);
-
-  useEffect(() => {
-    if (!draftLoaded) return;
-    const draft: SubmissionDraft = {
-      name: form.name,
-      description: form.description,
-      url: form.url,
-      category: form.category,
-      tagText
     };
-    window.localStorage.setItem(SUBMISSION_DRAFT_KEY, JSON.stringify(draft));
-  }, [draftLoaded, form.category, form.description, form.name, form.url, tagText]);
+  }, []);
 
-  async function refreshAuthState() {
-    const requestId = authRefreshRequestRef.current + 1;
-    authRefreshRequestRef.current = requestId;
-    setIsAuthLoading(true);
-    setAuthStateError(false);
-    const authRequest = loadGitHubAuthState()
-      .then((state) => {
-        if (authRefreshRequestRef.current === requestId) {
-          setAuthState(state);
-          setAuthStateError(false);
+  const refreshSubmissionSettings = useCallback(async (silent = false) => {
+    const requestId = settingsRequestRef.current + 1;
+    settingsRequestRef.current = requestId;
+    try {
+      const nextSettings = await loadSubmissionSettings();
+      if (settingsRequestRef.current !== requestId) return nextSettings;
+      setSettings(nextSettings);
+      setSettingsUnavailable(false);
+      return nextSettings;
+    } catch {
+      if (settingsRequestRef.current === requestId) {
+        setSettings(null);
+        setSettingsUnavailable(true);
+        if (!silent) {
+          notify({ message: t.submitPage.settingsUnavailable, tone: "error" });
         }
-      })
-      .catch(() => {
-        if (authRefreshRequestRef.current === requestId) {
-          setAuthStateError(true);
-        }
-      })
-      .finally(() => {
-        if (authRefreshRequestRef.current === requestId) setIsAuthLoading(false);
-      });
-    const turnstileRequest = loadSubmissionTurnstileConfig()
-      .catch(() => loadSubmissionTurnstileConfig())
-      .then((config) => {
-        if (authRefreshRequestRef.current !== requestId) return;
-        setTurnstileConfig(config);
-        if (!config.turnstileEnabled) {
-          setTurnstileToken("");
-        }
-      })
-      .catch(() => {
-        if (authRefreshRequestRef.current !== requestId) return;
-        setTurnstileConfig({ turnstileEnabled: false, turnstileSiteKey: "" });
-        setTurnstileToken("");
-      });
-
-    await Promise.all([authRequest, turnstileRequest]);
-  }
-
-  const handleTurnstileError = useCallback(() => {
-    setTurnstileToken("");
-  }, []);
-
-  const handleTurnstileExpire = useCallback(() => {
-    setTurnstileToken("");
-  }, []);
-
-  const handleTurnstileLoadError = useCallback(() => {
-    setTurnstileToken("");
-  }, []);
-
-  const handleTurnstileTokenChange = useCallback((nextToken: string) => {
-    setTurnstileToken(nextToken);
-  }, []);
+      }
+      return null;
+    }
+  }, [notify, t.submitPage.settingsUnavailable]);
 
   useEffect(() => {
-    void refreshAuthState();
-    const params = new URLSearchParams(window.location.search);
-    const authResult = params.get("auth");
+    void refreshSubmissionSettings();
+    const refreshWhenActive = () => {
+      if (document.visibilityState === "visible") {
+        void refreshSubmissionSettings(true);
+      }
+    };
+    window.addEventListener("focus", refreshWhenActive);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+    return () => {
+      window.removeEventListener("focus", refreshWhenActive);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+    };
+  }, [refreshSubmissionSettings]);
 
-    if (authResult === "failed") {
-      setStatus(t.status.loginFailed);
-      setStatusTone("error");
-      setStatusScope("auth");
-      setIssueUrl("");
+  async function checkDuplicate(url: string, showNotice: boolean) {
+    const requestId = duplicateRequestRef.current + 1;
+    duplicateRequestRef.current = requestId;
+    setIsCheckingUrl(true);
+    try {
+      const exists = await checkSubmissionUrl(url);
+      if (duplicateRequestRef.current !== requestId) return null;
+      setDuplicateBlocksSubmit(exists);
+      if (exists && showNotice) {
+        notify({ message: t.submitPage.alreadyListed, tone: "info" });
+      }
+      return exists;
+    } catch {
+      if (duplicateRequestRef.current === requestId) {
+        setDuplicateBlocksSubmit(false);
+        if (showNotice) {
+          notify({ message: t.submitPage.checkFailed, tone: "error" });
+        }
+      }
+      return null;
+    } finally {
+      if (duplicateRequestRef.current === requestId) setIsCheckingUrl(false);
     }
-
-    if (authResult) {
-      params.delete("auth");
-      const queryString = params.toString();
-      window.history.replaceState(
-        null,
-        "",
-        `${window.location.pathname}${queryString ? `?${queryString}` : ""}${window.location.hash}`
-      );
-    }
-  }, [t.status.loginFailed]);
-
-  function handleGitHubLogin() {
-    const draft: SubmissionDraft = { ...form, tagText };
-    window.localStorage.setItem(SUBMISSION_DRAFT_KEY, JSON.stringify(draft));
-    window.location.href = `/api/github/login?returnTo=${encodeURIComponent("/submit")}`;
   }
 
-  async function handleGitHubLogout() {
-    try {
-      await logoutGitHub();
-      setAuthState((current) => ({
-        ...current,
-        authenticated: false,
-        user: null
-      }));
-      await refreshAuthState();
-      setIssueUrl("");
-      setStatus(t.status.githubLogoutSuccess);
-      setStatusTone("success");
-      setStatusScope("auth");
-    } catch {
-      setIssueUrl("");
-      setStatus(t.status.githubLogoutFailed);
-      setStatusTone("error");
-      setStatusScope("auth");
+  function clearAutomaticLookupTimer() {
+    if (automaticLookupTimerRef.current === null) return;
+    window.clearTimeout(automaticLookupTimerRef.current);
+    automaticLookupTimerRef.current = null;
+  }
+
+  function scheduleAutomaticProjectLookup(sourceUrl: string) {
+    clearAutomaticLookupTimer();
+    const normalizedUrl = normalizeProjectUrl(sourceUrl);
+    if (!getGitHubRepoPath(normalizedUrl)) return;
+
+    automaticLookupTimerRef.current = window.setTimeout(() => {
+      automaticLookupTimerRef.current = null;
+      void runAutomaticProjectLookup(sourceUrl);
+    }, 800);
+  }
+
+  async function runAutomaticProjectLookup(
+    sourceUrl: string,
+    normalizeField = false
+  ) {
+    const normalizedUrl = normalizeProjectUrl(sourceUrl);
+    if (normalizeField) {
+      formUrlRef.current = normalizedUrl;
+      setForm((current) => ({ ...current, url: normalizedUrl }));
     }
+    if (!normalizedUrl) return;
+
+    try {
+      const parsed = new URL(normalizedUrl);
+      if (!/^https?:$/.test(parsed.protocol)) return;
+    } catch {
+      return;
+    }
+
+    const pendingLookup = automaticLookupPendingRef.current;
+    if (pendingLookup?.url === normalizedUrl) {
+      await pendingLookup.promise;
+      return;
+    }
+
+    const promise = (async () => {
+      const duplicateResult = await checkDuplicate(normalizedUrl, true);
+      if (duplicateResult !== false) return;
+      if (!getGitHubRepoPath(normalizedUrl)) return;
+
+      await readGitHubMetadata(normalizedUrl, {
+        forceRefresh: false,
+        overwriteExisting: false,
+        showNotice: false
+      });
+    })();
+    automaticLookupPendingRef.current = { promise, url: normalizedUrl };
+
+    try {
+      await promise;
+    } finally {
+      if (automaticLookupPendingRef.current?.promise === promise) {
+        automaticLookupPendingRef.current = null;
+      }
+    }
+  }
+
+  async function handleProjectUrlBlur() {
+    setTouched((current) => ({ ...current, url: true }));
+    clearAutomaticLookupTimer();
+    await runAutomaticProjectLookup(form.url, true);
+  }
+
+  async function readGitHubMetadata(
+    sourceUrl: string,
+    options: {
+      forceRefresh: boolean;
+      overwriteExisting: boolean;
+      showNotice: boolean;
+    }
+  ) {
+    const { forceRefresh, overwriteExisting, showNotice } = options;
+    const requestedRepoPath = getGitHubRepoPath(sourceUrl).toLowerCase();
+    if (!requestedRepoPath) return false;
+    const formSnapshot = form;
+    const tagTextSnapshot = tagText;
+    const requestId = metadataRequestRef.current + 1;
+    metadataRequestRef.current = requestId;
+    setIsGitHubMetadataLoading(true);
+    try {
+      const metadata = await loadBrowserGitHubMetadata(sourceUrl, { forceRefresh });
+      if (
+        metadataRequestRef.current !== requestId ||
+        getGitHubRepoPath(normalizeProjectUrl(formUrlRef.current)).toLowerCase() !== requestedRepoPath
+      ) {
+        return false;
+      }
+      const previous = lastAppliedMetadataRef.current;
+      const metadataTags = metadata.topics.slice(0, 8).join(", ");
+      setForm((current) => ({
+        ...current,
+        name: shouldApplyGitHubMetadataValue(
+          current.name,
+          formSnapshot.name,
+          previous?.name,
+          overwriteExisting
+        )
+          ? metadata.name
+          : current.name,
+        description: shouldApplyGitHubMetadataValue(
+          current.description,
+          formSnapshot.description,
+          previous?.description,
+          overwriteExisting
+        )
+          ? metadata.description
+          : current.description,
+        url: shouldUseGitHubMetadataValue(current.url, previous?.url)
+          || getGitHubRepoPath(normalizeProjectUrl(current.url)).toLowerCase() === requestedRepoPath
+          ? metadata.url
+          : current.url
+      }));
+      setTagText((current) =>
+        shouldApplyGitHubMetadataValue(
+          current,
+          tagTextSnapshot,
+          previous?.tagText,
+          overwriteExisting
+        )
+          ? metadataTags
+          : current
+      );
+      lastAppliedMetadataRef.current = {
+        name: metadata.name,
+        description: metadata.description,
+        tagText: metadataTags,
+        url: metadata.url
+      };
+      if (showNotice) {
+        notify({ message: t.submitPage.githubMetadataSuccess, tone: "success" });
+      }
+      return true;
+    } catch (error) {
+      if (showNotice && metadataRequestRef.current === requestId) {
+        notify({
+          message: getGitHubMetadataErrorMessage(error, t),
+          tone: "error"
+        });
+      }
+      return false;
+    } finally {
+      if (metadataRequestRef.current === requestId) {
+        setIsGitHubMetadataLoading(false);
+      }
+    }
+  }
+
+  async function handleGitHubMetadata() {
+    if (isGitHubMetadataLoading) return;
+    if (!githubRepoPath) {
+      setTouched((current) => ({ ...current, url: true }));
+      notify({ message: t.submitPage.githubMetadataFailed, tone: "error" });
+      return;
+    }
+    await readGitHubMetadata(normalizedProjectUrl, {
+      forceRefresh: true,
+      overwriteExisting: true,
+      showNotice: true
+    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submittingRef.current) return;
-    setIssueUrl("");
-    setResultKind(null);
-    setStatusScope("submit");
-
-    if (authStateError) {
-      setStatus(t.submitPage.authStateUnavailableDescription);
-      setStatusTone("error");
-      return;
-    }
-    if (!authState.configured) {
-      setStatus(t.submitPage.githubNotConfigured);
-      setStatusTone("error");
-      return;
-    }
-    if (!authState.authenticated) {
-      setStatus(t.submitPage.signInRequired);
-      setStatusTone("error");
-      return;
-    }
     setTouched({ name: true, url: true, description: true, category: true });
-    if (!isFormValid) {
-      setStatus(t.submitPage.validationFixForm);
-      setStatusTone("error");
-      return;
-    }
-    if (turnstileConfig?.turnstileEnabled && !turnstileToken) {
-      return;
-    }
+    if (!isFormValid) return;
 
     submittingRef.current = true;
     setIsSubmitting(true);
-    setStatus("");
-    let shouldResetTurnstile = Boolean(turnstileConfig?.turnstileEnabled);
     try {
-      const result = await submitTool({
+      const latestSettings = await refreshSubmissionSettings(true);
+      if (!latestSettings?.enabled) {
+        notify({ message: t.submitPage.settingsUnavailable, tone: "error" });
+        return;
+      }
+
+      const normalizedUrl = normalizeProjectUrl(form.url);
+      const duplicateResult = await checkDuplicate(normalizedUrl, true);
+      if (duplicateResult !== false) return;
+
+      const issueUrl = buildGitHubIssueUrl(latestSettings, {
         ...form,
         locale,
-        url: normalizeUrl(form.url),
+        url: normalizedUrl,
         tags: parseTags(tagText).slice(0, 8)
-      }, turnstileToken);
-      setIssueUrl(result.issueUrl);
-      setResultKind(result.kind);
-      setSubmittedName(form.name.trim());
-      setStatus(
-        result.kind === "pending"
-          ? t.submitPage.pendingSuccess(result.issueNumber)
-          : t.submitPage.success(result.issueNumber)
-      );
-      setStatusTone("success");
-      setForm({
-        name: "",
-        description: "",
-        url: "",
-        category: categories[0]?.value ?? "Other Tools",
-        tags: []
       });
-      setTagText("");
-      setTouched({});
-      window.localStorage.removeItem(SUBMISSION_DRAFT_KEY);
-    } catch (error) {
-      if (error instanceof SubmissionApiError) {
-        if (
-          error.code === "GITHUB_NOT_CONFIGURED" ||
-          error.code === "GITHUB_AUTH_REQUIRED"
-        ) {
-          shouldResetTurnstile = false;
-        }
-        if (error.status === 401) await refreshAuthState();
-        if (error.status === 429 && error.retryAfter > 0) {
-          setCooldownSeconds(error.retryAfter);
-        }
-        if (error.existingTool) {
-          setIssueUrl(error.existingTool.url);
-          setResultKind("existing");
-          setSubmittedName(error.existingTool.name);
-          setStatus(t.submitPage.existingTool(error.existingTool.name));
-          setStatusTone("success");
-        } else {
-          setIssueUrl("");
-          setResultKind(null);
-          const isTurnstileError = [
-            "TURNSTILE_CONFIG_ERROR",
-            "TURNSTILE_FAILED",
-            "TURNSTILE_REQUIRED",
-            "TURNSTILE_UNAVAILABLE"
-          ].includes(error.code ?? "");
-          if (isTurnstileError) {
-            setStatus("");
-          } else {
-            setStatus(
-              error.status === 401
-                ? t.submitPage.sessionExpired
-                : error.status === 429
-                  ? t.submitPage.rateLimited
-                  : error.status >= 500
-                    ? t.submitPage.githubCheckFailed
-                    : t.submitPage.submissionFailed
-            );
-          }
-        }
-      } else {
-        setIssueUrl("");
-        setResultKind(null);
-        setStatus(resolveError(error));
+      if (!issueUrl) {
+        notify({ message: t.submitPage.issueUrlFailed, tone: "error" });
+        return;
       }
-      if (!(error instanceof SubmissionApiError && error.existingTool)) {
-        setStatusTone("error");
-      }
+      window.location.assign(issueUrl);
     } finally {
-      if (shouldResetTurnstile) {
-        setTurnstileToken("");
-        setTurnstileResetKey((value) => value + 1);
-      }
       submittingRef.current = false;
       setIsSubmitting(false);
     }
@@ -392,177 +395,122 @@ export default function SubmitPage({
           <h1>{t.submitPage.heading}</h1>
           <p>{t.submitPage.description}</p>
         </div>
-        <div className="submit-page-auth-action" aria-busy={isAuthLoading}>
-          {isAuthLoading ? null : authStateError ? (
-            <button
-              className="ghost-button submit-button"
-              type="button"
-              onClick={() => void refreshAuthState()}
-            >
-              {t.submitPage.retryAuthState}
-            </button>
-          ) : authState.authenticated ? (
-            <button
-              className="primary-button submit-button glow-button"
-              title={authState.user ? t.submitPage.signedInAs(authState.user.login) : undefined}
-              type="button"
-              onClick={() => void handleGitHubLogout()}
-            >
-              <LogOut size={16} />
-              {t.actions.logoutGitHub}
-            </button>
-          ) : (
-            <button
-              className="primary-button submit-button glow-button"
-              disabled={!authState.configured}
-              title={!authState.configured ? t.submitPage.githubNotConfigured : undefined}
-              type="button"
-              onClick={handleGitHubLogin}
-            >
-              <Github size={16} />
-              {t.actions.signInWithGitHub}
-            </button>
-          )}
+        <div className="submit-page-auth-action">
+          <button
+            className="primary-button submit-button glow-button submit-github-metadata-button"
+            disabled={isGitHubMetadataLoading}
+            type="button"
+            onClick={() => void handleGitHubMetadata()}
+          >
+            {t.submitPage.githubMetadataAction}
+          </button>
         </div>
       </section>
 
       <div className="public-page-body public-page-body-form">
         <form className="public-submit-form" onSubmit={handleSubmit}>
-          {status && statusScope === "auth" ? (
-            <SubmitStatus
-              issueUrl=""
-              proxySettings={proxySettings}
-              status={status}
-              tone={statusTone}
-              t={t}
-            />
-          ) : null}
+          <fieldset className="submit-form-fieldset" disabled={isSubmitting}>
+            <section className="submit-form-section">
+              <header className="submit-section-heading">
+                <h2>{t.submitPage.projectInfoTitle}</h2>
+                <p>{t.submitPage.projectInfoDescription}</p>
+              </header>
+              <FormRow error={touched.name ? validation.name : ""} label={t.form.name}>
+                <input
+                  aria-invalid={Boolean(touched.name && validation.name)}
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                  onBlur={() => setTouched((current) => ({ ...current, name: true }))}
+                  maxLength={100}
+                  placeholder={t.submitPage.namePlaceholder}
+                  required
+                />
+              </FormRow>
+              <FormRow error={touched.url ? validation.url : ""} label={t.form.url}>
+                <input
+                  aria-invalid={Boolean(touched.url && validation.url)}
+                  value={form.url}
+                  onChange={(event) => {
+                    formUrlRef.current = event.target.value;
+                    metadataRequestRef.current += 1;
+                    duplicateRequestRef.current += 1;
+                    setDuplicateBlocksSubmit(false);
+                    setForm({ ...form, url: event.target.value });
+                    scheduleAutomaticProjectLookup(event.target.value);
+                  }}
+                  onBlur={() => void handleProjectUrlBlur()}
+                  placeholder={t.submitPage.urlPlaceholder}
+                  inputMode="url"
+                  required
+                />
+              </FormRow>
+              <FormRow
+                error={touched.description ? validation.description : ""}
+                label={t.form.description}
+              >
+                <textarea
+                  aria-invalid={Boolean(touched.description && validation.description)}
+                  value={form.description}
+                  onChange={(event) => setForm({ ...form, description: event.target.value })}
+                  onBlur={() => setTouched((current) => ({ ...current, description: true }))}
+                  maxLength={1000}
+                  placeholder={t.submitPage.descriptionPlaceholder}
+                  rows={5}
+                  required
+                />
+              </FormRow>
+              <FormRow label={t.form.tags}>
+                <input
+                  value={tagText}
+                  onChange={(event) => setTagText(event.target.value)}
+                  placeholder={t.form.tagsPlaceholder}
+                />
+              </FormRow>
+            </section>
 
-          <fieldset
-            className="submit-form-fieldset"
-            disabled={!authState.authenticated || isSubmitting}
-          >
-          <section className="submit-form-section">
-            <header className="submit-section-heading">
-              <h2>{t.submitPage.projectInfoTitle}</h2>
-              <p>{t.submitPage.projectInfoDescription}</p>
-            </header>
-            <FormRow error={touched.name ? validation.name : ""} label={t.form.name}>
-              <input
-                aria-invalid={Boolean(touched.name && validation.name)}
-                value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
-                onBlur={() => setTouched((current) => ({ ...current, name: true }))}
-                maxLength={100}
-                placeholder={t.submitPage.namePlaceholder}
-                required
-              />
-            </FormRow>
-            <FormRow error={touched.url ? validation.url : ""} label={t.form.url}>
-              <input
-                aria-invalid={Boolean(touched.url && validation.url)}
-                value={form.url}
-                onChange={(event) => setForm({ ...form, url: event.target.value })}
-                onBlur={() => {
-                  setTouched((current) => ({ ...current, url: true }));
-                  setForm((current) => ({ ...current, url: normalizeUrl(current.url) }));
-                }}
-                placeholder={t.submitPage.urlPlaceholder}
-                inputMode="url"
-                required
-              />
-            </FormRow>
-            <FormRow error={touched.description ? validation.description : ""} label={t.form.description}>
-              <textarea
-                aria-invalid={Boolean(touched.description && validation.description)}
-                value={form.description}
-                onChange={(event) => setForm({ ...form, description: event.target.value })}
-                onBlur={() => setTouched((current) => ({ ...current, description: true }))}
-                maxLength={1000}
-                placeholder={t.submitPage.descriptionPlaceholder}
-                rows={5}
-                required
-              />
-            </FormRow>
-            <FormRow label={t.form.tags}>
-              <input
-                value={tagText}
-                onChange={(event) => setTagText(event.target.value)}
-                placeholder={t.form.tagsPlaceholder}
-              />
-            </FormRow>
-          </section>
-
-          <section className="submit-form-section submit-category-section">
-            <header className="submit-section-heading">
-              <h2>{t.submitPage.categoryLabel}</h2>
-              <p>{t.submitPage.categoryDescription}</p>
-            </header>
-            <div className="category-radio-grid">
-              {categories.map((category) => (
-                <label className="radio-item" key={category.value}>
-                  <input
-                    checked={form.category === category.value}
-                    name="category"
-                    onChange={() => {
-                      setTouched((current) => ({ ...current, category: true }));
-                      setForm({ ...form, category: category.value });
-                    }}
-                    type="radio"
-                  />
-                  <span>{category.label}</span>
-                </label>
-              ))}
-            </div>
-            {touched.category && validation.category ? (
-              <span className="submit-field-error">{validation.category}</span>
-            ) : null}
-          </section>
-
+            <section className="submit-form-section submit-category-section">
+              <header className="submit-section-heading">
+                <h2>{t.submitPage.categoryLabel}</h2>
+                <p>{t.submitPage.categoryDescription}</p>
+              </header>
+              <div className="category-radio-grid">
+                {categories.map((category) => (
+                  <label className="radio-item" key={category.value}>
+                    <input
+                      checked={form.category === category.value}
+                      name="category"
+                      onChange={() => {
+                        setTouched((current) => ({ ...current, category: true }));
+                        setForm({ ...form, category: category.value });
+                      }}
+                      type="radio"
+                    />
+                    <span>{category.label}</span>
+                  </label>
+                ))}
+              </div>
+              {touched.category && validation.category ? (
+                <span className="submit-field-error">{validation.category}</span>
+              ) : null}
+            </section>
           </fieldset>
 
           <div className="submit-form-actions">
             <div className="submit-verification-actions">
-              {turnstileConfig?.turnstileEnabled ? (
-                <TurnstileWidget
-                  language={locale === "zh" ? "zh-CN" : "en"}
-                  onError={handleTurnstileError}
-                  onExpire={handleTurnstileExpire}
-                  onLoadError={handleTurnstileLoadError}
-                  onTokenChange={handleTurnstileTokenChange}
-                  resetKey={turnstileResetKey}
-                  siteKey={turnstileConfig.turnstileSiteKey}
-                />
-              ) : null}
               <button
                 className="primary-button submit-submit-button"
                 disabled={
-                  !authState.configured || !authState.authenticated || isSubmitting
-                  || !isFormValid || cooldownSeconds > 0
+                  isCheckingUrl || isGitHubMetadataLoading ||
+                  isSubmitting || duplicateBlocksSubmit || settingsUnavailable ||
+                  !settings?.enabled || !isFormValid
                 }
                 type="submit"
               >
-                {cooldownSeconds > 0
-                  ? t.submitPage.waitSeconds(cooldownSeconds)
-                  : t.actions.submit}
+                {t.actions.submit}
               </button>
               <p>{t.submitPage.submitHint}</p>
             </div>
           </div>
-
-          {status && statusScope === "submit" ? (
-            <SubmitStatus
-              detail={submittedName}
-              actionLabel={resultKind === "existing"
-                ? t.submitPage.viewExistingTool
-                : t.actions.openIssue}
-              issueUrl={issueUrl}
-              proxySettings={proxySettings}
-              status={status}
-              tone={statusTone}
-              t={t}
-            />
-          ) : null}
         </form>
 
         <section className="submit-guide-section">
@@ -582,47 +530,31 @@ export default function SubmitPage({
   );
 }
 
-function SubmitStatus({
-  actionLabel,
-  detail,
-  issueUrl,
-  proxySettings,
-  status,
-  t,
-  tone
-}: {
-  actionLabel?: string;
-  detail?: string;
-  issueUrl: string;
-  proxySettings: ProxySettings;
-  status: string;
-  t: Messages;
-  tone: StatusTone;
-}) {
-  return (
-    <div className={`submit-status is-${tone}`} role="status">
-      <span className="submit-status-content">
-        <span className="submit-status-icon" aria-hidden="true">
-          {tone === "success" ? <CheckCircle2 size={18} /> : <CircleAlert size={18} />}
-        </span>
-        <span className="submit-status-message">
-          {detail ? <strong>{detail}</strong> : null}
-          <span>{status}</span>
-        </span>
-      </span>
-      {issueUrl ? (
-        <a
-          className="ghost-button compact submit-status-link"
-          href={proxifyUrl(issueUrl, proxySettings)}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {actionLabel ?? t.actions.openIssue}
-          <ArrowUpRight size={14} />
-        </a>
-      ) : null}
-    </div>
-  );
+function shouldUseGitHubMetadataValue(current: string, previous = "") {
+  const normalizedCurrent = current.trim();
+  return !normalizedCurrent || Boolean(previous && normalizedCurrent === previous.trim());
+}
+
+function shouldApplyGitHubMetadataValue(
+  current: string,
+  requestSnapshot: string,
+  previous: string | undefined,
+  overwriteExisting: boolean
+) {
+  if (current !== requestSnapshot) return false;
+  return overwriteExisting || shouldUseGitHubMetadataValue(current, previous);
+}
+
+function getGitHubMetadataErrorMessage(error: unknown, t: Messages) {
+  if (error instanceof BrowserGitHubMetadataError) {
+    if (error.code === "GITHUB_REPOSITORY_NOT_FOUND") {
+      return t.submitPage.githubMetadataNotFound;
+    }
+    if (error.code === "GITHUB_RATE_LIMITED") {
+      return t.submitPage.githubMetadataRateLimited;
+    }
+  }
+  return t.submitPage.githubMetadataFailed;
 }
 
 function FormRow({

@@ -35,6 +35,7 @@ import type {
   ToolImportResponse,
   ToolInput
 } from "./types";
+import { loadBrowserGitHubMetadata } from "./github-metadata";
 
 type ToolsResponse = {
   tools: Tool[];
@@ -125,6 +126,7 @@ type SiteSettingsResponse = {
 
 type AdminSecuritySettingsResponse = {
   settings: AdminSecuritySettings;
+  token?: string;
 };
 
 type AdminCategorySettingsResponse = {
@@ -750,7 +752,7 @@ export async function loadAdminSecuritySettings(
 export async function updateAdminPassword(
   input: AdminPasswordInput,
   token: string
-): Promise<AdminSecuritySettings> {
+): Promise<{ settings: AdminSecuritySettings; token: string }> {
   const response = await fetch("/api/admin/security", {
     method: "PUT",
     headers: {
@@ -760,7 +762,10 @@ export async function updateAdminPassword(
     body: JSON.stringify(input)
   });
   const data = await readJson<AdminSecuritySettingsResponse>(response);
-  return data.settings;
+  if (!data.token) {
+    throw new Error("Updated admin session token is missing.");
+  }
+  return { settings: data.settings, token: data.token };
 }
 
 export async function loadGitHubSettings(
@@ -800,6 +805,7 @@ const pendingGitHubMetadataRequests = new Map<
   string,
   Promise<GitHubToolMetadata>
 >();
+let adminGitHubMetadataMode: "server" | "browser" = "server";
 
 export function loadGitHubToolMetadata(
   url: string,
@@ -814,6 +820,12 @@ export function loadGitHubToolMetadata(
   }
 
   const request = (async () => {
+    if (adminGitHubMetadataMode === "browser") {
+      return loadBrowserGitHubMetadata(url, {
+        forceRefresh: options.forceRefresh
+      });
+    }
+
     const searchParams = new URLSearchParams({ url });
     if (options.forceRefresh) {
       searchParams.set("refresh", "1");
@@ -825,7 +837,14 @@ export function loadGitHubToolMetadata(
         Authorization: `Bearer ${token}`
       }
     });
+    if (response.status === 409) {
+      adminGitHubMetadataMode = "browser";
+      return loadBrowserGitHubMetadata(url, {
+        forceRefresh: options.forceRefresh
+      });
+    }
     const data = await readJson<GitHubToolMetadataResponse>(response);
+    adminGitHubMetadataMode = "server";
     return data.metadata;
   })();
 

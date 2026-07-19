@@ -89,11 +89,7 @@ export const zh: Messages = {
     backHome: "返回首页",
     addTool: "添加工具",
     submit: "提交",
-    signInWithGitHub: "GitHub 登录",
-    logoutGitHub: "退出 GitHub",
-    openIssue: "查看 Issue",
     saveSettings: "保存设置",
-    githubSettings: "GitHub 提交设置",
     copy: "复制",
     logout: "退出登录",
     clearFilters: "清空筛选"
@@ -119,44 +115,47 @@ export const zh: Messages = {
     description: "换个分类，或者试试更短的搜索词。"
   },
   footer: {
-    version: "HTools v1.0.10"
+    version: "HTools v1.0.13"
   },
   submit: {
     title: "提交工具",
     heading: "向 HTools 提交工具",
-    description: "使用 GitHub 授权提交工具建议，审核通过后会进入导航目录。"
+    description: "填写项目信息后前往 GitHub 提交建议，审核通过后会进入导航目录。"
   },
   submitPage: {
     title: "提交工具",
     heading: "提交工具",
     description:
-      "请提供项目名称、地址、简介和分类。提交后会创建 GitHub Issue，方便公开讨论和审核。",
+      "请提供项目名称、地址、简介和分类，之后前往 GitHub 确认创建 Issue。",
     guideIntroTitle: "一起维护一份实用的工具目录",
     guideIntroDescription:
-      "HTools 通过 GitHub Issue 接收工具推荐，提交、讨论和审核都保持公开透明。我们关注项目是否稳定、清晰、可访问，并能真正帮助开发者。",
+      "HTools 通过 GitHub Issue 接收工具推荐。填写 GitHub 仓库地址后可自动读取公开信息，最终由你前往 GitHub 确认提交；讨论和审核保持公开透明。",
     guideTitle: "提交说明",
     guideDescription:
-      "提交前请确认项目地址可访问，名称、简介和分类能帮助维护者快速判断是否适合收录。",
+      "提交前请确认项目地址可以公开访问。GitHub 项目会自动读取仓库信息，其他项目可以直接手动填写。",
     guideContentTitle: "提交内容",
     guideContentDescription:
-      "请填写项目名称、链接、简短说明、标签和最接近的分类。标签请用逗号、顿号或分号分隔，不要用空格分隔。",
+      "请核对项目名称、链接、简短说明、标签和最接近的分类；自动读取的内容仍可按实际情况修改。",
     guideReviewTitle: "审核流程",
     guideReviewDescription:
-      "提交成功后会生成公开 Issue。站点维护者会根据链接质量、项目状态和目录匹配度决定是否收录。",
+      "系统会先检查项目是否已收录；未收录时生成 Issue 内容并前往 GitHub，由你确认后公开提交。",
     guideAfterTitle: "补充建议",
     guideAfterDescription:
-      "请使用长期有效的官方链接，不要使用临时跳转地址。分类选不准也没关系，审核时可以调整。",
+      "自动读取不会覆盖你手动修改的内容。请优先使用长期有效的官方链接，分类不准确时可在审核中调整。",
     namePlaceholder: "请输入工具名称",
-    descriptionPlaceholder: "用 1-2 句话说明工具做什么、帮助谁、带来什么结果",
-    urlPlaceholder: "例如 github.com/owner/repo 或 https://example.com",
+    descriptionPlaceholder: "用 1-2 句话说明工具的主要功能和用途",
+    urlPlaceholder: "例如 https://github.com/shaoyouvip/htools 或 shaoyouvip/htools",
     categoryLabel: "类型",
-    githubNotConfigured: "站点管理员还没有配置 GitHub OAuth 提交。",
-    authStateUnavailableDescription: "请检查网络后重新获取，当前状态不会被改为未配置。",
-    retryAuthState: "重新获取",
-    signedInAs: (login) => `已登录 GitHub：@${login}`,
-    signInRequired: "请先使用 GitHub 登录，然后提交会创建为仓库 Issue。",
-    success: (issueNumber) => `提交成功，Issue #${issueNumber} 已创建。`,
-    submitHint: "提交会创建公开 GitHub Issue，审核通过后会整理进工具库。",
+    settingsUnavailable: "GitHub 提交暂未开启或配置不可用。",
+    alreadyListed: "此项目已收录，无需重复提交",
+    checkFailed: "暂时无法检查项目是否已收录，请稍后重试。",
+    issueUrlFailed: "无法生成 GitHub 提交地址，请检查后台仓库设置。",
+    githubMetadataAction: "GitHub 信息",
+    githubMetadataSuccess: "已读取 GitHub 仓库信息。",
+    githubMetadataNotFound: "未找到公开的 GitHub 仓库。",
+    githubMetadataRateLimited: "GitHub 公开接口请求次数已达上限，请稍后重试。",
+    githubMetadataFailed: "GitHub 仓库信息读取失败，请检查项目地址。",
+    submitHint: "提交后将前往 GitHub，由你确认并创建公开 Issue。",
     validationNameRequired: "请输入工具名称。",
     validationNameTooLong: "名称不能超过 100 个字符。",
     validationUrlRequired: "请输入项目地址。",
@@ -164,18 +163,9 @@ export const zh: Messages = {
     validationDescriptionRequired: "请输入工具简介。",
     validationDescriptionTooLong: "简介不能超过 1000 个字符。",
     validationCategoryRequired: "请选择一个分类。",
-    validationFixForm: "请先修正表单中标记的问题。",
-    pendingSuccess: (issueNumber) => `该工具已经在等待审核（Issue #${issueNumber}）。`,
-    existingTool: (name) => `“${name}”已经收录在工具库中。`,
-    sessionExpired: "GitHub 登录已失效，请重新登录。",
-    rateLimited: "请求过于频繁，请稍后再提交。",
-    githubCheckFailed: "GitHub 暂时无法完成检查，请稍后重试。",
-    submissionFailed: "提交失败，请检查项目信息后重试。",
     projectInfoTitle: "项目信息",
-    projectInfoDescription: "填写项目的公开信息，审核通过后会加入工具库。",
-    categoryDescription: "选择最符合项目用途的一个分类。",
-    waitSeconds: (seconds) => `请等待 ${seconds} 秒`,
-    viewExistingTool: "查看现有工具"
+    projectInfoDescription: "填写项目的公开信息；GitHub 仓库可自动读取名称、简介和标签。",
+    categoryDescription: "选择最符合项目用途的一个分类。"
   },
   tool: {
     featured: "精选",
@@ -275,28 +265,21 @@ export const zh: Messages = {
   },
   githubSettings: {
     title: "GitHub 提交设置",
-    description:
-      "配置 GitHub OAuth App 和目标仓库。用户授权后，公开提交会作为 GitHub Issue 创建。",
+    description: "配置接收公开工具建议的目标 GitHub 仓库。",
     enabled: "开启提交",
     disabled: "关闭提交",
     statusEnabled: "已开启",
     statusDisabled: "已关闭",
-    clientId: "OAuth Client ID",
-    clientSecret: "OAuth Client Secret",
-    clientSecretPlaceholder: "••••••••",
     owner: "仓库 Owner",
     repo: "仓库名称",
     labels: "Issue 标签",
     labelsPlaceholder: "tool-submission, pending-review",
-    callbackUrl: "Callback URL",
     saved: "GitHub 提交设置已保存。",
     saveFailed: "GitHub 提交设置保存失败。",
   },
   status: {
     loginFailed: "登录失败。",
     sessionExpired: "登录状态已过期，请重新登录。",
-    githubLogoutSuccess: "已退出",
-    githubLogoutFailed: "退出失败。",
     toolUpdated: "工具已更新。",
     toolCreated: "工具已创建。",
     saveFailed: "保存失败。",

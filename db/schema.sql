@@ -151,30 +151,25 @@ CREATE INDEX IF NOT EXISTS idx_content_items_category_latest_sort
 DROP INDEX IF EXISTS idx_content_items_source;
 DROP INDEX IF EXISTS idx_content_items_category;
 
-CREATE TABLE IF NOT EXISTS github_oauth_states (
-  state TEXT PRIMARY KEY,
-  return_to TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_github_oauth_states_expires_at
-  ON github_oauth_states (expires_at);
-
-CREATE TABLE IF NOT EXISTS github_sessions (
-  token TEXT PRIMARY KEY,
-  github_id INTEGER NOT NULL,
-  github_login TEXT NOT NULL,
-  github_name TEXT,
-  avatar_url TEXT NOT NULL,
-  html_url TEXT NOT NULL,
-  access_token TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_github_sessions_expires_at
-  ON github_sessions (expires_at);
+DROP INDEX IF EXISTS idx_github_oauth_states_expires_at;
+DROP INDEX IF EXISTS idx_github_sessions_expires_at;
+DROP TABLE IF EXISTS github_oauth_states;
+DROP TABLE IF EXISTS github_sessions;
+DELETE FROM app_settings WHERE key LIKE 'github_submission_cooldown:%';
+UPDATE app_settings
+SET value = CASE WHEN json_valid(value) THEN
+      '{"enabled":' ||
+        CASE WHEN json_extract(value, '$.enabled') = 1 THEN 'true' ELSE 'false' END ||
+        ',"owner":' || json_quote(TRIM(COALESCE(json_extract(value, '$.owner'), ''))) ||
+        ',"repo":' || json_quote(TRIM(COALESCE(json_extract(value, '$.repo'), ''))) ||
+        ',"labels":' || CASE
+          WHEN json_type(value, '$.labels') = 'array' THEN json_extract(value, '$.labels')
+          ELSE '["tool-submission"]'
+        END || '}'
+      ELSE '{"enabled":false,"owner":"","repo":"","labels":["tool-submission"]}'
+    END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE key = 'github_settings';
 
 CREATE VIRTUAL TABLE IF NOT EXISTS articles_search USING fts5(
   article_id UNINDEXED,
@@ -284,7 +279,7 @@ FROM content_items
 JOIN content_sources ON content_sources.id = content_items.source_id;
 
 INSERT INTO app_settings (key, value, updated_at)
-VALUES ('database_schema_version', '8', CURRENT_TIMESTAMP)
+VALUES ('database_schema_version', '9', CURRENT_TIMESTAMP)
 ON CONFLICT(key) DO UPDATE SET
   value = excluded.value,
   updated_at = CURRENT_TIMESTAMP;

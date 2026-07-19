@@ -1,4 +1,5 @@
 import {
+  createToken,
   getAdminSecuritySettings,
   InvalidRequestError,
   json,
@@ -39,14 +40,23 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
       return jsonError(
         "Current password is incorrect.",
         "INVALID_PASSWORD",
-        { status: 401 }
+        { status: 400 }
+      );
+    }
+
+    if (newPassword === currentPassword) {
+      return jsonError(
+        "New password must be different from the current password.",
+        "PASSWORD_UNCHANGED",
+        { status: 400 }
       );
     }
 
     await saveAdminPassword(env, newPassword);
 
     return json({
-      settings: await getAdminSecuritySettings(env)
+      settings: await getAdminSecuritySettings(env),
+      token: await createToken(env)
     });
   } catch (error) {
     return writeErrorResponse(error, "Unable to update admin password.");

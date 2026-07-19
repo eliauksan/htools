@@ -1,10 +1,22 @@
 # HTools
 
-HTools is an open-source tool directory built on Cloudflare Pages Functions and D1. It can be used as a personal or public tool library with articles, RSS content flows, GitHub issue submissions, GitHub repository metadata, category management, site settings, backup and restore, and public subscription feeds.
+HTools is an open-source tool directory built on Cloudflare Pages Functions and D1, with a public tool library, articles, and an RSS content dashboard.
 
-[Telegram Channel](https://t.me/lsmkc) | [Telegram Group](https://t.me/lsmoo)
+<p align="center">
+  <a href="https://pages.cloudflare.com/"><img src="https://img.shields.io/badge/Powered%20by-Cloudflare-F38020?logo=cloudflare&amp;logoColor=white" alt="Powered by Cloudflare" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-2ea44f" alt="License: MIT" /></a>
+  <a href="https://github.com/shaoyouvip/htools/releases/latest"><img src="https://img.shields.io/github/v/release/shaoyouvip/htools?display_name=tag" alt="Latest Release" /></a>
+</p>
 
-English | [简体中文](README.md) | [Deployment Guide](https://blog.zrf.me/p/HTools/)
+<p align="center">
+  <a href="https://t.me/lsmkc">Telegram Channel</a> |
+  <a href="https://t.me/lsmoo">Telegram Group</a>
+</p>
+
+<p align="center">
+  English | <a href="README.md">简体中文</a> |
+  <a href="https://blog.zrf.me/p/HTools/">Illustrated Deployment Guide</a>
+</p>
 
 ## Screenshots
 
@@ -14,15 +26,11 @@ English | [简体中文](README.md) | [Deployment Guide](https://blog.zrf.me/p/H
 
 ## Features
 
-- Public site: home, tool categories, articles, tool submission, and about page.
-- Admin dashboard: tools, articles, content flows, categories, and system settings.
-- Content flows: sync RSS feeds, preview items, and convert entries into site articles.
-- Markdown: article content and the about page support Markdown.
-- GitHub integration: users can sign in with GitHub and submit tools as repository issues; admins can fetch GitHub repository metadata when adding tools.
-- Categories: pre-create, filter, delete, and batch-handle tool, article, and content-flow categories.
-- Data tools: full backup / restore, default tool subscription source, and public site source at `/api/htools.json`.
-- SEO feeds: `/sitemap.xml`, `/rss.xml`, and `/rss.json`.
-- UI languages: Simplified Chinese and English.
+- The public site includes tool categories, articles, tool submission, and an about page.
+- The dashboard manages tools, articles, RSS sources, categories, and system settings.
+- RSS items can be previewed or converted into site articles; articles and the about page support Markdown.
+- Users can fetch GitHub repository metadata and continue to GitHub to create a public issue; admins can also auto-fill repository details.
+- Full backup and restore, a public tool feed, and Simplified Chinese / English interfaces are included.
 
 ## Deployment
 
@@ -48,7 +56,7 @@ D1 database: select the database you just created
 7. Redeploy the Pages project.
 8. Open `/admin` and sign in.
 
-The app initializes the D1 schema automatically on first API access and stores a schema version in `app_settings`. New Worker instances then read the version once and only run table, index, or column compatibility upgrades when the stored version is behind. The database starts empty; HTools does not write default tools during deployment. Import the default subscription source from the admin dashboard or add tools manually. You still only need to bind the D1 database as `DB` in Pages; no manual migration command is required.
+The D1 schema is initialized or upgraded automatically on first API access; no manual migration command is required. The database starts empty, so import the default source from the dashboard or add tools manually.
 
 ## Environment Variables
 
@@ -56,16 +64,14 @@ The application reads the following environment variables:
 
 | Variable | Required | Recommended type | Purpose |
 | --- | --- | --- | --- |
-| `ADMIN_PASSWORD` | Yes | Secret | Initial administrator password and signing secret for administrator login sessions; do not remove or change it casually after deployment. |
+| `ADMIN_PASSWORD` | Yes | Secret | Admin password and session-signing secret; use a unique password of at least 12 characters. |
 | `GITHUB_TOKEN` | No | Secret | Reads public GitHub repository metadata while adding or editing tools and raises the GitHub API request limit. |
-| `TURNSTILE_SITE_KEY` | No; configure together with the secret key | Plain variable | Cloudflare Turnstile Site Key used to load the widget on administrator login and public tool submission pages. |
+| `TURNSTILE_SITE_KEY` | No; configure together with the secret key | Plain variable | Cloudflare Turnstile Site Key used to load the widget on the administrator login page. |
 | `TURNSTILE_SECRET_KEY` | No; configure together with the site key | Secret | Cloudflare Turnstile Secret Key used by the server to verify challenge results. |
 
-The admin password only has to be non-empty. Letters, numbers, symbols, and Unicode characters are accepted, and the project does not enforce a minimum or maximum length; use a unique password of at least 12 characters.
+Use a read-only `GITHUB_TOKEN` without repository write, delete, or administration permissions. Without it, the admin browser requests GitHub's public API directly. The public submission page always uses the visitor's browser and never uses the site token.
 
-`GITHUB_TOKEN` is used when the admin dashboard reads public GitHub repository metadata while adding or editing tools. Authenticated requests raise the GitHub API limit, while caching and ETag revalidation reduce repeated requests. Use a read-only token from a stable account and do not grant repository write, delete, or administration permissions. This variable is separate from the GitHub OAuth user token used by public submissions. Public metadata still works without it, but uses the lower unauthenticated API limit.
-
-To use Cloudflare Turnstile, create a Turnstile site and add the deployed domain, then configure both the Site Key and Secret Key from the table. After redeploying, enable Cloudflare Turnstile under Admin → Service Settings. The dashboard cannot enable it when the configuration is incomplete, and the public widget is not loaded while the service is disabled. If production and preview use different domains, configure the appropriate variables and allowed hostnames for each environment.
+To use Turnstile, add the deployed domain in Cloudflare, configure both keys, redeploy, and enable it under Admin → Service Settings.
 
 ## Local Development
 
@@ -81,35 +87,16 @@ npm run db:init:local
 npm run db:init:remote
 ```
 
-## Admin Settings
-
-- `/admin`: admin dashboard entry.
-- System Settings: site name, site icon, about page Markdown, footer, GitHub submissions, proxy fallback, backup / restore, and admin password.
-- GitHub submissions: configure a GitHub OAuth App and target repository so public submissions at `/submit` create GitHub issues.
-- GitHub repository info: when adding or editing a tool, enter a GitHub repository URL to fetch metadata.
-
-GitHub OAuth App Authorization callback URL:
-
-```txt
-https://your-domain.com/api/github/callback
-```
-
 ## Data Sources
 
 - Default source file: [public/htools.json](public/htools.json)
 - Default source URL: [https://raw.githubusercontent.com/shaoyouvip/htools/refs/heads/main/public/htools.json](https://raw.githubusercontent.com/shaoyouvip/htools/refs/heads/main/public/htools.json)
 - Current site public source: `/api/htools.json`
 
-The default tool source is only an online subscription source. It is not written to D1 automatically. Administrators can import it from the dashboard or import another site's `/api/htools.json`. The default URL points to the HTools main repository so sites that have not updated their code can still import the latest tool data.
-
-Public tool, category, article-list, and `/api/htools.json` responses use a 30-second Cloudflare edge cache. Public site and proxy settings use a 15-second cache, with ETag conditional requests. Every successful admin write updates a global D1 cache version, so later requests from different domains and edge locations no longer match an old version; an older concurrent request can only populate an obsolete cache key. Empty lists, disabled sources, and error responses are never cached, and clients still revalidate with `no-cache`, so disabling the public source does not leave a directly reusable browser response.
+The default source is not written to D1 automatically. Import it from the dashboard, or import another site's public `/api/htools.json`.
 
 ## SEO And Feeds
 
 - `/sitemap.xml`: sitemap for public pages and published articles.
 - `/rss.xml`: RSS feed for published articles.
 - `/rss.json`: JSON Feed for published articles.
-
-## Version
-
-Current version: `HTools v1.0.12`
