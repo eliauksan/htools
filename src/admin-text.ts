@@ -12,7 +12,7 @@ export function getAdminMaintenanceText(locale: Locale) {
   if (locale === "zh") {
     const siteText = {
       siteTitle: "基本信息",
-      siteDescription: "\u4fee\u6539\u524d\u53f0\u548c\u540e\u53f0\u663e\u793a\u7684\u7f51\u7ad9\u540d\u79f0\u4e0e\u56fe\u6807\u3002\u4e0d\u586b\u5199\u5219\u4f7f\u7528\u9ed8\u8ba4\u7ad9\u70b9\u4fe1\u606f\u3002",
+      siteDescription: "\u4fee\u6539\u5168\u7ad9\u663e\u793a\u7684\u7f51\u7ad9\u540d\u79f0\u3001\u526f\u6807\u9898\u4e0e\u56fe\u6807\uff0c\u5305\u62ec\u524d\u53f0\u3001\u540e\u53f0\u548c\u767b\u5f55\u9875\u9762\uff1b\u4e0d\u586b\u5199\u5219\u4f7f\u7528\u9ed8\u8ba4\u7ad9\u70b9\u4fe1\u606f\u3002",
       siteNameLabel: "\u7f51\u7ad9\u540d\u79f0",
       siteSubtitleLabel: "\u7f51\u7ad9\u526f\u6807\u9898",
       siteIconLabel: "\u7f51\u7ad9\u56fe\u6807 URL",
@@ -306,7 +306,7 @@ export function getAdminMaintenanceText(locale: Locale) {
     systemRetry: "Reload",
     siteTitle: "Basic Information",
     siteDescription:
-      "Change the site name and icon shown in the frontend and admin area. Leave blank to use the default site identity.",
+      "Change the site name, subtitle, and icon used across the frontend, admin area, and login page. Leave blank to use the default site identity.",
     siteNameLabel: "Site name",
     siteSubtitleLabel: "Site subtitle",
     siteIconLabel: "Site icon URL",

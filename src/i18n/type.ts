@@ -169,8 +169,6 @@ export type Messages = {
     previewAlt: (name: string) => string;
   };
   admin: {
-    title: string;
-    description: string;
     dashboard: string;
     directoryService: string;
     platform: string;

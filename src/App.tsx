@@ -76,7 +76,7 @@ import { useVisualViewportKeyboard } from "./useVisualViewportKeyboard";
 import { useUtilityMenuKeyboard } from "./useUtilityMenuKeyboard";
 import {
   CompactTagRow,
-  SiteBrandMark,
+  SiteBrandIdentity,
   SiteSettingsContext,
   SkeletonLayoutMask,
   SkeletonVisibility,
@@ -95,7 +95,6 @@ import {
   getLegalContentSettings,
   getSiteDisplayName,
   getSiteDocumentTitle,
-  getSiteSubtitle,
   syncDocumentMetadata,
   syncDocumentRobots,
   syncSiteFavicon
@@ -2429,8 +2428,6 @@ function HomeHeader({
   const [isRemoteToolSearchLoading, setIsRemoteToolSearchLoading] =
     useState(false);
   const searchShortcutLabel = "⌘ K";
-  const menuRootRef = useRef<HTMLDivElement>(null);
-  const mobileUtilityRootRef = useRef<HTMLDivElement>(null);
   const searchTriggerRef = useRef<HTMLButtonElement>(null);
   const searchPanelRef = useRef<HTMLDivElement>(null);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -2443,7 +2440,6 @@ function HomeHeader({
   const siteSettings = useSiteSettings();
   const proxySettings = useProxySettings();
   const siteName = getSiteDisplayName(siteSettings);
-  const siteSubtitle = getSiteSubtitle(siteSettings);
   const isMobileNavVisible = isMobileNavOpen || isMobileNavClosing;
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const localToolSearchResults = useMemo(() => {
@@ -2659,38 +2655,6 @@ function HomeHeader({
       document.removeEventListener("keydown", handleSearchShortcut);
     };
   }, [canOpenGlobalSearch, isMobileNavClosing, isMobileNavOpen]);
-
-  useEffect(() => {
-    if (!openMenu) {
-      return;
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      if (
-        menuRootRef.current?.contains(event.target as Node) ||
-        mobileUtilityRootRef.current?.contains(event.target as Node)
-      ) {
-        return;
-      }
-
-      setOpenMenu(null);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closePublicUtilityMenu(true);
-      }
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [openMenu]);
 
   useEffect(() => {
     if (!shouldLockBodyScroll) {
@@ -2942,11 +2906,7 @@ function HomeHeader({
                   href="/"
                   onClick={closeMobileNav}
                 >
-                  <SiteBrandMark />
-                  <span>
-                    <strong>{siteName}</strong>
-                    <small>{siteSubtitle}</small>
-                  </span>
+                  <SiteBrandIdentity showSubtitle />
                 </a>
                 <button
                   ref={mobileNavCloseRef}
@@ -2984,7 +2944,7 @@ function HomeHeader({
               </nav>
 
               <div className="mobile-nav-bottom">
-                <div className="mobile-nav-utility" ref={mobileUtilityRootRef}>
+                <div className="mobile-nav-utility">
                   <div className="menu-control mobile-utility-menu">
                     <button
                       className="icon-button"
@@ -3106,8 +3066,7 @@ function HomeHeader({
         </button>
 
         <a className="brand" href="/" aria-label={`${siteName} home`}>
-          <SiteBrandMark />
-          <span>{siteName}</span>
+          <SiteBrandIdentity />
         </a>
 
         <nav className="desktop-nav home-nav" aria-label="Primary">
@@ -3125,7 +3084,6 @@ function HomeHeader({
 
         <div
           className={`home-topbar-actions ${showSearch ? "" : "no-search"}`}
-          ref={menuRootRef}
         >
           {shouldRenderSearchTrigger ? (
             <button
@@ -3777,7 +3735,6 @@ type FooterLink = {
 function HomeFooter({ t }: { t: Messages }) {
   const siteSettings = useSiteSettings();
   const proxySettings = useProxySettings();
-  const siteName = getSiteDisplayName(siteSettings);
   const footerSettings = getLocalizedFooterSettings(siteSettings, t);
   const footerCopyrightSuffix =
     t === translations.en
@@ -3789,8 +3746,7 @@ function HomeFooter({ t }: { t: Messages }) {
       <div className="footer-inner">
         <div className="footer-brand-block">
           <a className="brand" href="/">
-            <SiteBrandMark className="compact-mark" />
-            <span>{siteName}</span>
+            <SiteBrandIdentity markClassName="compact-mark" />
           </a>
           <p>{footerSettings.description}</p>
           <div className="footer-socials">

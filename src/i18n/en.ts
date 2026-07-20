@@ -182,8 +182,6 @@ export const en: Messages = {
     previewAlt: (name) => `${name} website preview`
   },
   admin: {
-    title: "HTools Admin",
-    description: "Sign in to manage the curated tool directory.",
     dashboard: "Dashboard",
     directoryService: "HTools Console",
     platform: "Platform",

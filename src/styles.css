@@ -1508,8 +1508,7 @@ html[data-theme="dark"] .global-search-shortcut {
   letter-spacing: 0;
 }
 
-.brand-mark,
-.auth-mark {
+.brand-mark {
   box-sizing: border-box;
   display: inline-grid;
   flex: 0 0 42px;
@@ -3673,45 +3672,65 @@ html[data-theme="dark"] .skeleton-shimmer::after {
   gap: 8px;
 }
 
-.auth-card-actions .ghost-button.compact {
-  align-self: center;
-}
-
 .auth-card-actions .icon-button {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
 }
 
-.auth-heading {
-  display: grid;
-  grid-template-columns: auto 1fr;
+.auth-home-brand {
+  display: flex;
   align-items: center;
-  gap: 16px;
-  border-top: 1px solid var(--border-soft);
-  padding-top: 20px;
+  min-width: 0;
+  max-width: min(100%, 280px);
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
 }
 
-.auth-heading .auth-mark {
+.auth-home-brand .brand-mark {
+  flex: 0 0 42px;
   width: 42px;
   height: 42px;
   box-shadow: none;
 }
 
-.auth-card h1 {
-  margin: 0;
-  font-size: 18px;
+.auth-home-brand > span:last-child {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.auth-home-brand strong,
+.auth-home-brand small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-home-brand strong {
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1;
+}
+
+.auth-home-brand small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.2;
 }
 
-.auth-card p {
-  max-width: 32em;
-  margin: 8px 0 0;
+.auth-home-brand:hover strong,
+.auth-home-brand:focus-visible strong {
   color: var(--text);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.4;
 }
 
 .admin-workspace {
@@ -6372,7 +6391,8 @@ html[data-theme="light"] .admin-workspace {
 
 .auth-form {
   gap: 16px;
-  padding-top: 2px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 20px;
 }
 
 .auth-form label {
@@ -8865,14 +8885,8 @@ html[data-theme="dark"] .admin-workspace .content-flow-skeleton .content-source-
     align-items: flex-start;
   }
 
-  .auth-heading {
-    gap: 14px;
+  .auth-form {
     padding-top: 18px;
-  }
-
-  .auth-heading .auth-mark {
-    width: 42px;
-    height: 42px;
   }
 
   .admin-status {

@@ -172,8 +172,6 @@ export const zh: Messages = {
     previewAlt: (name) => `${name} 网站预览`
   },
   admin: {
-    title: "HTools 后台",
-    description: "登录后管理精选工具导航。",
     dashboard: "控制台",
     directoryService: "HTools 控制台",
     platform: "平台",

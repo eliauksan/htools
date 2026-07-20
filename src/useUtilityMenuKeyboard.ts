@@ -125,6 +125,54 @@ export function useUtilityMenuKeyboard<Menu extends string>(scope: string) {
     return () => window.cancelAnimationFrame(frame);
   }, [openMenu]);
 
+  useEffect(() => {
+    if (!openMenu) {
+      return;
+    }
+
+    function isInsideActiveMenu(event: Event) {
+      const trigger = activeTriggerRef.current;
+      const menu = document.querySelector<HTMLElement>(
+        `[data-utility-menu="${getMenuId(openMenu as Menu)}"]`
+      );
+      const path = event.composedPath();
+      const target = event.target;
+
+      return [trigger, menu].some((element) =>
+        Boolean(
+          element &&
+            (path.includes(element) ||
+              (target instanceof Node && element.contains(target)))
+        )
+      );
+    }
+
+    function handleOutsideInteraction(event: Event) {
+      if (!isInsideActiveMenu(event)) {
+        setOpenMenu(null);
+      }
+    }
+
+    function handleDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMenu(true);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleOutsideInteraction, true);
+    document.addEventListener("click", handleOutsideInteraction, true);
+    document.addEventListener("focusin", handleOutsideInteraction, true);
+    document.addEventListener("keydown", handleDocumentKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideInteraction, true);
+      document.removeEventListener("click", handleOutsideInteraction, true);
+      document.removeEventListener("focusin", handleOutsideInteraction, true);
+      document.removeEventListener("keydown", handleDocumentKeyDown);
+    };
+  }, [openMenu]);
+
   return {
     closeMenu,
     getMenuId,

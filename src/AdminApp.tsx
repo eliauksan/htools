@@ -1,11 +1,11 @@
-import { ArrowDownUp, ArrowRightLeft, ArrowUp, ArrowUpRight, Check, CheckCircle2, ChevronDown, ChevronRight, Circle, Copy, Eraser, FileText, Github, Languages, Link2, LogOut, PanelLeft, Plug, Plus, RefreshCw, Rss, Search, Settings, ShieldCheck, Star, SquarePen, Sun, Tags, Trash2, Upload, Wand2, X } from "lucide-react";
+import { ArrowDownUp, ArrowRightLeft, ArrowUp, ArrowUpRight, Check, CheckCircle2, ChevronDown, ChevronRight, Circle, Copy, Eraser, FileText, Github, Languages, LogOut, PanelLeft, Plug, Plus, RefreshCw, Rss, Search, Settings, ShieldCheck, Star, SquarePen, Sun, Tags, Trash2, Upload, Wand2, Wrench, X } from "lucide-react";
 import { ChangeEvent, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { applyAdminCategoryAction, applyContentItemSourceUpdate, checkLinks, createArticle, createContentSource, createTool, deleteArticle, deleteContentSource, deleteTool, exportBackupData, exportToolSourceData, importTools, loadAdminArticle, loadAdminArticles, loadAdminAuthConfig, loadAdminCategorySettings, loadAdminSecuritySettings, loadAdminTools, loadContentItemArticlePreview, loadContentItems, loadContentSources, loadGitHubSettings, loadGitHubToolMetadata, loadProxySettings, loadSiteConfiguration, loadSiteSettings, loadSourceSettings, loadTurnstileSettings, loadUmamiSettings, login, patchSiteSettings, resetFactorySettings, restoreBackupData, saveAdminCategorySettings, saveGitHubSettings, saveProxySettings, saveSourceSettings, saveTurnstileSettings, saveUmamiSettings, syncContentSource, updateArticle, updateArticlePublished, updateAdminPassword, updateContentSource, convertContentItemToArticle, previewContentSource, updateTool, type AdminAuthConfig } from "./admin-api";
 import { localeOptions, translations, type Locale, type Messages } from "./i18n";
 import { normalizeProxyBaseUrl, normalizeProxyMode, normalizeProxyScope, proxifyUrl } from "./proxy";
 import type { AdminCategoryAction, AdminCategoryScope, AdminCategorySettings, AdminSecuritySettings, Article, ArticleInput, ArticleSummary, ContentItemSummary, ContentSource, ContentSourceInput, FeedPreview, FooterSettings, GitHubSettings, GitHubSettingsInput, GitHubToolMetadata, HomeHeroContent, LinkCheckResult, ProxySettings, HtoolsBackup, SiteSettings, SourceSettings, TurnstileSettings, Tool, ToolImportMode, ToolInput, UmamiSettings } from "./types";
-import { DEFAULT_FOOTER_SETTINGS, DEFAULT_HOME_HERO_SETTINGS, DEFAULT_SITE_SETTINGS, formatFooterJson, getEditableSiteSettings, getFooterFormValues, getHomeHeroSettings, getLocalizedErrorMessage, getSiteDisplayName, getSiteFooterSettings, getSiteSubtitle, getSourceErrorMessage, readSiteIconFile } from "./site-helpers";
+import { DEFAULT_FOOTER_SETTINGS, DEFAULT_HOME_HERO_SETTINGS, DEFAULT_SITE_SETTINGS, formatFooterJson, getEditableSiteSettings, getFooterFormValues, getHomeHeroSettings, getLocalizedErrorMessage, getSiteDisplayName, getSiteFooterSettings, getSourceErrorMessage, readSiteIconFile } from "./site-helpers";
 import {
   cleanArticleDisplayText,
   getArticleDisplayTitle,
@@ -37,7 +37,7 @@ import {
 } from "./tool-helpers";
 import {
   CompactTagRow,
-  SiteBrandMark,
+  SiteBrandIdentity,
   SkeletonLayoutMask,
   SkeletonVisibility,
   addSiteIconRetryParam,
@@ -563,8 +563,6 @@ export default function AdminApp({
   );
   const [sidebarAnimating, setSidebarAnimating] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const authMenuRootRef = useRef<HTMLDivElement>(null);
-  const sidebarMenuRootRef = useRef<HTMLDivElement>(null);
   const mobileSidebarRef = useRef<HTMLElement>(null);
   const mobileSidebarCloseRef = useRef<HTMLButtonElement>(null);
   const sidebarToggleRef = useRef<HTMLButtonElement>(null);
@@ -605,7 +603,6 @@ export default function AdminApp({
     returnFocusRef: sidebarToggleRef
   });
   const siteName = getSiteDisplayName(siteSettings);
-  const siteSubtitle = getSiteSubtitle(siteSettings);
   const themeOptions: Array<{ label: string; value: ThemeMode }> = [
     { label: t.theme.light, value: "light" },
     { label: t.theme.dark, value: "dark" },
@@ -2067,46 +2064,6 @@ export default function AdminApp({
   }, [mobileSidebarOpen, openAdminMenu]);
 
   useEffect(() => {
-    if (!openAdminMenu) {
-      return;
-    }
-
-    function isInsideAdminMenu(event: Event) {
-      const path = event.composedPath();
-      return [authMenuRootRef.current, sidebarMenuRootRef.current].some(
-        (root) => root && path.includes(root)
-      );
-    }
-
-    function handleOutsideInteraction(event: Event) {
-      if (isInsideAdminMenu(event)) {
-        return;
-      }
-
-      setOpenAdminMenu(null);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closeAdminMenu(true);
-      }
-    }
-
-    document.addEventListener("pointerdown", handleOutsideInteraction, true);
-    document.addEventListener("click", handleOutsideInteraction, true);
-    document.addEventListener("focusin", handleOutsideInteraction, true);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handleOutsideInteraction, true);
-      document.removeEventListener("click", handleOutsideInteraction, true);
-      document.removeEventListener("focusin", handleOutsideInteraction, true);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [openAdminMenu]);
-
-  useEffect(() => {
     if (!token || !status) {
       return;
     }
@@ -2868,10 +2825,15 @@ export default function AdminApp({
       <div className="admin-shell auth-shell">
         <section className="auth-card">
           <div className="auth-card-actions">
-            <button className="ghost-button compact" type="button" onClick={onBackHome}>
-              {t.actions.backHome}
+            <button
+              className="auth-home-brand"
+              type="button"
+              onClick={onBackHome}
+              aria-label={`${t.actions.backHome}: ${siteName}`}
+            >
+              <SiteBrandIdentity showSubtitle />
             </button>
-            <div className="auth-menu-actions" ref={authMenuRootRef}>
+            <div className="auth-menu-actions">
               <div className="menu-control">
                 <button
                   className="icon-button locale-button"
@@ -2958,13 +2920,6 @@ export default function AdminApp({
               </div>
             </div>
           </div>
-          <div className="auth-heading">
-            <SiteBrandMark className="auth-mark" />
-            <div>
-              <h1>{t.admin.title}</h1>
-              <p>{t.admin.description}</p>
-            </div>
-          </div>
           <form className="auth-form" onSubmit={handleLogin}>
             <label>
               <span className="auth-password-label">
@@ -3022,11 +2977,7 @@ export default function AdminApp({
       >
         <div className="admin-sidebar-head">
           <button className="admin-brand" type="button" onClick={onBackHome}>
-            <SiteBrandMark className="compact-mark" />
-            <span>
-              <strong>{siteName}</strong>
-              <small>{siteSubtitle}</small>
-            </span>
+            <SiteBrandIdentity markClassName="compact-mark" showSubtitle />
           </button>
           <button
             ref={mobileSidebarCloseRef}
@@ -3046,7 +2997,7 @@ export default function AdminApp({
             type="button"
             onClick={() => selectAdminView("tools")}
           >
-            <Link2 size={18} />
+            <Wrench size={18} />
             <span>{t.admin.toolLibrary}</span>
           </button>
           <button
@@ -3094,7 +3045,7 @@ export default function AdminApp({
         </nav>
 
         <div className="admin-sidebar-bottom">
-          <div className="admin-sidebar-utility" ref={sidebarMenuRootRef}>
+          <div className="admin-sidebar-utility">
             <div className="menu-control admin-utility-menu">
               <button
                 className="icon-button"

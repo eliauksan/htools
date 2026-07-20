@@ -9,6 +9,7 @@ import {
   useState
 } from "react";
 import type { SiteSettings } from "./types";
+import { getSiteDisplayName, getSiteSubtitle } from "./site-helpers";
 
 export const SiteSettingsContext = createContext<SiteSettings | undefined>(undefined);
 
@@ -91,6 +92,31 @@ export function SiteBrandMark({
         <Wand2 size={iconSize} strokeWidth={strokeWidth} />
       )}
     </span>
+  );
+}
+
+export function SiteBrandIdentity({
+  markClassName = "",
+  showSubtitle = false
+}: {
+  markClassName?: string;
+  showSubtitle?: boolean;
+}) {
+  const settings = useSiteSettings();
+  const siteName = getSiteDisplayName(settings);
+
+  return (
+    <>
+      <SiteBrandMark className={markClassName} />
+      {showSubtitle ? (
+        <span>
+          <strong>{siteName}</strong>
+          <small>{getSiteSubtitle(settings)}</small>
+        </span>
+      ) : (
+        <span>{siteName}</span>
+      )}
+    </>
   );
 }
 
