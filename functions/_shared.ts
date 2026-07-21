@@ -109,7 +109,6 @@ export type ArticleRow = {
   updated_at: string;
   published_at: string | null;
   content_item_id?: string | null;
-  source_content_version?: string;
 };
 
 export type ArticleSummaryRow = Omit<ArticleRow, "content">;
@@ -161,20 +160,14 @@ export type ContentItemRow = {
   created_at: string;
   updated_at: string;
   article_id: string | null;
-  content_version?: string;
   linked_article_id?: string | null;
   linked_article_slug?: string | null;
   linked_article_title?: string | null;
-  linked_article_content?: string | null;
   linked_article_published?: number | null;
   linked_article_category?: string | null;
-  linked_article_source_version?: string | null;
 };
 
-export type ContentItemSummaryRow = Omit<
-  ContentItemRow,
-  "content" | "linked_article_content"
->;
+export type ContentItemSummaryRow = Omit<ContentItemRow, "content">;
 
 export const CONTENT_ITEM_SUMMARY_COLUMNS = `
   content_items.id,
@@ -194,12 +187,10 @@ export const CONTENT_ITEM_SUMMARY_COLUMNS = `
   content_items.created_at,
   content_items.updated_at,
   content_items.article_id,
-  content_items.content_version,
   articles.id AS linked_article_id,
   articles.slug AS linked_article_slug,
   articles.title AS linked_article_title,
   articles.category AS linked_article_category,
-  articles.source_content_version AS linked_article_source_version,
   articles.published AS linked_article_published
 `;
 
@@ -471,7 +462,7 @@ const initializedDatabases = new WeakSet<D1Database>();
 const databaseInitializationPromises = new WeakMap<D1Database, Promise<void>>();
 const DATABASE_SCHEMA_VERSION_KEY = "database_schema_version";
 // Increment this whenever SCHEMA_STATEMENTS or compatibility column upgrades change.
-const DATABASE_SCHEMA_VERSION = 9;
+const DATABASE_SCHEMA_VERSION = 10;
 const SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS tools (
     id TEXT PRIMARY KEY,
@@ -514,8 +505,7 @@ const SCHEMA_STATEMENTS = [
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     published_at TEXT,
-    content_item_id TEXT,
-    source_content_version TEXT NOT NULL DEFAULT ''
+    content_item_id TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS idx_articles_public_sort
      ON articles (
@@ -578,7 +568,6 @@ const SCHEMA_STATEMENTS = [
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     article_id TEXT,
-    content_version TEXT NOT NULL DEFAULT '',
     UNIQUE(source_id, external_id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_content_items_latest_sort
@@ -739,16 +728,6 @@ const ARTICLE_COLUMN_STATEMENTS = [
   {
     name: "content_item_id",
     statement: "ALTER TABLE articles ADD COLUMN content_item_id TEXT"
-  },
-  {
-    name: "source_content_version",
-    statement: "ALTER TABLE articles ADD COLUMN source_content_version TEXT NOT NULL DEFAULT ''"
-  }
-];
-const CONTENT_ITEM_COLUMN_STATEMENTS = [
-  {
-    name: "content_version",
-    statement: "ALTER TABLE content_items ADD COLUMN content_version TEXT NOT NULL DEFAULT ''"
   }
 ];
 type ApiErrorCode =
@@ -1213,12 +1192,6 @@ export function contentItemSummaryFromRow(row: ContentItemSummaryRow) {
     articleId: hasLinkedArticle ? row.linked_article_id : null,
     articleSlug: hasLinkedArticle ? (row.linked_article_slug ?? "") : "",
     articleCategory: hasLinkedArticle ? (row.linked_article_category ?? "") : "",
-    sourceHasUpdates: Boolean(
-      hasLinkedArticle &&
-        row.content_version &&
-        row.linked_article_source_version &&
-        row.content_version !== row.linked_article_source_version
-    ),
     articlePublished:
       hasLinkedArticle && row.linked_article_published !== undefined
         ? row.linked_article_published === 1
@@ -1360,7 +1333,7 @@ async function initializeDatabaseSchema(db: D1Database) {
   await db.batch(SCHEMA_STATEMENTS.map((statement) => db.prepare(statement)));
   await ensureToolColumns(db);
   await ensureArticleColumns(db);
-  await ensureContentItemColumns(db);
+  await removeLegacySourceUpdateColumns(db);
   await db.prepare(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_articles_content_item_id
      ON articles (content_item_id)
@@ -1635,12 +1608,23 @@ async function ensureArticleColumns(db: D1Database) {
   }
 }
 
-async function ensureContentItemColumns(db: D1Database) {
-  const columns = await db.prepare("PRAGMA table_info(content_items)").all<{ name: string }>();
-  const existing = new Set(columns.results.map((column) => column.name));
-  const statements = CONTENT_ITEM_COLUMN_STATEMENTS
-    .filter((column) => !existing.has(column.name))
-    .map((column) => db.prepare(column.statement));
+async function removeLegacySourceUpdateColumns(db: D1Database) {
+  const [articleColumns, contentItemColumns] = await Promise.all([
+    db.prepare("PRAGMA table_info(articles)").all<{ name: string }>(),
+    db.prepare("PRAGMA table_info(content_items)").all<{ name: string }>()
+  ]);
+  const statements: D1PreparedStatement[] = [];
+
+  if (articleColumns.results.some((column) => column.name === "source_content_version")) {
+    statements.push(
+      db.prepare("ALTER TABLE articles DROP COLUMN source_content_version")
+    );
+  }
+  if (contentItemColumns.results.some((column) => column.name === "content_version")) {
+    statements.push(
+      db.prepare("ALTER TABLE content_items DROP COLUMN content_version")
+    );
+  }
 
   if (statements.length) {
     await db.batch(statements);
@@ -1926,12 +1910,8 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
   const externalIds = Array.from(new Set(syncItems.map((item) => item.externalId)));
   const existingRows = externalIds.length
     ? await db.prepare(
-        `SELECT content_items.id, content_items.external_id,
-                content_items.title, content_items.summary, content_items.content,
-                content_items.url, content_items.article_id,
-                articles.source_content_version AS article_source_content_version
+        `SELECT content_items.id, content_items.external_id
          FROM content_items
-         LEFT JOIN articles ON articles.id = content_items.article_id
          WHERE source_id = ?
            AND external_id IN (${externalIds.map(() => "?").join(", ")})`
       )
@@ -1939,12 +1919,6 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
         .all<{
           id: string;
           external_id: string;
-          title: string;
-          summary: string;
-          content: string;
-          url: string;
-          article_id: string | null;
-          article_source_content_version: string | null;
         }>()
     : { results: [] };
   const existingByExternalId = new Map(
@@ -1970,25 +1944,6 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
     const existingId = existingRow?.id;
     const tags = normalizeContentTags([...sourceTags, ...item.tags]);
     const id = existingId ?? createContentItemId();
-    const contentVersion = createContentVersion(
-      `${item.content || item.summary || item.title}\n\u0000${item.url}`
-    );
-
-    if (
-      existingRow?.article_id &&
-      !existingRow.article_source_content_version
-    ) {
-      const previousVersion = createContentVersion(
-        `${existingRow.content || existingRow.summary || existingRow.title}\n\u0000${existingRow.url}`
-      );
-      statements.push(
-        db.prepare(
-          `UPDATE articles
-           SET source_content_version = ?
-           WHERE id = ? AND source_content_version = ''`
-        ).bind(previousVersion, existingRow.article_id)
-      );
-    }
 
     upsertRows.push([
       id,
@@ -2002,7 +1957,6 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
       item.coverImage,
       source.category,
       JSON.stringify(tags),
-      contentVersion,
       item.publishedAt,
       now,
       now,
@@ -2015,13 +1969,7 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
       imported += 1;
       existingByExternalId.set(item.externalId, {
         id,
-        external_id: item.externalId,
-        title: item.title,
-        summary: item.summary,
-        content: item.content,
-        url: item.url,
-        article_id: null,
-        article_source_content_version: null
+        external_id: item.externalId
       });
     }
   }
@@ -2030,13 +1978,13 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
   for (let index = 0; index < upsertRows.length; index += upsertBatchSize) {
     const rows = upsertRows.slice(index, index + upsertBatchSize);
     const placeholders = rows
-      .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .join(", ");
     statements.push(
       db.prepare(
         `INSERT INTO content_items
           (id, source_id, external_id, title, summary, content, url, author,
-           cover_image, category, tags, content_version, published_at, synced_at,
+           cover_image, category, tags, published_at, synced_at,
            created_at, updated_at)
          VALUES ${placeholders}
          ON CONFLICT(source_id, external_id) DO UPDATE SET
@@ -2048,7 +1996,6 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
            cover_image = excluded.cover_image,
            category = excluded.category,
            tags = excluded.tags,
-           content_version = excluded.content_version,
            published_at = excluded.published_at,
            synced_at = excluded.synced_at,
            updated_at = excluded.updated_at`
@@ -2923,22 +2870,6 @@ export function buildContentItemArticleContent({
   const safeBody = truncateMarkdown(normalizedBody, bodyLimit);
 
   return [safeBody, suffix].filter(Boolean).join("\n\n").slice(0, maxLength);
-}
-
-export function createContentVersion(value: string) {
-  const normalized = value.replace(/\r\n?/g, "\n").trim();
-  let first = 2166136261;
-  let second = 2246822519;
-
-  for (let index = 0; index < normalized.length; index += 1) {
-    const code = normalized.charCodeAt(index);
-    first = Math.imul(first ^ code, 16777619);
-    second = Math.imul(second ^ code, 3266489917);
-  }
-
-  return `${(first >>> 0).toString(16).padStart(8, "0")}${
-    (second >>> 0).toString(16).padStart(8, "0")
-  }`;
 }
 
 function normalizeOriginalArticleUrl(value: string) {

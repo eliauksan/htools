@@ -1,7 +1,7 @@
 import { ArrowDownUp, ArrowRightLeft, ArrowUp, ArrowUpRight, Check, CheckCircle2, ChevronDown, ChevronRight, Circle, Copy, Eraser, FileText, Github, Languages, LogOut, PanelLeft, Plug, Plus, RefreshCw, Rss, Search, Settings, ShieldCheck, Star, SquarePen, Sun, Tags, Trash2, Upload, Wand2, Wrench, X } from "lucide-react";
 import { ChangeEvent, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
-import { applyAdminCategoryAction, applyContentItemSourceUpdate, checkLinks, createArticle, createContentSource, createTool, deleteArticle, deleteContentSource, deleteTool, exportBackupData, exportToolSourceData, importTools, loadAdminArticle, loadAdminArticles, loadAdminAuthConfig, loadAdminCategorySettings, loadAdminSecuritySettings, loadAdminTools, loadContentItemArticlePreview, loadContentItems, loadContentSources, loadGitHubSettings, loadGitHubToolMetadata, loadProxySettings, loadSiteConfiguration, loadSiteSettings, loadSourceSettings, loadTurnstileSettings, loadUmamiSettings, login, patchSiteSettings, resetFactorySettings, restoreBackupData, saveAdminCategorySettings, saveGitHubSettings, saveProxySettings, saveSourceSettings, saveTurnstileSettings, saveUmamiSettings, syncContentSource, updateArticle, updateArticlePublished, updateAdminPassword, updateContentSource, convertContentItemToArticle, previewContentSource, updateTool, type AdminAuthConfig } from "./admin-api";
+import { applyAdminCategoryAction, checkLinks, createArticle, createContentSource, createTool, deleteArticle, deleteContentSource, deleteTool, exportBackupData, exportToolSourceData, importTools, loadAdminArticle, loadAdminArticles, loadAdminAuthConfig, loadAdminCategorySettings, loadAdminSecuritySettings, loadAdminTools, loadContentItems, loadContentSources, loadGitHubSettings, loadGitHubToolMetadata, loadProxySettings, loadSiteConfiguration, loadSiteSettings, loadSourceSettings, loadTurnstileSettings, loadUmamiSettings, login, patchSiteSettings, resetFactorySettings, restoreBackupData, saveAdminCategorySettings, saveGitHubSettings, saveProxySettings, saveSourceSettings, saveTurnstileSettings, saveUmamiSettings, syncContentSource, updateArticle, updateArticlePublished, updateAdminPassword, updateContentSource, convertContentItemToArticle, previewContentSource, updateTool, type AdminAuthConfig } from "./admin-api";
 import { localeOptions, translations, type Locale, type Messages } from "./i18n";
 import { normalizeProxyBaseUrl, normalizeProxyMode, normalizeProxyScope, proxifyUrl } from "./proxy";
 import type { AdminCategoryAction, AdminCategoryScope, AdminCategorySettings, AdminSecuritySettings, Article, ArticleInput, ArticleSummary, ContentItemSummary, ContentSource, ContentSourceInput, FeedPreview, FooterSettings, GitHubSettings, GitHubSettingsInput, GitHubToolMetadata, HomeHeroContent, LinkCheckResult, ProxySettings, HtoolsBackup, SiteSettings, SourceSettings, TurnstileSettings, Tool, ToolImportMode, ToolInput, UmamiSettings } from "./types";
@@ -445,7 +445,6 @@ export default function AdminApp({
   const toolEditorCloseRequestRef = useRef<(() => void) | null>(null);
   const articleEditorCloseRequestRef = useRef<(() => void) | null>(null);
   const contentSourceEditorCloseRequestRef = useRef<(() => void) | null>(null);
-  const sourceUpdateCloseRequestRef = useRef<(() => void) | null>(null);
   const contentConvertCloseRequestRef = useRef<(() => void) | null>(null);
   const [adminView, setAdminView] = useState<AdminView>(() => getInitialAdminView());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -533,12 +532,6 @@ export default function AdminApp({
     useState<PendingAdminCategoryAction | null>(null);
   const [pendingConvertItem, setPendingConvertItem] =
     useState<ContentItemSummary | null>(null);
-  const [sourceUpdateItem, setSourceUpdateItem] = useState<ContentItemSummary | null>(null);
-  const [sourceUpdateCurrent, setSourceUpdateCurrent] = useState<Article | null>(null);
-  const [sourceUpdateLatest, setSourceUpdateLatest] = useState<Article | null>(null);
-  const [isLoadingSourceUpdate, setIsLoadingSourceUpdate] = useState(false);
-  const [isApplyingSourceUpdate, setIsApplyingSourceUpdate] = useState(false);
-  const [confirmSourceOverwrite, setConfirmSourceOverwrite] = useState(false);
   const [convertArticleCategory, setConvertArticleCategory] = useState("");
   const [convertPublishMode, setConvertPublishMode] =
     useState<ConvertPublishMode>("published");
@@ -590,7 +583,6 @@ export default function AdminApp({
   const contentItemsLoadingCursorRef = useRef<string | null>(null);
   const contentSourcesLoadedRef = useRef(false);
   const mutationRefreshGenerationRef = useRef(0);
-  const sourceUpdateLoadRequestRef = useRef(0);
   const sidebarAnimationTimer = useRef<number | null>(null);
   const adminStatusTimer = useRef<number | null>(null);
   const adminStatusSequence = useRef(0);
@@ -1881,7 +1873,6 @@ export default function AdminApp({
       adminCategoryLoadRequestRef.current += 1;
       mutationRefreshGenerationRef.current += 1;
       articleEditorLoadRequestRef.current += 1;
-      sourceUpdateLoadRequestRef.current += 1;
       invalidateGitHubMetadataRequest();
       invalidateContentPreview();
       adminCategorySavePendingRef.current.clear();
@@ -2238,18 +2229,6 @@ export default function AdminApp({
 
   function requestContentSourceEditorClose() {
     contentSourceEditorCloseRequestRef.current?.() ?? closeContentSourceEditor();
-  }
-
-  function closeSourceUpdateDialog() {
-    sourceUpdateLoadRequestRef.current += 1;
-    setSourceUpdateItem(null);
-    setSourceUpdateCurrent(null);
-    setSourceUpdateLatest(null);
-    setIsLoadingSourceUpdate(false);
-  }
-
-  function requestSourceUpdateClose() {
-    sourceUpdateCloseRequestRef.current?.() ?? closeSourceUpdateDialog();
   }
 
   function closeContentConvertDialog() {
@@ -2653,61 +2632,6 @@ export default function AdminApp({
     setConvertPublishMode(
       item.articleId && item.articlePublished === false ? "draft" : "published"
     );
-  }
-
-  async function openSourceUpdateReview(item: ContentItemSummary) {
-    if (!item.articleId) return;
-    const actionKey = getAdminWriteEntityKey("content-item", item.id);
-    if (!acquireWriteAction(actionKey)) return;
-    const requestId = sourceUpdateLoadRequestRef.current + 1;
-    sourceUpdateLoadRequestRef.current = requestId;
-    setSourceUpdateItem(item);
-    setSourceUpdateCurrent(null);
-    setSourceUpdateLatest(null);
-    setIsLoadingSourceUpdate(true);
-    try {
-      const [current, latest] = await Promise.all([
-        loadAdminArticle(item.articleId, token),
-        loadContentItemArticlePreview(item.id, token)
-      ]);
-      if (sourceUpdateLoadRequestRef.current !== requestId) return;
-      setSourceUpdateCurrent(current);
-      setSourceUpdateLatest(latest);
-    } catch (error) {
-      if (sourceUpdateLoadRequestRef.current === requestId) {
-        setStatus(getLocalizedErrorMessage(error, t));
-        requestSourceUpdateClose();
-      }
-    } finally {
-      if (sourceUpdateLoadRequestRef.current === requestId) {
-        setIsLoadingSourceUpdate(false);
-      }
-      releaseWriteAction(actionKey);
-    }
-  }
-
-  async function handleSourceUpdate(action: "ignore" | "sync-content") {
-    if (!sourceUpdateItem || isApplyingSourceUpdate) return;
-    const actionKey = getAdminWriteEntityKey("content-item", sourceUpdateItem.id);
-    if (!acquireWriteAction(actionKey)) return;
-    setIsApplyingSourceUpdate(true);
-    try {
-      await applyContentItemSourceUpdate(sourceUpdateItem.id, action, token);
-      setContentItems((current) =>
-        current.map((item) =>
-          item.id === sourceUpdateItem.id ? { ...item, sourceHasUpdates: false } : item
-        )
-      );
-      requestSourceUpdateClose();
-      setConfirmSourceOverwrite(false);
-      setStatus(action === "sync-content" ? contentText.sourceContentUpdated : contentText.sourceUpdateIgnored);
-      if (action === "sync-content") await refreshAfterMutation(refreshArticles);
-    } catch (error) {
-      setStatus(getLocalizedErrorMessage(error, t));
-    } finally {
-      releaseWriteAction(actionKey);
-      setIsApplyingSourceUpdate(false);
-    }
   }
 
   async function handleConvertContentItem(
@@ -3537,7 +3461,6 @@ export default function AdminApp({
               isLoadingMoreContent={isLoadingMoreContent}
               hasMoreContent={contentItemsHasMore}
               onConvertItem={openConvertContentItem}
-              onReviewSourceUpdate={(item) => void openSourceUpdateReview(item)}
               onDeleteSource={(source) => {
                 if (!isWriteEntityLocked("content-source", source.id)) {
                   setPendingDeleteContentSource(source);
@@ -4195,58 +4118,6 @@ export default function AdminApp({
         </Dialog>
       ) : null}
 
-      {sourceUpdateItem ? (
-        <Dialog
-          closeRequestRef={sourceUpdateCloseRequestRef}
-          closeDisabled={isApplyingSourceUpdate}
-          title={contentText.sourceUpdateTitle}
-          closeLabel={t.actions.close}
-          onClose={() => {
-            closeSourceUpdateDialog();
-          }}
-          panelClassName="tool-editor-dialog source-update-dialog"
-          footer={
-            <>
-              <button className="ghost-button" disabled={isApplyingSourceUpdate} type="button" onClick={requestSourceUpdateClose}>
-                {t.actions.close}
-              </button>
-              <button className="ghost-button" disabled={isApplyingSourceUpdate} type="button" onClick={() => void handleSourceUpdate("ignore")}>
-                {contentText.ignoreSourceUpdate}
-              </button>
-              <button className="primary-button" disabled={isApplyingSourceUpdate || isLoadingSourceUpdate} type="button" onClick={() => setConfirmSourceOverwrite(true)}>
-                {contentText.useLatestSource}
-              </button>
-            </>
-          }
-        >
-          {isLoadingSourceUpdate ? (
-            <ContentFlowSkeleton contentText={contentText} />
-          ) : sourceUpdateCurrent && sourceUpdateLatest ? (
-            <div className="source-update-comparison">
-              <section><h3>{contentText.currentArticle}</h3><MarkdownContent content={sourceUpdateCurrent.content} locale={locale} proxySettings={proxySettings} /></section>
-              <section><h3>{contentText.latestSource}</h3><MarkdownContent content={sourceUpdateLatest.content} locale={locale} proxySettings={proxySettings} /></section>
-            </div>
-          ) : null}
-        </Dialog>
-      ) : null}
-
-      {confirmSourceOverwrite && sourceUpdateItem ? (
-        <Dialog
-          descriptionId="source-overwrite-confirmation-description"
-          title={contentText.confirmSourceOverwrite}
-          closeLabel={t.actions.close}
-          onClose={() => { if (!isApplyingSourceUpdate) setConfirmSourceOverwrite(false); }}
-          footer={
-            <>
-              <button className="ghost-button" disabled={isApplyingSourceUpdate} type="button" onClick={() => setConfirmSourceOverwrite(false)}>{t.actions.close}</button>
-              <button className="primary-button" disabled={isApplyingSourceUpdate} type="button" onClick={() => void handleSourceUpdate("sync-content")}>{contentText.useLatestSource}</button>
-            </>
-          }
-        >
-          <p className="admin-delete-dialog-description" id="source-overwrite-confirmation-description">{contentText.confirmSourceOverwriteDescription}</p>
-        </Dialog>
-      ) : null}
-
       {pendingConvertItem ? (
         <Dialog
           closeRequestRef={contentConvertCloseRequestRef}
@@ -4576,7 +4447,6 @@ function AdminContentFlowPanel({
   loadError,
   onAddSource,
   onConvertItem,
-  onReviewSourceUpdate,
   onDeleteSource,
   onEditSource,
   onLoadMore,
@@ -4606,7 +4476,6 @@ function AdminContentFlowPanel({
   loadError: string | null;
   onAddSource: () => void;
   onConvertItem: (item: ContentItemSummary) => void;
-  onReviewSourceUpdate: (item: ContentItemSummary) => void;
   onDeleteSource: (source: ContentSource) => void;
   onEditSource: (source: ContentSource) => void;
   onLoadMore: () => void;
@@ -4698,7 +4567,6 @@ function AdminContentFlowPanel({
                     item={item}
                     key={item.id}
                     onConvert={() => onConvertItem(item)}
-                    onReviewSourceUpdate={() => onReviewSourceUpdate(item)}
                     proxySettings={proxySettings}
                   />
                 ))}
@@ -4816,14 +4684,12 @@ function ContentItemCard({
   isBusy,
   item,
   onConvert,
-  onReviewSourceUpdate,
   proxySettings
 }: {
   contentText: ReturnType<typeof getContentFlowText>;
   isBusy: boolean;
   item: ContentItemSummary;
   onConvert: () => void;
-  onReviewSourceUpdate: () => void;
   proxySettings: ProxySettings;
 }) {
   const Icon = getCategoryIcon(item.category);
@@ -4850,12 +4716,6 @@ function ContentItemCard({
             {item.sourceTitle || item.category}
           </span>
           {displayDate ? <span>{displayDate}</span> : null}
-          {item.sourceHasUpdates ? (
-            <span>
-              <RefreshCw size={14} />
-              {contentText.sourceUpdated}
-            </span>
-          ) : null}
         </div>
         <h3>{displayTitle}</h3>
         <p>{cleanArticleDisplayText(item.summary)}</p>
@@ -4871,12 +4731,7 @@ function ContentItemCard({
           onError={() => setCoverFailed(true)}
         />
       ) : null}
-      <div className={`content-item-actions ${item.sourceHasUpdates ? "has-source-update" : ""}`}>
-        {item.sourceHasUpdates ? (
-          <button className="ghost-button" disabled={isBusy} type="button" onClick={onReviewSourceUpdate}>
-            {contentText.reviewSourceUpdate}
-          </button>
-        ) : null}
+      <div className="content-item-actions">
         <a
           className="ghost-button"
           href={originalHref}

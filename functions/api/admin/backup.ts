@@ -154,7 +154,13 @@ async function readBackupData(db: D1Database): Promise<BackupData> {
         .prepare("SELECT * FROM tools ORDER BY updated_at DESC, created_at DESC")
         .all<ToolRow>(),
       db
-        .prepare("SELECT * FROM articles ORDER BY updated_at DESC, created_at DESC")
+        .prepare(
+          `SELECT id, slug, title, summary, content, cover_image, category,
+                  tags, published, created_at, updated_at, published_at,
+                  content_item_id
+           FROM articles
+           ORDER BY updated_at DESC, created_at DESC`
+        )
         .all<ArticleRow>(),
       db
         .prepare(
@@ -162,7 +168,13 @@ async function readBackupData(db: D1Database): Promise<BackupData> {
         )
         .all<ContentSourceRow>(),
       db
-        .prepare("SELECT * FROM content_items ORDER BY updated_at DESC, created_at DESC")
+        .prepare(
+          `SELECT id, source_id, external_id, title, summary, content, url,
+                  author, cover_image, category, tags, published_at, synced_at,
+                  created_at, updated_at, article_id
+           FROM content_items
+           ORDER BY updated_at DESC, created_at DESC`
+        )
         .all<ContentItemRow>(),
       db
         .prepare(
@@ -223,10 +235,9 @@ async function restoreBackupData(db: D1Database, data: BackupData) {
         .prepare(
           `INSERT INTO articles (
              id, slug, title, summary, content, cover_image, category, tags,
-             published, created_at, updated_at, published_at, content_item_id,
-             source_content_version
+             published, created_at, updated_at, published_at, content_item_id
            )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           row.id,
@@ -241,8 +252,7 @@ async function restoreBackupData(db: D1Database, data: BackupData) {
           row.created_at,
           row.updated_at,
           row.published_at,
-          row.content_item_id,
-          row.source_content_version ?? ""
+          row.content_item_id
         )
     ),
     ...data.contentSources.map((row) =>
@@ -274,9 +284,9 @@ async function restoreBackupData(db: D1Database, data: BackupData) {
           `INSERT INTO content_items (
              id, source_id, external_id, title, summary, content, url, author,
              cover_image, category, tags, published_at, synced_at, created_at,
-             updated_at, article_id, content_version
+             updated_at, article_id
            )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           row.id,
@@ -294,8 +304,7 @@ async function restoreBackupData(db: D1Database, data: BackupData) {
           row.synced_at,
           row.created_at,
           row.updated_at,
-          row.article_id,
-          row.content_version ?? ""
+          row.article_id
         )
     ),
     ...data.settings.map((row) =>
@@ -459,8 +468,7 @@ function normalizeArticleRow(
     created_at: createdAt,
     updated_at: readString(row.updated_at) || createdAt,
     published_at: readNullableString(row.published_at),
-    content_item_id: readNullableString(row.content_item_id),
-    source_content_version: readString(row.source_content_version)
+    content_item_id: readNullableString(row.content_item_id)
   };
 }
 
@@ -511,8 +519,7 @@ function normalizeContentItemRow(
     synced_at: readString(row.synced_at) || now,
     created_at: createdAt,
     updated_at: readString(row.updated_at) || createdAt,
-    article_id: readNullableString(row.article_id),
-    content_version: readString(row.content_version)
+    article_id: readNullableString(row.article_id)
   };
 }
 

@@ -5100,8 +5100,6 @@ html[data-theme="light"] .admin-workspace {
   padding-bottom: 1px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  -webkit-mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
 }
 
 .admin-tool-links {
@@ -9149,7 +9147,7 @@ html[data-theme="dark"] .admin-workspace .content-flow-skeleton .content-source-
     width: 96px;
     height: 6px;
     border-radius: 999px;
-    background: var(--surface-3);
+    background: var(--faint);
     transform: translateX(-50%);
   }
 
@@ -9313,42 +9311,10 @@ html[data-theme="dark"] .admin-workspace .content-flow-skeleton .content-source-
     text-align: center;
   }
 }
-.source-update-dialog {
-  width: min(1120px, calc(100vw - 32px));
-}
-
-.content-item-actions.has-source-update {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.source-update-comparison {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
 .link-check-results-head .admin-settings-heading-skeleton,
 .link-check-progress-head .admin-settings-heading-skeleton {
   flex: 1 1 auto;
   width: min(100%, 780px);
-}
-
-.source-update-comparison > section {
-  min-width: 0;
-  max-height: 58vh;
-  overflow: auto;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-}
-
-.source-update-comparison h3 {
-  margin: 0 0 16px;
-  color: var(--text);
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.2;
 }
 
 .admin-tool-card-actions .icon-button,
@@ -9381,18 +9347,6 @@ html[data-theme="dark"] .admin-workspace .content-flow-skeleton .content-source-
 }
 
 @media (max-width: 760px) {
-  .content-item-actions.has-source-update {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .source-update-comparison {
-    grid-template-columns: 1fr;
-  }
-
-  .source-update-comparison > section {
-    max-height: 46vh;
-  }
-
   .admin-tool-card-actions .icon-button,
   .content-source-actions .icon-button,
   .admin-category-filter-list .admin-category-option-action {

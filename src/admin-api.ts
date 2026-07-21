@@ -859,26 +859,6 @@ export function loadGitHubToolMetadata(
   return request;
 }
 
-export async function applyContentItemSourceUpdate(
-  id: string,
-  action: "ignore" | "sync-content",
-  token: string
-): Promise<Article> {
-  const response = await fetch(
-    `/api/admin/content-items/${encodeURIComponent(id)}/source-update`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ action })
-    }
-  );
-  const data = await readJson<ArticleResponse>(response);
-  return data.article;
-}
-
 export async function checkLinks(
   links: LinkCheckTarget[],
   timeout: number,

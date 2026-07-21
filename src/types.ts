@@ -142,7 +142,6 @@ type ContentItem = {
   articleSlug?: string | null;
   articleCategory?: string | null;
   articlePublished?: boolean | null;
-  sourceHasUpdates?: boolean;
 };
 
 export type ContentItemSummary = Omit<ContentItem, "content">;

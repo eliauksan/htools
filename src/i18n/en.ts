@@ -183,7 +183,7 @@ export const en: Messages = {
   },
   admin: {
     dashboard: "Dashboard",
-    directoryService: "HTools Console",
+    directoryService: "Console",
     platform: "Platform",
     toolLibrary: "Tool Library",
     settings: "Settings",

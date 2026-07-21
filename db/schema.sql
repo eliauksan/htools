@@ -42,8 +42,7 @@ CREATE TABLE IF NOT EXISTS articles (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   published_at TEXT,
-  content_item_id TEXT,
-  source_content_version TEXT NOT NULL DEFAULT ''
+  content_item_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS admin_login_attempts (
@@ -127,7 +126,6 @@ CREATE TABLE IF NOT EXISTS content_items (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   article_id TEXT,
-  content_version TEXT NOT NULL DEFAULT '',
   UNIQUE(source_id, external_id)
 );
 
@@ -279,7 +277,7 @@ FROM content_items
 JOIN content_sources ON content_sources.id = content_items.source_id;
 
 INSERT INTO app_settings (key, value, updated_at)
-VALUES ('database_schema_version', '9', CURRENT_TIMESTAMP)
+VALUES ('database_schema_version', '10', CURRENT_TIMESTAMP)
 ON CONFLICT(key) DO UPDATE SET
   value = excluded.value,
   updated_at = CURRENT_TIMESTAMP;

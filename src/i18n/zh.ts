@@ -173,7 +173,7 @@ export const zh: Messages = {
   },
   admin: {
     dashboard: "控制台",
-    directoryService: "HTools 控制台",
+    directoryService: "控制台",
     platform: "平台",
     toolLibrary: "工具库",
     settings: "设置",

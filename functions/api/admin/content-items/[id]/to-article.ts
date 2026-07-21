@@ -3,7 +3,6 @@ import {
   badRequest,
   buildContentItemArticleContent,
   createContentItemMarker,
-  createContentVersion,
   createArticleId,
   getDatabase,
   invalidatePublicApiCache,
@@ -80,12 +79,6 @@ export const onRequestPost: PagesFunction<Env> = async ({
       item.summary,
       item.content
     );
-    const sourceContentVersion =
-      item.content_version ||
-      createContentVersion(
-        `${item.content || item.summary || item.title}\n\u0000${item.url}`
-      );
-
     if (item.article_id) {
       const existingArticle = await db.prepare("SELECT * FROM articles WHERE id = ?")
         .bind(item.article_id)
@@ -100,8 +93,7 @@ export const onRequestPost: PagesFunction<Env> = async ({
           existingArticle.id,
           category,
           published,
-          now,
-          sourceContentVersion
+          now
         );
         await invalidatePublicApiCache(env);
         if (!updatedArticle) {
@@ -138,8 +130,7 @@ export const onRequestPost: PagesFunction<Env> = async ({
         claimedArticle.id,
         category,
         published,
-        now,
-        sourceContentVersion
+        now
       );
       await invalidatePublicApiCache(env);
       if (!updatedArticle) {
@@ -176,8 +167,7 @@ export const onRequestPost: PagesFunction<Env> = async ({
         existingArticle.id,
         category,
         published,
-        now,
-        sourceContentVersion
+        now
       );
       await invalidatePublicApiCache(env);
       if (!updatedArticle) {
@@ -199,9 +189,8 @@ export const onRequestPost: PagesFunction<Env> = async ({
     const insertArticle = db.prepare(
       `INSERT INTO articles
         (id, slug, title, summary, content, cover_image, category, tags,
-         published, created_at, updated_at, published_at, content_item_id,
-         source_content_version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         published, created_at, updated_at, published_at, content_item_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         articleId,
@@ -216,8 +205,7 @@ export const onRequestPost: PagesFunction<Env> = async ({
         now,
         now,
         publishedAt,
-        item.id,
-        sourceContentVersion
+        item.id
       );
 
     try {
@@ -225,9 +213,9 @@ export const onRequestPost: PagesFunction<Env> = async ({
         insertArticle,
         db.prepare(
           `UPDATE content_items
-         SET article_id = ?, content_version = ?, updated_at = ?
+         SET article_id = ?, updated_at = ?
          WHERE id = ?`
-        ).bind(articleId, sourceContentVersion, now, id)
+        ).bind(articleId, now, id)
       ]);
     } catch (error) {
       if (!isContentItemClaimConflict(error)) throw error;
@@ -250,8 +238,7 @@ export const onRequestPost: PagesFunction<Env> = async ({
         concurrentArticle.id,
         category,
         published,
-        now,
-        sourceContentVersion
+        now
       );
       await invalidatePublicApiCache(env);
       if (!updatedArticle) {
@@ -372,8 +359,7 @@ async function updateExistingArticleSettings(
   articleId: string,
   category: string,
   published: boolean,
-  now: string,
-  sourceContentVersion: string
+  now: string
 ) {
   await db.prepare(
     `UPDATE articles
@@ -383,10 +369,6 @@ async function updateExistingArticleSettings(
            WHEN ? = 1 AND published_at IS NULL THEN ?
            ELSE published_at
          END,
-         source_content_version = CASE
-           WHEN source_content_version = '' THEN ?
-           ELSE source_content_version
-         END,
          updated_at = ?
      WHERE id = ?`
   )
@@ -395,7 +377,6 @@ async function updateExistingArticleSettings(
       published ? 1 : 0,
       published ? 1 : 0,
       now,
-      sourceContentVersion,
       now,
       articleId
     )
