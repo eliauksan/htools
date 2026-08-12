@@ -87,34 +87,38 @@ html[data-theme="dark"] {
   box-sizing: border-box;
 }
 
-/* Match the published scrollbar width while removing Windows Chromium arrows. */
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
+/* Match the published scrollbar width while removing Windows Chromium arrows.
+   Desktop only: mobile keeps the native overlay scrollbar so it never
+   takes width away from the content. */
+@media (min-width: 921px) {
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
 
-*::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
-}
+  *::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 
-*::-webkit-scrollbar-track,
-*::-webkit-scrollbar-track-piece,
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-track-piece,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 
-*::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 42%, transparent);
-  background-clip: padding-box;
-}
+  *::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 42%, transparent);
+    background-clip: padding-box;
+  }
 
-*::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text) 56%, transparent);
-  background-clip: padding-box;
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text) 56%, transparent);
+    background-clip: padding-box;
+  }
 }
 
 html {
@@ -1377,12 +1381,11 @@ html[data-theme="dark"] .global-search-shortcut {
 
 .markdown-content img {
   display: block;
-  width: 100%;
+  width: auto;
   max-width: 100%;
   height: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
-  object-fit: contain;
 }
 
 .markdown-image-frame {
@@ -1391,11 +1394,10 @@ html[data-theme="dark"] .global-search-shortcut {
   max-width: 100%;
   min-width: 0;
   margin: 0;
-  overflow: hidden;
 }
 
 .markdown-image-frame img {
-  justify-self: stretch;
+  justify-self: start;
 }
 
 .markdown-image-frame figcaption {
@@ -5586,19 +5588,17 @@ html[data-theme="dark"] .telegram-message-count .is-invalid {
 
 .telegram-channel-photo-image {
   position: relative;
+  display: block;
   width: 100%;
   min-height: 180px;
-  aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--surface);
 }
 
 .telegram-channel-photo-image img {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
   opacity: 0;
   transition: opacity 0.18s ease;
 }
@@ -8432,13 +8432,13 @@ html[data-theme="dark"] .admin-workspace .link-check-table th {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
-  padding: 16px 0 16px;
+  padding: 16px 8px;
 }
 
 .content-flow-section-head {
   display: grid;
   gap: 6px;
-  padding: 0 16px;
+  padding: 0 8px;
 }
 
 .content-flow-section-head h2 {
@@ -8489,11 +8489,11 @@ html[data-theme="dark"] .admin-workspace .link-check-table th {
   align-items: center;
   gap: 7px;
   border: 0;
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
   font: inherit;
-  padding: 0 16px;
+  padding: 0 8px;
   text-align: left;
 }
 
@@ -8581,7 +8581,7 @@ html[data-theme="dark"] .admin-workspace .link-check-table th {
   height: 36px;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  border-radius: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
   transition: background 0.16s ease;
@@ -8605,7 +8605,7 @@ html[data-theme="dark"] .admin-workspace .link-check-table th {
   background: transparent;
   color: inherit;
   font: inherit;
-  padding: 0 16px 0 38px;
+  padding: 0 8px 0 30px;
   text-align: left;
 }
 
@@ -9409,19 +9409,19 @@ html[data-theme="dark"] .admin-workspace .content-flow-skeleton .content-source-
   }
 
   .content-flow-rail {
-    padding: 14px 0;
+    padding: 14px 6px;
   }
 
   .content-flow-section-head {
-    padding: 0 14px;
+    padding: 0 8px;
   }
 
   .content-source-group {
-    padding: 0 14px;
+    padding: 0 8px;
   }
 
   .content-source-main {
-    padding: 0 14px 0 36px;
+    padding: 0 8px 0 30px;
   }
 
   .content-flow-main {

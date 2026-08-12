@@ -16,7 +16,6 @@ import {
 import {
   applyGitHubMetadataToForm,
   applyGitHubMetadataToFields,
-  createArticleBrowseHref,
   getGitHubMetadataDetailText,
   isGitHubUrl,
   normalizeSlugInput
@@ -781,6 +780,14 @@ export default function AdminApp({
   const [telegramPushLoadError, setTelegramPushLoadError] = useState<string | null>(null);
   const [viewingTelegramPush, setViewingTelegramPush] =
     useState<TelegramPushRecord | null>(null);
+  const [browsingArticle, setBrowsingArticle] = useState<ArticleSummary | null>(
+    null
+  );
+  const [browsingArticleDetail, setBrowsingArticleDetail] =
+    useState<Article | null>(null);
+  const [browsingArticleError, setBrowsingArticleError] = useState("");
+  const [browsingArticleLoading, setBrowsingArticleLoading] = useState(false);
+  const browsingArticleRequestRef = useRef(0);
   const [pendingDeleteTelegramPush, setPendingDeleteTelegramPush] =
     useState<TelegramPushRecord | null>(null);
   const [isDeletingTelegramPush, setIsDeletingTelegramPush] = useState(false);
@@ -1304,6 +1311,39 @@ export default function AdminApp({
   const showTelegramPushSkeletons = isInitialTelegramPushLoad;
   const canFillGitHubMetadata = toolGitHub.canLoad;
   const githubMetadataDetailText = getGitHubMetadataDetailText(locale);
+
+  useEffect(() => {
+    const requestId = browsingArticleRequestRef.current + 1;
+    browsingArticleRequestRef.current = requestId;
+
+    if (!browsingArticle) {
+      setBrowsingArticleDetail(null);
+      setBrowsingArticleError("");
+      setBrowsingArticleLoading(false);
+      return;
+    }
+
+    setBrowsingArticleDetail(null);
+    setBrowsingArticleError("");
+    setBrowsingArticleLoading(true);
+
+    void loadAdminArticle(browsingArticle.id, token)
+      .then((article) => {
+        if (browsingArticleRequestRef.current === requestId) {
+          setBrowsingArticleDetail(article);
+        }
+      })
+      .catch((error) => {
+        if (browsingArticleRequestRef.current === requestId) {
+          setBrowsingArticleError(getLocalizedErrorMessage(error, t));
+        }
+      })
+      .finally(() => {
+        if (browsingArticleRequestRef.current === requestId) {
+          setBrowsingArticleLoading(false);
+        }
+      });
+  }, [browsingArticle, t, token]);
 
   const setStatus = useCallback((message: string) => {
     if (!message) {
@@ -4769,6 +4809,7 @@ export default function AdminApp({
                         getAdminWriteEntityKey("article", article.id)
                       )}
                       key={article.id}
+                      onBrowse={() => setBrowsingArticle(article)}
                       onDelete={() => {
                         if (!isWriteEntityLocked("article", article.id)) {
                           setPendingDeleteArticle(article);
@@ -5498,16 +5539,6 @@ export default function AdminApp({
                   </span>
                 </div>
               ) : null}
-              {telegramResource.type === "custom" ? (
-                <AdminGitHubMetadataCard
-                  canLoad={telegramGitHub.canLoad}
-                  detailText={githubMetadataDetailText}
-                  failed={telegramGitHub.failed}
-                  loading={telegramGitHub.loading}
-                  metadata={telegramGitHub.metadata}
-                  previewLoading={telegramGitHub.previewLoading}
-                />
-              ) : null}
               </div>
             </>
           )}
@@ -5544,6 +5575,34 @@ export default function AdminApp({
                 }
               />
             </section>
+          </div>
+        </Dialog>
+      ) : null}
+
+      {browsingArticle ? (
+        <Dialog
+          closeLabel={t.actions.close}
+          onClose={() => setBrowsingArticle(null)}
+          panelClassName="tool-editor-dialog content-browse-dialog"
+          title={getArticleDisplayTitle(browsingArticle)}
+        >
+          <div className="content-browse-dialog-body">
+            {browsingArticleLoading ? (
+              <ArticleDetailContentSkeleton locale={locale} />
+            ) : browsingArticleDetail ? (
+              <ArticleDetailContent
+                article={browsingArticleDetail}
+                locale={locale}
+                proxySettings={proxySettings}
+              />
+            ) : (
+              <AdminDetailPlaceholder
+                icon={<FileText size={16} />}
+                role={browsingArticleError ? "alert" : undefined}
+              >
+                {browsingArticleError || articleText.notFoundDescription}
+              </AdminDetailPlaceholder>
+            )}
           </div>
         </Dialog>
       ) : null}
@@ -8401,6 +8460,7 @@ function AdminArticleCard({
   article,
   articleText,
   isBusy,
+  onBrowse,
   onDelete,
   onEdit,
   onTelegram,
@@ -8411,6 +8471,7 @@ function AdminArticleCard({
   article: ArticleSummary;
   articleText: ReturnType<typeof getArticleText>;
   isBusy: boolean;
+  onBrowse: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onTelegram: () => void;
@@ -8423,7 +8484,6 @@ function AdminArticleCard({
     article.published_at ?? article.updated_at ?? article.created_at
   );
   const displayTitle = getArticleDisplayTitle(article);
-  const articleHref = createArticleBrowseHref(article.slug, article.published);
 
   return (
     <article className="admin-tool-card admin-article-card">
@@ -8531,16 +8591,14 @@ function AdminArticleCard({
       <p className="admin-tool-description">{cleanArticleDisplayText(article.summary)}</p>
 
       <div className="admin-tool-links">
-        <div className="admin-tool-link-row" title={articleHref}>
-          <a
-            className="admin-tool-link-text"
-            href={articleHref}
-            rel="noreferrer"
-            target="_blank"
-            aria-label={articleHref}
+        <div className="admin-tool-link-row" title={articleText.browseArticle}>
+          <button
+            className="admin-tool-link-text telegram-push-view-link"
+            type="button"
+            onClick={onBrowse}
           >
-            {articleHref}
-          </a>
+            {articleText.browseArticle}
+          </button>
         </div>
       </div>
 

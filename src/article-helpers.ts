@@ -113,7 +113,8 @@ export function getArticleText(locale: Locale) {
       notFoundDescription: "这篇文章可能尚未发布，或已经被删除。",
       publicEmptyTitle: "当前还没有文章",
       publicEmptyDescription: "可在此处发布教程、公告和资源整理。",
-      openArticle: "打开文章"
+      openArticle: "打开文章",
+      browseArticle: "浏览文章"
     };
   }
 
@@ -186,7 +187,8 @@ export function getArticleText(locale: Locale) {
     publicEmptyTitle: "No articles yet",
     publicEmptyDescription:
       "Publish tutorials, announcements, and resource roundups here.",
-    openArticle: "Open article"
+    openArticle: "Open article",
+    browseArticle: "View Article"
   };
 }
 
