@@ -110,7 +110,7 @@ export function applyGitHubMetadataToFields(
 export function createAdminIconFromUrl(url: string) {
   try {
     const host = new URL(url).hostname.toLowerCase();
-    return `/icons/${encodeURIComponent(host)}/icon.png?fallback=404`;
+    return `/icons/${encodeURIComponent(host)}/icon.png?fallback=empty`;
   } catch {
     return "";
   }
@@ -125,10 +125,6 @@ export function createArticleBrowseHref(
   published?: boolean | null
 ) {
   return published ? createArticleHref(slug) : `${createArticleHref(slug)}?preview=1`;
-}
-
-export function createContentItemPreviewHref(id: string) {
-  return `/articles/content-preview?contentItem=${encodeURIComponent(id)}`;
 }
 
 export function formatGitHubCount(value: number) {
@@ -165,8 +161,8 @@ export function getGitHubMetadataDetailText(locale: Locale) {
   return {
     forks: "Forks",
     empty: chinese
-      ? "\u70b9\u51fb\u4e0a\u65b9 GitHub \u4fe1\u606f\u8bfb\u53d6\u4ed3\u5e93\u8be6\u60c5"
-      : "Use GitHub Info above to load repository details",
+      ? "\u70b9\u51fb\u4e0a\u65b9\u8bfb\u53d6\u4ed3\u5e93\u67e5\u770b\u8be6\u60c5"
+      : "Use Read Repo above to load repository details",
     failed: chinese
       ? "\u6682\u672a\u8bfb\u53d6\u5230 GitHub \u4ed3\u5e93\u4fe1\u606f"
       : "GitHub repository info is not available",

@@ -1,3 +1,18 @@
+import {
+  ADMIN_AI_DOCUMENT_EXTENSIONS,
+  ADMIN_AI_DOCUMENT_MAX_BYTES,
+  ADMIN_AI_MODELS,
+  type AdminAiModel,
+  type AdminAiTask
+} from "../shared/admin-ai";
+
+export {
+  ADMIN_AI_DOCUMENT_EXTENSIONS,
+  ADMIN_AI_DOCUMENT_MAX_BYTES,
+  ADMIN_AI_MODELS
+};
+export type { AdminAiModel, AdminAiTask };
+
 export type Tool = {
   id: string;
   name: string;
@@ -247,6 +262,65 @@ export type FooterSettings = {
 export type TurnstileSettings = {
   available: boolean;
   enabled: boolean;
+};
+
+export type RssHubSettings = {
+  enabled: boolean;
+  baseUrl: string;
+};
+
+export type ImageBedUploadChannel =
+  | "telegram"
+  | "cfr2"
+  | "s3"
+  | "discord"
+  | "huggingface"
+  | "webdav";
+
+export type ImageBedUploadNameType =
+  | "default"
+  | "index"
+  | "origin"
+  | "short";
+
+export type ImageBedSettings = {
+  available: boolean;
+  enabled: boolean;
+  baseUrl: string;
+  uploadChannel: ImageBedUploadChannel;
+  channelName: string;
+  uploadNameType: ImageBedUploadNameType;
+  uploadFolder: string;
+};
+
+export type AdminImageUploadResult = {
+  url: string;
+  name: string;
+  size: number;
+  type: string;
+};
+
+export type AdminAiSettings = {
+  available: boolean;
+  enabled: boolean;
+  model: AdminAiModel;
+};
+
+export type AdminAiResult = {
+  task: AdminAiTask;
+  name?: string;
+  title?: string;
+  description?: string;
+  summary?: string;
+  tags?: string[];
+  githubRepository?: string;
+};
+
+export type AdminAiDocumentResult = {
+  name: string;
+  mimeType: string;
+  tokens: number;
+  markdown: string;
 };
 
 export type TelegramSettings = {

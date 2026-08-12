@@ -12,10 +12,12 @@ import type {
   Tool
 } from "./types";
 import type { Locale } from "./i18n";
+import { getEffectiveTags } from "../shared/effective-tags";
 
 export type { TelegramPushResource } from "./types";
 
 export const TELEGRAM_MESSAGE_LIMIT = 4096;
+export const TELEGRAM_PHOTO_CAPTION_LIMIT = 1024;
 const TELEGRAM_SECTION_SEPARATOR = "\n\n";
 
 type TelegramBodyFieldPatch = {
@@ -35,7 +37,7 @@ export type TelegramBodyFields = {
   tags: string[];
 };
 
-export function readTelegramBodyTitle(markdown: string) {
+function readTelegramBodyTitle(markdown: string) {
   const firstLine = markdown.split("\n").find((line) => line.trim()) ?? "";
   return firstLine
     .trim()
@@ -303,7 +305,7 @@ export function createTelegramToolResource(tool: Tool): TelegramPushResource {
     demoUrl: tool.demoUrl,
     image: createToolPreviewSource(tool),
     category: "",
-    tags: tool.tags
+    tags: getEffectiveTags(tool.tags, tool.category)
   };
 }
 
@@ -316,14 +318,13 @@ export function createTelegramArticleResource(
     id: article.id,
     title: article.title,
     description: article.summary,
-    url: resolveTelegramResourceUrl(
-      createArticleBrowseHref(article.slug, article.published),
-      origin
-    ),
+    url: article.published
+      ? resolveTelegramResourceUrl(createArticleBrowseHref(article.slug, true), origin)
+      : "",
     demoUrl: "",
     image: resolveTelegramResourceUrl(article.coverImage, origin),
     category: "",
-    tags: Array.from(new Set([article.category, ...article.tags].filter(Boolean)))
+    tags: getEffectiveTags(article.tags, article.category)
   };
 }
 
@@ -340,7 +341,7 @@ export function createTelegramContentResource(
     demoUrl: resolveTelegramResourceUrl(item.url, origin),
     image: resolveTelegramResourceUrl(getContentItemPreviewImage(item), origin),
     category: "",
-    tags: Array.from(new Set([item.category, ...item.tags].filter(Boolean)))
+    tags: getEffectiveTags(item.tags, item.category)
   };
 }
 
@@ -426,18 +427,17 @@ export function getTelegramText(locale: Locale) {
         addPush: "添加推送",
         typeCustom: "手动添加",
         searchPlaceholder: "搜索推送",
-        filterAll: "全部",
         typeTool: "工具库",
         typeArticle: "文章管理",
-        typeContent: "内容流",
+        typeContent: "订阅内容",
         statusPushed: "已推送",
         pushedNotice: "此消息已推送，无法恢复为草稿；如需修改，请使用“编辑推送”。",
         pushAction: "推送到 Telegram",
         pushConfirmTitle: "推送到 Telegram？",
         pushConfirmDescription: "发出后仍可以继续编辑内容并更新到同一条消息，但无法退回草稿状态。",
-        resourceDeleted: "原内容已删除",
+        resourceDeleted: "来源已删除",
         emptyTitle: "还没有推送",
-        emptyDescription: "自己写一条消息推送到 Telegram，或者从工具库、文章管理、内容流卡片推送",
+        emptyDescription: "自己写一条消息推送到 Telegram，或者从工具库、文章管理、订阅内容卡片推送",
         noMatchTitle: "没有匹配的推送",
         noMatchDescription: "换个类型或搜索词再试。",
         loadMore: "加载更多",
@@ -451,7 +451,7 @@ export function getTelegramText(locale: Locale) {
         deleted: "推送记录已删除。",
         serviceDisabled: "Telegram 推送当前已关闭，开启后才能编辑消息。",
         serviceDisabledTitle: "Telegram 推送未开启",
-        serviceDisabledDescription: "在系统设置里配置并开启 Telegram 推送后，就能在这里撰写消息，也能从工具库、文章管理、内容流卡片推送。",
+        serviceDisabledDescription: "在系统设置里配置并开启 Telegram 推送后，就能在这里撰写消息，也能从工具库、文章管理、订阅内容卡片推送。",
         serviceDisabledAction: "去系统设置"
       },
         quickPush: {
@@ -465,15 +465,16 @@ export function getTelegramText(locale: Locale) {
           goManage: "消息推送"
         },
         description: "编辑当前内容的 Telegram 推送信息，固定消息尾巴由系统自动附加。",
-        customDescription: "自己写一条推送发到 Telegram，不绑定工具、文章或内容流；固定消息尾巴由系统自动附加。",
+        customDescription: "自己写一条推送发到 Telegram，不绑定工具、文章或订阅内容；固定消息尾巴由系统自动附加。",
         customTitleLabel: "推送标题",
         categoryLabel: "推送分类",
         syncSource: "同步来源",
-        syncSourceHint: "同步关联工具、文章或内容流的最新信息，当前编辑内容将被覆盖。",
+        syncSourceHint: "同步关联工具、文章或订阅内容的最新信息，当前编辑内容将被覆盖。",
+        syncSourceConfirmTitle: "同步来源？",
+        syncSourceConfirmDescription: "将用关联内容的最新信息覆盖当前推送标题、简介、链接、标签、正文和图片地址。",
         contentOriginalUrlLabel: "原文地址",
-        contentOriginalUrlPlaceholder: "例如：https://example.com/article",
-        projectUrlPlaceholder: "https://example.com",
-        articleUrlPlaceholder: "例如：https://example.com/articles/article-name",
+        contentOriginalUrlPlaceholder: "https://example.com/article",
+        articleUrlPlaceholder: "https://example.com/articles/article-name",
         bodyPlaceholder: "在这里编写 Telegram Markdown 正文",
         statuses: {
           not_pushed: "未推送",
@@ -487,21 +488,24 @@ export function getTelegramText(locale: Locale) {
         recovered: "旧消息记录已清除，请手动重新推送。",
         bodyLabel: "Markdown 正文",
         previewTitle: "消息预览",
-        mediaLabel: "推送图片",
-        mediaEnabled: "开启图片",
-        mediaDisabled: "关闭图片",
-        mediaUrlLabel: "图片地址",
-        mediaUrlPlaceholder: "例如：https://example.com/preview.png",
+        mediaEnabled: "已开启",
+        mediaDisabled: "已关闭",
+        mediaUrlLabel: "预览图",
+        mediaUrlPlaceholder: "https://example.com/preview.png",
         mediaHelp: "开启后使用当前内容的预览图，可替换为其他公开图片地址。",
-        mediaInvalid: "发送图片时请填写有效的图片地址。",
+        mediaInvalid: "发送图片时请填写有效的图片地址",
         save: "保存内容",
         send: "消息推送",
         update: "更新推送",
         saved: "Telegram 推送内容已保存。",
         sent: "已推送到 Telegram。",
         updated: "Telegram 推送已更新。",
+        uncertainRetryTitle: "确认重新推送？",
+        uncertainRetryDescription: "请先确认 Telegram 目标会话中没有收到这条消息。继续可能产生重复消息。",
+        uncertainRetryAction: "确认重试",
         loading: "正在加载消息预览。",
-        tooLong: "完整消息超过 Telegram 的 4096 字符限制。"
+        tooLong: "完整消息超过 Telegram 的 4096 字符限制。",
+        photoCaptionTooLong: "图片消息文字超过 Telegram 的 1024 字符限制。"
       }
     : {
         action: "Message Push",
@@ -512,18 +516,17 @@ export function getTelegramText(locale: Locale) {
           addPush: "Add Push",
           typeCustom: "Manual",
           searchPlaceholder: "Search pushes",
-          filterAll: "All",
           typeTool: "Tool Library",
           typeArticle: "Articles",
-          typeContent: "Content Flow",
+          typeContent: "Subscription Content",
           statusPushed: "Pushed",
           pushedNotice: "This message has already been pushed and cannot return to draft. Use Edit Push to make changes.",
           pushAction: "Push to Telegram",
           pushConfirmTitle: "Push to Telegram?",
           pushConfirmDescription: "After sending you can still edit the content and update the same message, but it cannot go back to draft.",
-          resourceDeleted: "Original content deleted",
+          resourceDeleted: "Source deleted",
           emptyTitle: "No pushes yet",
-          emptyDescription: "Write a message and push it to Telegram, or push from a Tool Library, Articles, or Content Flow card.",
+          emptyDescription: "Write a message and push it to Telegram, or push from a Tool Library, Articles, or Subscription Content card.",
           noMatchTitle: "No matching pushes",
           noMatchDescription: "Try another type or search term.",
           loadMore: "Load More",
@@ -537,7 +540,7 @@ export function getTelegramText(locale: Locale) {
           deleted: "Push record deleted.",
           serviceDisabled: "Telegram pushing is disabled. Enable it before editing messages.",
           serviceDisabledTitle: "Telegram pushing is off",
-          serviceDisabledDescription: "Configure and enable Telegram pushing in System Settings to write messages here and push from Tool Library, Articles, or Content Flow cards.",
+          serviceDisabledDescription: "Configure and enable Telegram pushing in System Settings to write messages here and push from Tool Library, Articles, or Subscription Content cards.",
           serviceDisabledAction: "Open System Settings"
         },
         quickPush: {
@@ -556,10 +559,11 @@ export function getTelegramText(locale: Locale) {
         categoryLabel: "Push category",
         syncSource: "Sync Source",
         syncSourceHint: "Sync the latest information from the linked tool, article, or content item. Your current edits will be overwritten.",
+        syncSourceConfirmTitle: "Sync source?",
+        syncSourceConfirmDescription: "Replace the current push title, description, links, tags, body, and image URL with the latest linked content.",
         contentOriginalUrlLabel: "Original URL",
-        contentOriginalUrlPlaceholder: "Example: https://example.com/article",
-        projectUrlPlaceholder: "https://example.com",
-        articleUrlPlaceholder: "Example: https://example.com/articles/article-name",
+        contentOriginalUrlPlaceholder: "https://example.com/article",
+        articleUrlPlaceholder: "https://example.com/articles/article-name",
         bodyPlaceholder: "Write the Telegram Markdown content here",
         statuses: {
           not_pushed: "Not pushed",
@@ -573,11 +577,10 @@ export function getTelegramText(locale: Locale) {
         recovered: "The old message record was cleared. Push the content manually again.",
         bodyLabel: "Markdown content",
         previewTitle: "Message preview",
-        mediaLabel: "Push image",
-        mediaEnabled: "Enable image",
-        mediaDisabled: "Disable image",
-        mediaUrlLabel: "Image URL",
-        mediaUrlPlaceholder: "Example: https://example.com/preview.png",
+        mediaEnabled: "Enabled",
+        mediaDisabled: "Disabled",
+        mediaUrlLabel: "Preview image",
+        mediaUrlPlaceholder: "https://example.com/preview.png",
         mediaHelp: "When enabled, uses the current item's preview image; replace it with another public image URL if needed.",
         mediaInvalid: "Enter a valid image URL when image sending is enabled.",
         save: "Save Content",
@@ -586,8 +589,12 @@ export function getTelegramText(locale: Locale) {
         saved: "Telegram push content saved.",
         sent: "Pushed to the Telegram chat.",
         updated: "Telegram push updated.",
+        uncertainRetryTitle: "Retry this push?",
+        uncertainRetryDescription: "First confirm that the target Telegram chat did not receive this message. Continuing may create a duplicate.",
+        uncertainRetryAction: "Confirm Retry",
         loading: "Loading message preview.",
-        tooLong: "The complete message exceeds Telegram's 4096-character limit."
+        tooLong: "The complete message exceeds Telegram's 4096-character limit.",
+        photoCaptionTooLong: "The photo caption exceeds Telegram's 1024-character limit."
       };
 }
 

@@ -25,6 +25,7 @@ type BackupText = {
 
 const SUPPORTED_BACKUP_VERSION = "4";
 const MAX_BACKUP_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_TOOL_SOURCE_FILE_BYTES = 10 * 1024 * 1024;
 const BACKUP_DATA_FIELDS = [
   "tools",
   "articles",
@@ -49,6 +50,29 @@ export async function fetchToolSource(sourceUrl: string, text: SourceText) {
   const payload = (await response.json()) as unknown;
   const tools = readToolSource(payload, text);
 
+  if (!tools.length) {
+    throw new Error(text.sourceEmpty);
+  }
+
+  return tools;
+}
+
+export async function readToolSourceFile(
+  file: Pick<File, "size" | "text">,
+  text: SourceText & { sourceFileTooLarge: string }
+) {
+  if (file.size > MAX_TOOL_SOURCE_FILE_BYTES) {
+    throw new Error(text.sourceFileTooLarge);
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(await file.text()) as unknown;
+  } catch {
+    throw new Error(text.sourceInvalid);
+  }
+
+  const tools = readToolSource(payload, text);
   if (!tools.length) {
     throw new Error(text.sourceEmpty);
   }

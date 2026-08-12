@@ -17,6 +17,7 @@ import {
   Star,
   Tags
 } from "lucide-react";
+import { ADMIN_RESOURCE_FIELD_EXAMPLES } from "./admin-field-examples";
 import { translations, type Locale, type Messages } from "./i18n";
 import type { Article } from "./types";
 import { ADMIN_FEATURED_CATEGORY } from "./admin-helpers";
@@ -55,7 +56,6 @@ export function getArticleText(locale: Locale) {
       adminDescription:
         "管理前台文章内容，可用于发布教程、公告、资源整理和更新记录。",
       addArticle: "添加文章",
-      addArticleDescription: "填写文章信息、发布状态和正文，保存后将添加到本站文章。",
       editArticle: "编辑文章",
       editArticleDescription: "修改文章信息、发布状态和正文，保存后将更新本站文章。",
       deleteArticle: "删除文章",
@@ -69,14 +69,13 @@ export function getArticleText(locale: Locale) {
       loadMore: "加载更多",
       loadingMore: "加载中...",
       titleLabel: "标题",
-      titlePlaceholder: "例如：文章标题",
+      titlePlaceholder: "文章标题",
       slugLabel: "文章路径",
-      slugPlaceholder: "自动根据标题生成",
-      slugHelp: "用于文章访问地址，留空会自动生成。",
+      slugPlaceholder: "用于文章访问地址，留空会自动生成",
       summaryLabel: "摘要",
-      summaryPlaceholder: "用 1-2 句话说明这篇文章的内容。",
+      summaryPlaceholder: "用 1-2 句话说明这篇文章的内容",
       contentLabel: "正文 Markdown",
-      contentPlaceholder: "支持常用 Markdown：标题、列表、引用、代码块和链接。",
+      contentPlaceholder: "支持常用 Markdown：标题、列表、引用、代码块和链接",
       coverImageLabel: "封面图 URL",
       coverImagePlaceholder: "https://example.com/preview.png",
       categoryLabel: "文章分类",
@@ -84,11 +83,12 @@ export function getArticleText(locale: Locale) {
       categoryEmptyLabel: "选择文章分类",
       categoryRequired: "请先选择文章分类。",
       tagsLabel: "标签",
-      tagsPlaceholder: "教程, Cloudflare, D1",
+      tagsPlaceholder: ADMIN_RESOURCE_FIELD_EXAMPLES.zh.adminTags,
       publishedLabel: "发布文章",
       publishModeLabel: "发布方式",
       publishDirectLabel: "直接发布",
       publishTimeLabel: "发布时间",
+      publishTimeAction: "选择时间",
       publishTimeHelp:
         "不填写则使用当前时间；填写后会按该时间显示和排序。",
       draftLabel: "存为草稿",
@@ -123,8 +123,6 @@ export function getArticleText(locale: Locale) {
     adminDescription:
       "Manage frontend articles for tutorials, announcements, resource roundups, and update notes.",
     addArticle: "Add Article",
-    addArticleDescription:
-      "Enter the article information, publish status, and content, then save it to the site.",
     editArticle: "Edit Article",
     editArticleDescription:
       "Edit the article information, publish status, and content, then save the changes to the site.",
@@ -140,15 +138,14 @@ export function getArticleText(locale: Locale) {
     loadMore: "Load more",
       loadingMore: "Loading...",
       titleLabel: "Title",
-      titlePlaceholder: "Example: Article title",
+    titlePlaceholder: "Article title",
       slugLabel: "Article path",
-    slugPlaceholder: "Generated from title",
-    slugHelp: "Used in the article URL. Leave empty to generate automatically.",
+    slugPlaceholder: "Used in the article URL. Leave empty to generate automatically",
     summaryLabel: "Summary",
-    summaryPlaceholder: "Use 1-2 sentences to describe this article.",
+    summaryPlaceholder: "Use 1-2 sentences to describe this article",
     contentLabel: "Markdown Content",
     contentPlaceholder:
-      "Supports common Markdown: headings, lists, quotes, code blocks, and links.",
+      "Supports common Markdown: headings, lists, quotes, code blocks, and links",
     coverImageLabel: "Cover image URL",
     coverImagePlaceholder: "https://example.com/preview.png",
     categoryLabel: "Article category",
@@ -156,11 +153,12 @@ export function getArticleText(locale: Locale) {
     categoryEmptyLabel: "Select article category",
     categoryRequired: "Select an article category first.",
     tagsLabel: "Tags",
-    tagsPlaceholder: "Tutorial, Cloudflare, D1",
+    tagsPlaceholder: ADMIN_RESOURCE_FIELD_EXAMPLES.en.adminTags,
     publishedLabel: "Publish article",
     publishModeLabel: "Publish mode",
     publishDirectLabel: "Publish now",
     publishTimeLabel: "Publish time",
+    publishTimeAction: "Pick Time",
     publishTimeHelp:
       "Leave blank to use the current time. Fill it to display and sort by that time.",
     draftLabel: "Save draft",

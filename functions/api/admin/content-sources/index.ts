@@ -6,6 +6,7 @@ import {
   json,
   jsonError,
   requireAdmin,
+  resolveContentSourceFetchUrl,
   validateContentSourcePayload,
   writeErrorResponse,
   type ContentSourceRow,
@@ -46,30 +47,54 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const payload = validateContentSourcePayload(
       (await request.json()) as object
     );
-    const preview = await fetchFeedPreview(payload.url);
+    const existing = await db.prepare(
+      "SELECT id FROM content_sources WHERE url = ?"
+    )
+      .bind(payload.url)
+      .first<{ id: string }>();
+    if (existing) {
+      return jsonError("Content source URL already exists.", "CONFLICT", {
+        status: 409
+      });
+    }
+    const preview = await fetchFeedPreview(
+      await resolveContentSourceFetchUrl(db, payload.url)
+    );
     const now = new Date().toISOString();
     const id = createContentSourceId();
 
-    await db.prepare(
-      `INSERT INTO content_sources
-        (id, title, url, site_url, description, category, tags,
-         enabled, created_at, updated_at, last_synced_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        id,
-        payload.title || preview.title,
-        payload.url,
-        payload.siteUrl || preview.siteUrl,
-        payload.description || preview.description,
-        payload.category,
-        JSON.stringify(payload.tags),
-        payload.enabled ? 1 : 0,
-        now,
-        now,
-        null
+    try {
+      await db.prepare(
+        `INSERT INTO content_sources
+          (id, title, url, site_url, description, category, tags,
+           enabled, created_at, updated_at, last_synced_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run();
+        .bind(
+          id,
+          payload.title || preview.title,
+          payload.url,
+          payload.siteUrl || preview.siteUrl,
+          payload.description || preview.description,
+          payload.category,
+          JSON.stringify(payload.tags),
+          payload.enabled ? 1 : 0,
+          now,
+          now,
+          null
+        )
+        .run();
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        /UNIQUE constraint failed:\s*content_sources\.url/i.test(error.message)
+      ) {
+        return jsonError("Content source URL already exists.", "CONFLICT", {
+          status: 409
+        });
+      }
+      throw error;
+    }
 
     const row = await db.prepare("SELECT * FROM content_sources WHERE id = ?")
       .bind(id)

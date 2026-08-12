@@ -7,12 +7,14 @@ export function AdminUrlField({
   disabled = false,
   help,
   id,
+  inputAside,
   label,
   maxLength,
   onBlurValue,
   onChange,
   placeholder,
   required = false,
+  titleAside,
   value
 }: {
   children?: ReactNode;
@@ -20,12 +22,14 @@ export function AdminUrlField({
   disabled?: boolean;
   help?: ReactNode;
   id?: string;
+  inputAside?: ReactNode;
   label: string;
   maxLength?: number;
   onBlurValue?: (value: string) => void;
   onChange: (value: string) => void;
   placeholder: string;
   required?: boolean;
+  titleAside?: ReactNode;
   value: string;
 }) {
   const generatedId = useId();
@@ -34,25 +38,32 @@ export function AdminUrlField({
 
   return (
     <div className={fieldClassName}>
-      <div className="tool-form-field-head">
-        <label htmlFor={inputId}>{label}</label>
+      <div className={`tool-form-field-head ${help && titleAside ? "has-help-aside" : ""}`.trim()}>
+        <span className="tool-form-field-title">
+          <label htmlFor={inputId}>{label}</label>
+          {help && titleAside ? <small className="form-field-help">{help}</small> : null}
+        </span>
+        {titleAside}
       </div>
-      <input
-        disabled={disabled}
-        id={inputId}
-        inputMode="url"
-        maxLength={maxLength}
-        onBlur={(event) => {
-          const normalized = normalizeHttpUrlInput(event.currentTarget.value);
-          onBlurValue?.(normalized);
-          if (normalized !== value) onChange(normalized);
-        }}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        required={required}
-        value={value}
-      />
-      {help ? <small className="form-field-help">{help}</small> : null}
+      {help && !titleAside ? <small className="form-field-help">{help}</small> : null}
+      <div className={`admin-resource-input-row ${inputAside ? "has-input-aside" : ""}`.trim()}>
+        <input
+          disabled={disabled}
+          id={inputId}
+          inputMode="url"
+          maxLength={maxLength}
+          onBlur={(event) => {
+            const normalized = normalizeHttpUrlInput(event.currentTarget.value);
+            onBlurValue?.(normalized);
+            if (normalized !== value) onChange(normalized);
+          }}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+        />
+        {inputAside}
+      </div>
       {children}
     </div>
   );
@@ -61,8 +72,9 @@ export function AdminUrlField({
 export function AdminTextField({
   className = "",
   disabled = false,
-  headingAside,
+  help,
   id,
+  inputAside,
   label,
   maxLength,
   onBlurValue,
@@ -74,8 +86,9 @@ export function AdminTextField({
 }: {
   className?: string;
   disabled?: boolean;
-  headingAside?: ReactNode;
+  help?: ReactNode;
   id?: string;
+  inputAside?: ReactNode;
   label: string;
   maxLength?: number;
   onBlurValue?: (value: string) => void;
@@ -92,19 +105,22 @@ export function AdminTextField({
     <div className={`tool-form-field admin-resource-text-field ${className}`.trim()}>
       <div className="tool-form-field-head">
         <label htmlFor={inputId}>{label}</label>
-        {headingAside}
       </div>
-      <input
-        disabled={disabled}
-        id={inputId}
-        maxLength={maxLength}
-        onBlur={(event) => onBlurValue?.(event.currentTarget.value)}
-        onChange={(event) => onChange(event.target.value)}
-        onPaste={onPaste}
-        placeholder={placeholder}
-        required={required}
-        value={value}
-      />
+      {help ? <small className="form-field-help">{help}</small> : null}
+      <div className={`admin-resource-input-row ${inputAside ? "has-input-aside" : ""}`.trim()}>
+        <input
+          disabled={disabled}
+          id={inputId}
+          maxLength={maxLength}
+          onBlur={(event) => onBlurValue?.(event.currentTarget.value)}
+          onChange={(event) => onChange(event.target.value)}
+          onPaste={onPaste}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+        />
+        {inputAside}
+      </div>
     </div>
   );
 }
@@ -113,6 +129,7 @@ export function AdminTextareaField({
   className = "",
   disabled = false,
   id,
+  inputAside,
   label,
   onChange,
   placeholder,
@@ -123,6 +140,7 @@ export function AdminTextareaField({
   className?: string;
   disabled?: boolean;
   id?: string;
+  inputAside?: ReactNode;
   label: string;
   onChange: (value: string) => void;
   placeholder: string;
@@ -138,32 +156,39 @@ export function AdminTextareaField({
       <div className="tool-form-field-head">
         <label htmlFor={inputId}>{label}</label>
       </div>
-      <textarea
-        disabled={disabled}
-        id={inputId}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        required={required}
-        rows={rows}
-        value={value}
-      />
+      <div className={`admin-resource-input-row admin-resource-textarea-row ${inputAside ? "has-input-aside" : ""}`.trim()}>
+        <textarea
+          disabled={disabled}
+          id={inputId}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          required={required}
+          rows={rows}
+          value={value}
+        />
+        {inputAside}
+      </div>
     </div>
   );
 }
 
 export function AdminTagsField({
   disabled = false,
+  inputAside,
   label,
   onChange,
   placeholder,
   value
 }: {
   disabled?: boolean;
+  inputAside?: ReactNode;
   label: string;
   onChange: (value: string) => void;
   placeholder: string;
   value: string;
 }) {
+  const inputId = useId();
+
   function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
     const text = event.clipboardData.getData("text");
     if (
@@ -177,16 +202,22 @@ export function AdminTagsField({
   }
 
   return (
-    <label>
-      {label}
-      <input
-        disabled={disabled}
-        onBlur={(event) => onChange(normalizeTagInputText(event.currentTarget.value))}
-        onChange={(event) => onChange(event.target.value)}
-        onPaste={handlePaste}
-        placeholder={placeholder}
-        value={value}
-      />
-    </label>
+    <div className="tool-form-field admin-resource-tags-field">
+      <div className="tool-form-field-head">
+        <label htmlFor={inputId}>{label}</label>
+      </div>
+      <div className={`admin-resource-input-row ${inputAside ? "has-input-aside" : ""}`.trim()}>
+        <input
+          disabled={disabled}
+          id={inputId}
+          onBlur={(event) => onChange(normalizeTagInputText(event.currentTarget.value))}
+          onChange={(event) => onChange(event.target.value)}
+          onPaste={handlePaste}
+          placeholder={placeholder}
+          value={value}
+        />
+        {inputAside}
+      </div>
+    </div>
   );
 }

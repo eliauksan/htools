@@ -45,6 +45,17 @@ CREATE TABLE IF NOT EXISTS telegram_messages (
 CREATE INDEX IF NOT EXISTS idx_telegram_messages_resource
   ON telegram_messages (resource_type, resource_id, updated_at DESC);
 
+CREATE TABLE IF NOT EXISTS telegram_push_locks (
+  resource_type TEXT NOT NULL CHECK (resource_type IN ('tool', 'article', 'content', 'custom')),
+  resource_id TEXT NOT NULL,
+  operation TEXT NOT NULL CHECK (operation IN ('save', 'send', 'update', 'recover', 'delete')),
+  lock_token TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('active', 'uncertain')),
+  expires_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (resource_type, resource_id)
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
@@ -299,7 +310,7 @@ FROM content_items
 JOIN content_sources ON content_sources.id = content_items.source_id;
 
 INSERT INTO app_settings (key, value, updated_at)
-VALUES ('database_schema_version', '15', CURRENT_TIMESTAMP)
+VALUES ('database_schema_version', '16', CURRENT_TIMESTAMP)
 ON CONFLICT(key) DO UPDATE SET
   value = excluded.value,
   updated_at = CURRENT_TIMESTAMP;

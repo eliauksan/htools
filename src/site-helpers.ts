@@ -939,7 +939,7 @@ export function getLocalizedErrorMessage(
         ? error.recordId
         : "";
     return isChinese
-      ? `备份数据存在关联问题${recordId ? `（记录 ${recordId}）` : ""}，请检查内容流与文章的关联后重试。`
+      ? `备份数据存在关联问题${recordId ? `（记录 ${recordId}）` : ""}，请检查订阅内容与文章的关联后重试。`
       : `The backup data has a broken reference${recordId ? ` (record ${recordId})` : ""}. Check the links between content items and articles, then try again.`;
   }
 
@@ -980,12 +980,66 @@ export function getLocalizedErrorMessage(
     TELEGRAM_TEST_TIMEOUT: isChinese
       ? "Telegram 测试连接超时，请检查网络或稍后重试。"
       : "Telegram connection test timed out. Check your network or try again later.",
+    TELEGRAM_PUSH_IN_PROGRESS: isChinese
+      ? "当前消息正在处理中，请勿重复操作。"
+      : "This message is already being processed. Avoid submitting it again.",
+    TELEGRAM_PUSH_UNCERTAIN: isChinese
+      ? "Telegram 推送结果暂时无法确认，请先检查目标会话；确认未收到后可以重新推送。"
+      : "The Telegram push result is uncertain. Check the target chat and retry only after confirming it was not received.",
     GITHUB_METADATA_TIMEOUT: isChinese
       ? "GitHub 信息读取超时，请检查网络后重试。"
       : "GitHub metadata request timed out. Check your connection and try again.",
+    IMAGE_BED_NOT_CONFIGURED: isChinese
+      ? "请先配置 IMGBED_TOKEN，并在后台服务设置中填写图床地址。"
+      : "Configure IMGBED_TOKEN and the image bed URL in Admin > Service Settings first.",
+    IMAGE_BED_DISABLED: isChinese
+      ? "图片上传尚未开启，请先在后台服务设置中开启。"
+      : "Image upload is disabled. Enable it in Admin > Service Settings first.",
+    IMAGE_BED_URL_INVALID: isChinese
+      ? "请输入有效的 HTTP 或 HTTPS 图床服务地址。"
+      : "Enter a valid HTTP or HTTPS image bed service URL.",
+    IMAGE_FILE_INVALID: isChinese
+      ? "请选择 PNG、JPEG、WebP、GIF 或 AVIF 图片。"
+      : "Choose a PNG, JPEG, WebP, GIF, or AVIF image.",
+    IMAGE_FILE_TOO_LARGE: isChinese
+      ? "图片大小不能超过 10MB。"
+      : "The image must be no larger than 10 MB.",
+    IMAGE_UPLOAD_TIMEOUT: isChinese
+      ? "图片上传超时，请检查图床服务后重试。"
+      : "Image upload timed out. Check the image bed service and try again.",
+    IMAGE_UPLOAD_FAILED: isChinese
+      ? "图片上传失败，请检查图床地址、Token 权限或上传渠道。"
+      : "Image upload failed. Check the service URL, token permission, and upload channel.",
+    IMAGE_UPLOAD_RESPONSE_INVALID: isChinese
+      ? "图床返回的数据中没有可用的图片地址。"
+      : "The image bed response did not contain a usable image URL.",
     TELEGRAM_UNAVAILABLE: isChinese
       ? "Telegram 服务请求失败，请检查机器人配置或稍后重试。"
       : "The Telegram request failed. Check the bot configuration or try again later.",
+    AI_NOT_CONFIGURED: isChinese
+      ? "Workers AI 未配置，请先在 Cloudflare Pages 中添加 AI 绑定。"
+      : "Workers AI is not configured. Add the AI binding to the Cloudflare Pages project first.",
+    AI_DISABLED: isChinese
+      ? "Workers AI 尚未开启，请先在系统设置中开启。"
+      : "Workers AI is disabled. Enable it in system settings first.",
+    AI_TIMEOUT: isChinese
+      ? "Workers AI 处理超时，请稍后重试。"
+      : "Workers AI processing timed out. Try again shortly.",
+    AI_RESPONSE_INVALID: isChinese
+      ? "Workers AI 返回的格式无法识别，请重试。"
+      : "Workers AI returned an unreadable result. Try again.",
+    AI_REQUEST_FAILED: isChinese
+      ? "Workers AI 请求失败，请稍后重试。"
+      : "Workers AI request failed. Try again shortly.",
+    AI_DOCUMENT_UNSUPPORTED: isChinese
+      ? "请选择支持的文档或图片格式。"
+      : "Choose a supported document or image format.",
+    AI_DOCUMENT_TOO_LARGE: isChinese
+      ? "文档不能为空，且请控制在 10MB 以内。"
+      : "The document cannot be empty and must be no larger than 10 MB.",
+    AI_DOCUMENT_CONVERSION_FAILED: isChinese
+      ? "文档转换失败，请检查文件后重试。"
+      : "Document conversion failed. Check the file and try again.",
   };
 
   if (businessCodeMessages[errorCode]) return businessCodeMessages[errorCode];

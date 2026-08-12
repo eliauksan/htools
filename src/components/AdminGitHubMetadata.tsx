@@ -1,8 +1,10 @@
 import { Github } from "lucide-react";
 import { formatGitHubCount, formatGitHubUpdatedAt } from "../admin-display";
 import type { GitHubToolMetadata } from "../types";
+import AdminDetailPlaceholder from "./AdminDetailPlaceholder";
+import AdminFieldAssistButton from "./AdminFieldAssistButton";
 
-export type AdminGitHubMetadataDetailText = {
+type AdminGitHubMetadataDetailText = {
   empty: string;
   failed: string;
   forks: string;
@@ -17,24 +19,32 @@ export type AdminGitHubMetadataDetailText = {
 export function AdminGitHubMetadataButton({
   disabled = false,
   label,
-  onClick
+  mobileLabel,
+  onClick,
+  onUnavailable,
+  unavailable = false,
+  unavailableTitle
 }: {
   disabled?: boolean;
   label: string;
+  mobileLabel: string;
   onClick: () => void;
+  onUnavailable?: () => void;
+  unavailable?: boolean;
+  unavailableTitle?: string;
 }) {
   return (
-    <button
-      aria-label={label}
-      className="ghost-button tool-editor-action-button tool-github-metadata-button"
+    <AdminFieldAssistButton
+      className="tool-github-metadata-button"
       disabled={disabled}
-      title={label}
-      type="button"
+      icon={<Github size={16} />}
+      label={label}
+      mobileLabel={mobileLabel}
       onClick={onClick}
-    >
-      <Github size={16} />
-      <span>{label}</span>
-    </button>
+      onUnavailable={onUnavailable}
+      unavailable={unavailable}
+      unavailableTitle={unavailableTitle}
+    />
   );
 }
 
@@ -87,16 +97,16 @@ export function AdminGitHubMetadataCard({
             </div>
           </>
         ) : (
-          <div className="tool-github-detail-placeholder">
-            <Github size={16} />
-            <span>
-              {previewLoading || loading
-                ? detailText.loading
-                : failed
-                  ? detailText.failed
-                  : detailText.empty}
-            </span>
-          </div>
+          <AdminDetailPlaceholder
+            icon={<Github size={16} />}
+            role={previewLoading || loading ? "status" : undefined}
+          >
+            {previewLoading || loading
+              ? detailText.loading
+              : failed
+                ? detailText.failed
+                : detailText.empty}
+          </AdminDetailPlaceholder>
         )}
       </section>
     </div>

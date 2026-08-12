@@ -1,10 +1,10 @@
-import { ArrowDownUp, ArrowRightLeft, ArrowUp, ArrowUpRight, CheckCircle2, ChevronDown, ChevronRight, Circle, Eraser, FileText, Github, LogOut, PanelLeft, Plus, RefreshCw, Rss, Search, Send, Settings, ShieldCheck, Star, SquarePen, Tags, Trash2, Upload, Wand2, Wrench, X } from "lucide-react";
+import { ArrowDownUp, ArrowRightLeft, ArrowUp, ArrowUpRight, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Circle, Eraser, FileText, Github, Globe, LogOut, PanelLeft, Plus, RefreshCw, Rss, Search, Send, Settings, ShieldCheck, Star, SquarePen, Tags, Trash2, Upload, Wand2, Wrench, X } from "lucide-react";
 import { ChangeEvent, CSSProperties, FormEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode, createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
-import { applyAdminCategoryAction, checkLinks, createArticle, createContentSource, createTool, deleteArticle, deleteContentSource, deleteTelegramPush, deleteTool, exportBackupData, exportToolSourceData, importTools, loadAdminArticle, loadAdminArticles, loadAdminAuthConfig, loadAdminCategorySettings, loadAdminSecuritySettings, loadAdminTools, loadContentItems, loadContentSources, loadGitHubSettings, loadProxySettings, loadSiteConfiguration, loadSiteSettings, loadSourceSettings, loadTelegramMessage, loadTelegramPushRecords, loadTelegramSettings, loadTelegramSource, loadTurnstileSettings, loadUmamiSettings, login, patchSiteSettings, recoverTelegramMessage, resetFactorySettings, restoreBackupData, saveAdminCategorySettings, saveGitHubSettings, saveProxySettings, saveSourceSettings, saveTelegramMessage, saveTelegramSettings, saveTurnstileSettings, saveUmamiSettings, sendTelegramMessage, syncContentSource, testTelegramSettings, updateArticle, updateArticlePublished, updateAdminPassword, updateContentSource, convertContentItemToArticle, previewContentSource, updateTelegramMessage, updateTool, type AdminAuthConfig } from "./admin-api";
+import { applyAdminCategoryAction, checkLinks, createArticle, createContentSource, createTool, deleteArticle, deleteContentSource, deleteTelegramPush, deleteTool, exportBackupData, exportToolSourceData, importTools, loadAdminAiSettings, loadAdminArticle, loadAdminArticles, loadAdminAuthConfig, loadAdminCategorySettings, loadAdminSecuritySettings, loadAdminTools, loadContentItemArticlePreview, loadContentItems, loadContentSources, loadGitHubSettings, loadImageBedSettings, loadProxySettings, loadRssHubSettings, loadSiteConfiguration, loadSiteSettings, loadSourceSettings, loadTelegramMessage, loadTelegramPushRecords, loadTelegramSettings, loadTelegramSource, loadTurnstileSettings, loadUmamiSettings, login, patchSiteSettings, recoverTelegramMessage, resetFactorySettings, restoreBackupData, saveAdminAiSettings, saveAdminCategorySettings, saveGitHubSettings, saveImageBedSettings, saveProxySettings, saveRssHubSettings, saveSourceSettings, saveTelegramMessage, saveTelegramSettings, saveTurnstileSettings, saveUmamiSettings, sendTelegramMessage, syncContentSource, testTelegramSettings, updateArticle, updateArticlePublished, updateAdminPassword, updateContentSource, convertContentItemToArticle, previewContentSource, updateTelegramMessage, updateTool, type AdminAuthConfig } from "./admin-api";
 import { translations, type Locale, type Messages } from "./i18n";
 import { normalizeProxyBaseUrl, normalizeProxyMode, normalizeProxyScope, proxifyUrl } from "./proxy";
-import type { AdminCategoryAction, AdminCategoryScope, AdminCategorySettings, AdminSecuritySettings, Article, ArticleInput, ArticleSummary, ContentItemSummary, ContentSource, ContentSourceInput, FeedPreview, FooterSettings, GitHubSettings, GitHubSettingsInput, HomeHeroContent, LinkCheckResult, ProxySettings, HtoolsBackup, SiteSettings, SourceSettings, TelegramConnection, TelegramMessage, TelegramPushRecord, TelegramResourceType, TelegramSettings, TurnstileSettings, Tool, ToolImportMode, ToolInput, UmamiSettings } from "./types";
+import { ADMIN_AI_MODELS, type AdminAiSettings, type AdminCategoryAction, type AdminCategoryScope, type AdminCategorySettings, type AdminSecuritySettings, type Article, type ArticleInput, type ArticleSummary, type ContentItemSummary, type ContentSource, type ContentSourceInput, type ContentSyncResponse, type FeedPreview, type FooterSettings, type GitHubSettings, type GitHubSettingsInput, type HomeHeroContent, type ImageBedSettings, type ImageBedUploadChannel, type ImageBedUploadNameType, type LinkCheckResult, type ProxySettings, type RssHubSettings, type HtoolsBackup, type SiteSettings, type SourceSettings, type TelegramConnection, type TelegramMessage, type TelegramPushRecord, type TelegramResourceType, type TelegramSettings, type TurnstileSettings, type Tool, type ToolImportMode, type ToolInput, type UmamiSettings } from "./types";
 import { DEFAULT_FOOTER_SETTINGS, DEFAULT_HOME_HERO_SETTINGS, DEFAULT_SITE_SETTINGS, formatFooterJson, getEditableSiteSettings, getFooterFormValues, getHomeHeroSettings, getLocalizedErrorMessage, getSiteDisplayName, getSiteFooterSettings, getSourceErrorMessage, readSiteIconFile } from "./site-helpers";
 import {
   cleanArticleDisplayText,
@@ -16,10 +16,7 @@ import {
 import {
   applyGitHubMetadataToForm,
   applyGitHubMetadataToFields,
-  createAdminIconFromUrl,
   createArticleBrowseHref,
-  createContentItemPreviewHref,
-  getContentItemPreviewImage,
   getGitHubMetadataDetailText,
   isGitHubUrl,
   normalizeSlugInput
@@ -47,6 +44,7 @@ import { useLoadingSkeleton } from "./useLoadingSkeleton";
 import { useOverlayFocusManagement } from "./useOverlayFocusManagement";
 import { useVisualViewportKeyboard } from "./useVisualViewportKeyboard";
 import { useUtilityMenuKeyboard } from "./useUtilityMenuKeyboard";
+import { ADMIN_RESOURCE_FIELD_EXAMPLES } from "./admin-field-examples";
 import {
   isEventInsideElement,
   useOutsideInteractionDismiss
@@ -56,10 +54,20 @@ import {
   usePointerFocusRelease
 } from "./usePointerFocusRelease";
 import { hasCompleteUmamiSettings, normalizeUmamiScriptUrl, normalizeUmamiWebsiteId } from "./umami";
+import { normalizeRssHubBaseUrl, normalizeRssHubRouteUrl } from "../shared/rsshub";
 import { useAdminGitHubMetadata } from "./useAdminGitHubMetadata";
-import { buildTelegramPreviewMarkdown, countTelegramMessageCharacters, createDefaultTelegramBody, createTelegramArticleResource, createTelegramContentResource, createTelegramCustomBodyExample, createTelegramResourceMediaUrl, createTelegramToolResource, escapeTelegramPreviewHashtags, getTelegramText, readTelegramBodyFields, syncTelegramBodyField, TELEGRAM_MESSAGE_LIMIT, type TelegramPushResource } from "./telegram";
+import { buildTelegramPreviewMarkdown, countTelegramMessageCharacters, createDefaultTelegramBody, createTelegramArticleResource, createTelegramContentResource, createTelegramCustomBodyExample, createTelegramResourceMediaUrl, createTelegramToolResource, escapeTelegramPreviewHashtags, getTelegramText, readTelegramBodyFields, syncTelegramBodyField, TELEGRAM_MESSAGE_LIMIT, TELEGRAM_PHOTO_CAPTION_LIMIT, type TelegramPushResource } from "./telegram";
 import { getAdminMaintenanceText, getAdminWorkspaceText, getContentFlowText } from "./admin-text";
 import AdminMarkdownEditor from "./components/AdminMarkdownEditor";
+import AdminAiAction from "./components/AdminAiAction";
+import AdminAiDocumentImport from "./components/AdminAiDocumentImport";
+import AdminDetailPlaceholder from "./components/AdminDetailPlaceholder";
+import AdminFieldAssistButton from "./components/AdminFieldAssistButton";
+import AdminImageUploadButton from "./components/AdminImageUploadButton";
+import AdminSiteIcon from "./components/AdminSiteIcon";
+import ArticleDetailContent, {
+  ArticleDetailContentSkeleton
+} from "./components/ArticleDetailContent";
 import {
   AdminGitHubMetadataButton,
   AdminGitHubMetadataCard
@@ -76,6 +84,7 @@ import {
   downloadTextFile,
   fetchToolSource,
   readBackupPayload,
+  readToolSourceFile,
   validateBackupFileSize
 } from "./admin-maintenance";
 import {
@@ -145,6 +154,12 @@ function getContentFeedErrorMessage(
   }
   if (message === "Feed response body is empty.") return contentText.feedEmpty;
   if (message === "No feed items found.") return contentText.feedNoItems;
+  if (message === "RSSHub service is disabled.") {
+    return contentText.rssHubNotConfigured;
+  }
+  if (message === "Content source URL already exists.") {
+    return contentText.sourceAlreadyExists;
+  }
   const status = message.match(/^Feed request failed with status (\d+)\.$/)?.[1];
   if (status) return contentText.feedRequestFailed(status);
   return message || fallback;
@@ -182,6 +197,13 @@ function isTelegramPushSourceFilter(value: string) {
     value === TELEGRAM_PUSH_CONTENT_FILTER;
 }
 
+function getTelegramPushFilterResourceType(value: string): TelegramResourceType | undefined {
+  if (value === TELEGRAM_PUSH_TOOL_FILTER) return "tool";
+  if (value === TELEGRAM_PUSH_ARTICLE_FILTER) return "article";
+  if (value === TELEGRAM_PUSH_CONTENT_FILTER) return "content";
+  return undefined;
+}
+
 function getTelegramPushDefaultFilter(resourceType: TelegramResourceType) {
   if (resourceType === "tool") return TELEGRAM_PUSH_TOOL_FILTER;
   if (resourceType === "article") return TELEGRAM_PUSH_ARTICLE_FILTER;
@@ -208,6 +230,33 @@ function getTelegramDisplayCategory(
 ) {
   const stored = getTelegramStoredCategory(value);
   return stored || getTelegramPushDefaultFilter(resourceType);
+}
+
+function createOptimisticTelegramMessage(
+  resource: TelegramPushResource,
+  footerMarkdown: string,
+  locale: Locale
+): TelegramMessage {
+  const bodyMarkdown = buildTelegramPreviewMarkdown(
+    resource,
+    createDefaultTelegramBody(resource),
+    footerMarkdown,
+    locale
+  );
+  const mediaUrl = createTelegramResourceMediaUrl(resource);
+
+  return {
+    exists: false,
+    targetChanged: false,
+    syncStatus: "not_pushed",
+    bodyMarkdown,
+    mediaEnabled: false,
+    mediaUrl,
+    defaultBodyMarkdown: bodyMarkdown,
+    defaultMediaUrl: mediaUrl,
+    resource,
+    resourceExists: true
+  };
 }
 
 function getTelegramPushCategoryLabel(
@@ -242,6 +291,7 @@ type TelegramMessageErrorCode =
   | "TELEGRAM_PERMISSION_DENIED"
   | "TELEGRAM_TARGET_CHANGED"
   | "";
+type TelegramUncertainRetryContext = "record" | "quick" | "editor";
 
 function getTelegramMessageErrorCode(error: unknown): TelegramMessageErrorCode {
   if (
@@ -255,6 +305,13 @@ function getTelegramMessageErrorCode(error: unknown): TelegramMessageErrorCode {
     return error.code;
   }
   return "";
+}
+
+function isTelegramPushUncertainError(error: unknown) {
+  return typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "TELEGRAM_PUSH_UNCERTAIN";
 }
 
 function getAdminWriteEntityKey(scope: AdminWriteEntityScope, id?: string | null) {
@@ -305,8 +362,7 @@ function AdminSortButton({
     mode === "latest" ? t.admin.sortLatestShort : t.admin.sortOldestShort;
 
   return (
-    <button
-      className="ghost-button admin-sort-button"
+    <button className="ghost-button admin-sort-button"
       type="button"
       aria-label={label}
       title={label}
@@ -339,8 +395,7 @@ function AdminEmptyState({
       </div>
       <p>{description}</p>
       {action ? (
-        <button
-          className={`${
+        <button className={`${
             action.tone === "ghost" ? "ghost-button" : "primary-button"
           } empty-state-action`}
           type="button"
@@ -403,8 +458,7 @@ function AdminFilterBar({
             placeholder={searchPlaceholder}
           />
         </label>
-        <button
-          className="ghost-button admin-clear-filter"
+        <button className="ghost-button admin-clear-filter"
           disabled={!hasActiveFilter}
           type="button"
           onClick={onClear}
@@ -454,8 +508,7 @@ function PublishModeField({
         {(["published", "draft"] as const).map((mode) => {
           const selected = value === mode;
           return (
-            <button
-              aria-pressed={selected}
+            <button aria-pressed={selected}
               className={`admin-segmented-toggle-option ${
                 selected ? "is-active" : ""
               }`}
@@ -476,37 +529,54 @@ function PublishModeField({
 function BooleanSegmentedToggle({
   className = "",
   disabled = false,
+  disabledIcon,
   disabledLabel,
+  enabledIcon,
   enabledLabel,
+  mobileDisabledLabel,
+  mobileEnabledLabel,
+  singleOption = false,
   onChange,
   value
 }: {
   className?: string;
   disabled?: boolean;
+  disabledIcon?: ReactNode;
   disabledLabel: string;
+  enabledIcon?: ReactNode;
   enabledLabel: string;
+  mobileDisabledLabel?: string;
+  mobileEnabledLabel?: string;
   onChange: (value: boolean) => void;
+  singleOption?: boolean;
   value: boolean;
 }) {
   return (
     <div
-      className={`admin-segmented-toggle ${className}`.trim()}
+      className={`admin-segmented-toggle ${singleOption ? "is-single" : ""} ${className}`.trim()}
       role="group"
     >
-      {([true, false] as const).map((enabled) => {
+      {(singleOption ? ([true] as const) : ([true, false] as const)).map((enabled) => {
         const selected = value === enabled;
+        const optionIcon = enabled ? enabledIcon : disabledIcon;
+        const mobileOptionLabel = enabled ? mobileEnabledLabel : mobileDisabledLabel;
         return (
-          <button
-            aria-pressed={selected}
+          <button aria-pressed={selected}
             className={`admin-segmented-toggle-option ${
-              selected ? "is-active" : ""
-            }`}
+              optionIcon ? "has-icon" : ""
+            } ${mobileOptionLabel ? "has-mobile-label" : ""} ${selected ? "is-active" : ""}`.trim()}
             disabled={disabled}
             key={String(enabled)}
             type="button"
-            onClick={() => onChange(enabled)}
+            onClick={() => onChange(singleOption ? !value : enabled)}
           >
-            <span>{enabled ? enabledLabel : disabledLabel}</span>
+            {optionIcon ? <span className="field-assist-button-icon">{optionIcon}</span> : null}
+            <span className="field-assist-button-label">
+              {enabled ? enabledLabel : disabledLabel}
+            </span>
+            {mobileOptionLabel ? (
+              <span className="field-assist-button-mobile-label">{mobileOptionLabel}</span>
+            ) : null}
           </button>
         );
       })}
@@ -544,9 +614,7 @@ function AdminDialogActions({
           {closeLabel}
         </button>
       ) : null}
-      <button
-        className="primary-button"
-        disabled={disabled}
+      <button className="primary-button" disabled={disabled}
         form={formId}
         type={formId ? "submit" : "button"}
         onClick={onPrimary}
@@ -683,6 +751,16 @@ export default function AdminApp({
     target: "",
     footerMarkdown: ""
   });
+  const [adminAiSettings, setAdminAiSettings] = useState<AdminAiSettings>({
+    available: false,
+    enabled: false,
+    model: ADMIN_AI_MODELS[0]
+  });
+  const [adminAiSettingsLoading, setAdminAiSettingsLoading] = useState(
+    Boolean(token)
+  );
+  const [adminAiSettingsLoadError, setAdminAiSettingsLoadError] =
+    useState<unknown>(null);
   const [telegramSettingsLoading, setTelegramSettingsLoading] = useState(
     Boolean(token)
   );
@@ -709,6 +787,9 @@ export default function AdminApp({
   const [pendingPushTelegramRecord, setPendingPushTelegramRecord] =
     useState<TelegramPushRecord | null>(null);
   const [isPushingTelegramRecord, setIsPushingTelegramRecord] = useState(false);
+  const [pendingTelegramUncertainRetry, setPendingTelegramUncertainRetry] =
+    useState<TelegramUncertainRetryContext | null>(null);
+  const [pendingTelegramSourceSync, setPendingTelegramSourceSync] = useState(false);
   const [telegramResource, setTelegramResource] = useState<TelegramPushResource | null>(null);
   const [telegramMessage, setTelegramMessage] = useState<TelegramMessage | null>(null);
   const [isCreatingTelegramPush, setIsCreatingTelegramPush] = useState(false);
@@ -748,9 +829,16 @@ export default function AdminApp({
   const articleEditorCloseRequestRef = useRef<(() => void) | null>(null);
   const contentSourceEditorCloseRequestRef = useRef<(() => void) | null>(null);
   const contentConvertCloseRequestRef = useRef<(() => void) | null>(null);
+  const articlePublishTimeRef = useRef<HTMLInputElement>(null);
   const [adminView, setAdminView] = useState<AdminView>(() => getInitialAdminView());
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("htools_admin_sidebar") === "collapsed"
+  );
+  const [isMobileSidebarViewport, setIsMobileSidebarViewport] = useState(() =>
+    window.matchMedia("(max-width: 920px)").matches
+  );
+  const [isContentReaderViewport, setIsContentReaderViewport] = useState(() =>
+    window.matchMedia("(min-width: 1201px)").matches
   );
   const [adminSearch, setAdminSearch] = useState(() =>
     getStoredAdminFilter(ADMIN_VIEW_STATE_STORAGE_KEYS.tools.search, "")
@@ -780,6 +868,9 @@ export default function AdminApp({
   const [contentSourceFilter, setContentSourceFilter] = useState(() =>
     getStoredAdminFilter(ADMIN_VIEW_STATE_STORAGE_KEYS.content.source, "all")
   );
+  const [contentRailCategory, setContentRailCategory] = useState<string | null>(
+    null
+  );
   const [adminCategory, setAdminCategory] = useState(() =>
     normalizeAdminCategoryValue(
       getStoredAdminFilter(ADMIN_VIEW_STATE_STORAGE_KEYS.tools.category, "All")
@@ -799,6 +890,7 @@ export default function AdminApp({
     formatTagInputText(initialForm.tags)
   );
   const [articleForm, setArticleForm] = useState<ArticleInput>(initialArticleForm);
+  const [pendingAiDocumentImport, setPendingAiDocumentImport] = useState<string | null>(null);
   const [articleTagText, setArticleTagText] = useState(() =>
     formatTagInputText(initialArticleForm.tags)
   );
@@ -812,6 +904,7 @@ export default function AdminApp({
   const contentPreviewRef = useRef<HTMLDivElement>(null);
   const contentPreviewAbortRef = useRef<AbortController | null>(null);
   const contentPreviewRequestRef = useRef(0);
+  const contentPreviewAppliedTitleRef = useRef("");
   const adminContentScrollRef = useRef<HTMLDivElement>(null);
   const [status, setStatusEvent] = useState<{ id: number; message: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -831,6 +924,9 @@ export default function AdminApp({
   const [pendingConvertItem, setPendingConvertItem] =
     useState<ContentItemSummary | null>(null);
   const [convertArticleCategory, setConvertArticleCategory] = useState("");
+  const [convertArticlePreview, setConvertArticlePreview] = useState<Article | null>(null);
+  const [convertArticlePreviewLoading, setConvertArticlePreviewLoading] = useState(false);
+  const [convertArticlePreviewError, setConvertArticlePreviewError] = useState("");
   const [convertPublishMode, setConvertPublishMode] =
     useState<ConvertPublishMode>("published");
   const [categoryActionTarget, setCategoryActionTarget] = useState("");
@@ -874,6 +970,7 @@ export default function AdminApp({
   const adminArticlesNextCursorRef = useRef<string | null>(null);
   const adminArticlesLoadingCursorRef = useRef<string | null>(null);
   const articleEditorLoadRequestRef = useRef(0);
+  const contentConvertPreviewRequestRef = useRef(0);
   const contentItemsRequestGenerationRef = useRef(0);
   const contentItemsNextCursorRef = useRef<string | null>(null);
   const contentItemsLoadingCursorRef = useRef<string | null>(null);
@@ -881,6 +978,8 @@ export default function AdminApp({
   const mutationRefreshGenerationRef = useRef(0);
   const telegramSettingsLoadRequestRef = useRef(0);
   const telegramSettingsLoadAbortRef = useRef<AbortController | null>(null);
+  const adminAiSettingsLoadRequestRef = useRef(0);
+  const adminAiSettingsLoadAbortRef = useRef<AbortController | null>(null);
   const telegramPushRequestGenerationRef = useRef(0);
   const telegramPushNextCursorRef = useRef<string | null>(null);
   const telegramPushLoadingCursorRef = useRef<string | null>(null);
@@ -897,10 +996,10 @@ export default function AdminApp({
   });
   const telegramGitHub = useAdminGitHubMetadata({
     active: Boolean(
-      telegramResource?.type === "custom" && isCreatingTelegramPush
+      telegramResource?.type === "tool" || telegramResource?.type === "custom"
     ),
-    autoApply: true,
-    autoLoad: true,
+    autoApply: telegramResource?.type === "custom" && isCreatingTelegramPush,
+    autoLoad: telegramResource?.type === "custom" && isCreatingTelegramPush,
     onError: (error) => setStatus(getLocalizedErrorMessage(error, t)),
     getSnapshot: () => ({
       name: telegramCustomTitle,
@@ -937,6 +1036,7 @@ export default function AdminApp({
       setTelegramUrl(nextFields.url);
       setTelegramDemoUrl(nextFields.demoUrl);
       setTelegramImage(nextFields.image);
+      setTelegramMediaUrl(nextFields.image);
       setTelegramTagText(formatTagInputText(nextFields.tags));
       setTelegramBodyMarkdown((current) => {
         let next = current;
@@ -954,7 +1054,7 @@ export default function AdminApp({
         );
         next = syncTelegramBodyField(
           next,
-          { url: nextFields.url, resourceType: "custom" },
+          { url: nextFields.url, resourceType: telegramResource?.type ?? "custom" },
           telegramSettings.footerMarkdown,
           locale
         );
@@ -1009,6 +1109,15 @@ export default function AdminApp({
   const categoryText = workspaceText.category;
   const articleText = getArticleText(locale);
   const telegramText = getTelegramText(locale);
+
+  function getAiAppliedStatus(result: {
+    githubRepository?: string;
+  }) {
+    if (result.githubRepository) {
+      return maintenanceText.aiAppliedWithGitHub(result.githubRepository);
+    }
+    return maintenanceText.aiApplied;
+  }
 
   function closeMobileSidebar() {
     setOpenAdminMenu(null);
@@ -1136,6 +1245,9 @@ export default function AdminApp({
   const telegramPreviewLength = countTelegramMessageCharacters(
     telegramPreviewMarkdown
   );
+  const telegramContentLimit = telegramMediaEnabled
+    ? TELEGRAM_PHOTO_CAPTION_LIMIT
+    : TELEGRAM_MESSAGE_LIMIT;
   const telegramCustomTitleMissing =
     Boolean(telegramResource) && !telegramCustomTitle.trim();
   const normalizedTelegramMediaUrl = normalizeHttpUrlInput(telegramMediaUrl);
@@ -1415,11 +1527,10 @@ export default function AdminApp({
   ) {
     const normalized = normalizeAdminCategoryValue(category);
 
-    if (scope === "push" && TELEGRAM_PUSH_FIXED_FILTERS.includes(normalized)) {
-      return;
-    }
-
-    if (isAllCategoryValue(normalized)) {
+    if (
+      isAllCategoryValue(normalized) ||
+      (scope === "push" && isTelegramPushSourceFilter(normalized))
+    ) {
       setPendingCategoryAction({
         category: normalized,
         contentCount: getAdminCategoryContentCount(scope, normalized),
@@ -1501,6 +1612,13 @@ export default function AdminApp({
     }
 
     if (scope === "push") {
+      const resourceType = getTelegramPushFilterResourceType(normalized);
+      if (resourceType) {
+        return telegramPushRecords.filter(
+          (record) => record.resourceType === resourceType
+        ).length;
+      }
+
       return telegramPushRecords.filter((record) =>
         normalizeAdminCategoryValue(record.resource?.category ?? "") === normalized
       ).length;
@@ -1594,6 +1712,10 @@ export default function AdminApp({
       return;
     }
 
+    if (scope === "push" && TELEGRAM_PUSH_FIXED_FILTERS.includes(normalized)) {
+      return;
+    }
+
     if (scope === "push") {
       if (normalizeAdminCategoryValue(telegramPushCategory) === normalized) {
         setTelegramPushCategory(replacement || "All");
@@ -1611,6 +1733,12 @@ export default function AdminApp({
       setContentCategoryFilter(replacement || "All");
       setContentSourceFilter("all");
     }
+
+    setContentRailCategory((current) =>
+      current && normalizeAdminCategoryValue(current) === normalized
+        ? normalizeAdminCategoryValue(replacement) || null
+        : current
+    );
 
     if (normalizeAdminCategoryValue(contentSourceForm.category) === normalized) {
       setContentSourceForm((current) => ({
@@ -1674,6 +1802,12 @@ export default function AdminApp({
       setStatus(
         action === "migrate"
           ? getAdminCategoryMigratedText(categoryText, t, normalized, target, result.affected)
+          : scope === "push" && isTelegramPushSourceFilter(normalized)
+            ? categoryText.cleared(
+                categoryText.pushSourceScopeLabel(
+                  getTelegramPushCategoryLabel(normalized, telegramText, t)
+                )
+              )
           : getAdminCategoryDeletedText(categoryText, t, normalized, scope)
       );
     } catch (error) {
@@ -1714,6 +1848,22 @@ export default function AdminApp({
       sidebarCollapsed ? "collapsed" : "expanded"
     );
   }, [sidebarCollapsed]);
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 920px)");
+    const updateViewport = () => setIsMobileSidebarViewport(mediaQuery.matches);
+
+    updateViewport();
+    mediaQuery.addEventListener("change", updateViewport);
+    return () => mediaQuery.removeEventListener("change", updateViewport);
+  }, []);
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1201px)");
+    const updateViewport = () => setIsContentReaderViewport(mediaQuery.matches);
+
+    updateViewport();
+    mediaQuery.addEventListener("change", updateViewport);
+    return () => mediaQuery.removeEventListener("change", updateViewport);
+  }, []);
   const visibleTools = useMemo(() => {
     const query = adminSearch.trim().toLowerCase();
     const filtered = tools.filter((tool) => {
@@ -1890,17 +2040,10 @@ export default function AdminApp({
       ),
     [contentCategoryFilter, contentExistingCategories]
   );
-  const visibleContentSources = useMemo(() => {
-    if (isAllCategoryValue(contentCategoryFilter)) {
-      return contentSources;
-    }
-
-    return contentSources.filter(
-      (source) =>
-        normalizeAdminCategoryValue(source.category) === contentCategoryFilter
-    );
-  }, [contentCategoryFilter, contentSources]);
   const visibleContentItems = contentItems;
+  const effectiveContentCategory = isAllCategoryValue(contentCategoryFilter)
+    ? contentRailCategory ?? "All"
+    : contentCategoryFilter;
   useEffect(() => {
     const normalizedContentCategory =
       normalizeAdminCategoryValue(contentCategoryFilter);
@@ -1920,11 +2063,23 @@ export default function AdminApp({
     }
     if (
       contentSourceFilter !== "all" &&
-      !visibleContentSources.some((source) => source.id === contentSourceFilter)
+      !contentSources.some((source) => source.id === contentSourceFilter)
     ) {
       setContentSourceFilter("all");
     }
-  }, [contentSourceFilter, visibleContentSources]);
+  }, [contentSourceFilter, contentSources]);
+  useEffect(() => {
+    if (!contentSourcesLoadedRef.current || !contentRailCategory) return;
+    if (
+      !contentSources.some(
+        (source) =>
+          normalizeAdminCategoryValue(source.category) ===
+          normalizeAdminCategoryValue(contentRailCategory)
+      )
+    ) {
+      setContentRailCategory(null);
+    }
+  }, [contentRailCategory, contentSources]);
   const adminCategoryOptions = useMemo(
     () =>
       sortCategoriesBySettings(
@@ -2063,9 +2218,9 @@ export default function AdminApp({
   function getContentItemRequestParams(cursor?: string) {
     return {
       sourceId: contentSourceFilter === "all" ? undefined : contentSourceFilter,
-      category: isAllCategoryValue(contentCategoryFilter)
+      category: isAllCategoryValue(effectiveContentCategory)
         ? undefined
-        : normalizeAdminCategoryValue(contentCategoryFilter),
+        : normalizeAdminCategoryValue(effectiveContentCategory),
       query: debouncedContentSearch.trim() || undefined,
       sort: contentSortMode,
       limit: CONTENT_ITEM_PAGE_SIZE,
@@ -2183,13 +2338,7 @@ export default function AdminApp({
   }
 
   function getTelegramPushRequestParams(cursor?: string) {
-    const sourceType: TelegramResourceType | undefined = telegramPushCategory === TELEGRAM_PUSH_TOOL_FILTER
-      ? "tool"
-      : telegramPushCategory === TELEGRAM_PUSH_ARTICLE_FILTER
-        ? "article"
-        : telegramPushCategory === TELEGRAM_PUSH_CONTENT_FILTER
-          ? "content"
-          : undefined;
+    const sourceType = getTelegramPushFilterResourceType(telegramPushCategory);
     return {
       cursor,
       limit: TELEGRAM_PUSH_PAGE_SIZE,
@@ -2350,6 +2499,50 @@ export default function AdminApp({
     setTelegramSettingsLoading(false);
   }
 
+  async function refreshAdminAiSettings() {
+    if (!token) return;
+
+    const requestId = ++adminAiSettingsLoadRequestRef.current;
+    adminAiSettingsLoadAbortRef.current?.abort();
+    const controller = new AbortController();
+    adminAiSettingsLoadAbortRef.current = controller;
+    setAdminAiSettingsLoading(true);
+    setAdminAiSettingsLoadError(null);
+
+    try {
+      const settings = await loadAdminAiSettings(token, {
+        signal: controller.signal
+      });
+      if (adminAiSettingsLoadRequestRef.current !== requestId) return;
+      setAdminAiSettings(settings);
+    } catch (error) {
+      if (
+        adminAiSettingsLoadRequestRef.current === requestId &&
+        !controller.signal.aborted
+      ) {
+        setAdminAiSettings({
+          available: false,
+          enabled: false,
+          model: ADMIN_AI_MODELS[0]
+        });
+        setAdminAiSettingsLoadError(error);
+      }
+    } finally {
+      if (adminAiSettingsLoadRequestRef.current === requestId) {
+        setAdminAiSettingsLoading(false);
+        if (adminAiSettingsLoadAbortRef.current === controller) {
+          adminAiSettingsLoadAbortRef.current = null;
+        }
+      }
+    }
+  }
+
+  function applyAdminAiSettings(settings: AdminAiSettings) {
+    setAdminAiSettings(settings);
+    setAdminAiSettingsLoadError(null);
+    setAdminAiSettingsLoading(false);
+  }
+
   useEffect(() => {
     if (!token) {
       writeActionLocksRef.current.clear();
@@ -2399,6 +2592,13 @@ export default function AdminApp({
       setTelegramSettings({ available: false, enabled: false, target: "", footerMarkdown: "" });
       setTelegramSettingsLoading(false);
       setTelegramSettingsLoadError(null);
+      setAdminAiSettings({
+        available: false,
+        enabled: false,
+        model: ADMIN_AI_MODELS[0]
+      });
+      setAdminAiSettingsLoading(false);
+      setAdminAiSettingsLoadError(null);
       telegramPushRequestGenerationRef.current += 1;
       telegramPushNextCursorRef.current = null;
       telegramPushLoadingCursorRef.current = null;
@@ -2427,11 +2627,15 @@ export default function AdminApp({
     if (!token) return;
 
     void refreshTelegramSettings();
+    void refreshAdminAiSettings();
 
     return () => {
       telegramSettingsLoadAbortRef.current?.abort();
       telegramSettingsLoadAbortRef.current = null;
       telegramSettingsLoadRequestRef.current += 1;
+      adminAiSettingsLoadAbortRef.current?.abort();
+      adminAiSettingsLoadAbortRef.current = null;
+      adminAiSettingsLoadRequestRef.current += 1;
     };
   }, [token]);
 
@@ -2483,7 +2687,7 @@ export default function AdminApp({
   }, [
     token,
     adminView,
-    contentCategoryFilter,
+    effectiveContentCategory,
     contentSourceFilter,
     debouncedContentSearch,
     contentSortMode
@@ -2669,7 +2873,7 @@ export default function AdminApp({
   }
 
   function toggleSidebar() {
-    if (window.matchMedia("(max-width: 920px)").matches) {
+    if (isMobileSidebarViewport) {
       if (mobileSidebarOpen) {
         closeMobileSidebar();
       } else {
@@ -2750,7 +2954,11 @@ export default function AdminApp({
 
   function closeTelegramMessageDialog() {
     if (telegramMessageSaving) return;
+    if (pendingTelegramUncertainRetry === "editor") {
+      setPendingTelegramUncertainRetry(null);
+    }
     telegramGitHub.reset();
+    setPendingTelegramSourceSync(false);
     setTelegramResource(null);
     setTelegramMessage(null);
     setIsCreatingTelegramPush(false);
@@ -2769,7 +2977,7 @@ export default function AdminApp({
     setTelegramMessageErrorCode("");
   }
 
-  async function confirmPushTelegramRecord() {
+  async function confirmPushTelegramRecord(confirmUncertainRetry = false) {
     const record = pendingPushTelegramRecord;
     if (!record || isPushingTelegramRecord) return;
 
@@ -2793,14 +3001,21 @@ export default function AdminApp({
         {
           category: record.resource?.category ?? "",
           title: record.title,
-          resource: record.resource ?? undefined
+          resource: record.resource ?? undefined,
+          confirmUncertainRetry
         }
       );
       setStatus(telegramText.sent);
+      setPendingTelegramUncertainRetry(null);
       setPendingPushTelegramRecord(null);
       void refreshTelegramPushRecords();
     } catch (error) {
-      setStatus(getLocalizedErrorMessage(error, t));
+      if (isTelegramPushUncertainError(error)) {
+        setPendingTelegramUncertainRetry("record");
+        setStatus("");
+      } else {
+        setStatus(getLocalizedErrorMessage(error, t));
+      }
     } finally {
       releaseWriteAction(actionKey);
       setIsPushingTelegramRecord(false);
@@ -2851,11 +3066,23 @@ export default function AdminApp({
   }
 
   async function openTelegramQuickPush(resource: TelegramPushResource) {
-    if (isWriteEntityLocked(getTelegramWriteEntityScope(resource.type), resource.id)) return;
+    if (telegramQuickLoading) return;
+    const actionKey = getAdminWriteEntityKey(
+      getTelegramWriteEntityScope(resource.type),
+      resource.id
+    );
+    if (!acquireWriteAction(actionKey)) return;
     const defaultCategory = getTelegramPushDefaultFilter(resource.type);
-    setTelegramQuickResource({ ...resource, category: defaultCategory });
+    const previewResource = { ...resource, category: defaultCategory };
+    setTelegramQuickResource(previewResource);
     setTelegramQuickCategory(defaultCategory);
-    setTelegramQuickMessage(null);
+    setTelegramQuickMessage(
+      createOptimisticTelegramMessage(
+        previewResource,
+        telegramSettings.footerMarkdown,
+        locale
+      )
+    );
     setTelegramQuickMode("published");
     setTelegramQuickLoading(true);
     setStatus("");
@@ -2873,17 +3100,21 @@ export default function AdminApp({
       setTelegramQuickResource(null);
     } finally {
       setTelegramQuickLoading(false);
+      releaseWriteAction(actionKey);
     }
   }
 
   function closeTelegramQuickPush() {
     if (telegramQuickSaving) return;
+    if (pendingTelegramUncertainRetry === "quick") {
+      setPendingTelegramUncertainRetry(null);
+    }
     setTelegramQuickResource(null);
     setTelegramQuickMessage(null);
     setTelegramQuickCategory("");
   }
 
-  async function confirmTelegramQuickPush() {
+  async function confirmTelegramQuickPush(confirmUncertainRetry = false) {
     const resource = telegramQuickResource;
     const message = telegramQuickMessage;
     if (!resource || !message || telegramQuickLoading || telegramQuickSaving) return;
@@ -2908,7 +3139,7 @@ export default function AdminApp({
           message.mediaUrl,
           locale,
           token,
-          { resource: pushResource, category: storedCategory }
+          { resource: pushResource, category: storedCategory, confirmUncertainRetry }
         );
         setStatus(telegramText.sent);
       } else {
@@ -2927,9 +3158,15 @@ export default function AdminApp({
       setTelegramQuickResource(null);
       setTelegramQuickMessage(null);
       setTelegramQuickCategory("");
+      setPendingTelegramUncertainRetry(null);
       if (adminView === "push") void refreshTelegramPushRecords();
     } catch (error) {
-      setStatus(getLocalizedErrorMessage(error, t));
+      if (isTelegramPushUncertainError(error)) {
+        setPendingTelegramUncertainRetry("quick");
+        setStatus("");
+      } else {
+        setStatus(getLocalizedErrorMessage(error, t));
+      }
     } finally {
       releaseWriteAction(actionKey);
       setTelegramQuickSaving(false);
@@ -2938,6 +3175,7 @@ export default function AdminApp({
 
   async function openTelegramMessageDialog(resource: TelegramPushResource) {
     if (isWriteEntityLocked(getTelegramWriteEntityScope(resource.type), resource.id)) return;
+    telegramGitHub.reset();
     setTelegramCustomTitle(resource.title);
     setTelegramDescription(resource.description);
     setTelegramUrl(resource.url);
@@ -2945,30 +3183,17 @@ export default function AdminApp({
     setTelegramImage(resource.image);
     setTelegramCategory(getTelegramDisplayCategory(resource.type, resource.category));
     setTelegramTagText(formatTagInputText(resource.tags));
-    const defaultBody = buildTelegramPreviewMarkdown(
+    const optimisticMessage = createOptimisticTelegramMessage(
       resource,
-      createDefaultTelegramBody(resource),
       telegramSettings.footerMarkdown,
       locale
     );
-    const defaultMediaUrl = createTelegramResourceMediaUrl(resource);
     setTelegramResource(resource);
     setIsCreatingTelegramPush(false);
-    setTelegramMessage({
-      exists: false,
-      targetChanged: false,
-      syncStatus: "not_pushed",
-      bodyMarkdown: defaultBody,
-      mediaEnabled: false,
-      mediaUrl: defaultMediaUrl,
-      defaultBodyMarkdown: defaultBody,
-      defaultMediaUrl,
-      resource,
-      resourceExists: true
-    });
-    setTelegramBodyMarkdown(defaultBody);
+    setTelegramMessage(optimisticMessage);
+    setTelegramBodyMarkdown(optimisticMessage.bodyMarkdown);
     setTelegramMediaEnabled(false);
-    setTelegramMediaUrl(defaultMediaUrl);
+    setTelegramMediaUrl(optimisticMessage.mediaUrl);
     setTelegramMarkdownEditorMode(undefined);
     setTelegramMessageLoading(true);
     setTelegramMessageErrorCode("");
@@ -3052,7 +3277,7 @@ export default function AdminApp({
       !telegramBodyMarkdown.trim() ||
       telegramCustomTitleMissing ||
       !telegramMediaValid ||
-      telegramPreviewLength > TELEGRAM_MESSAGE_LIMIT
+      telegramPreviewLength > telegramContentLimit
     ) {
       return;
     }
@@ -3104,7 +3329,7 @@ export default function AdminApp({
     }
   }
 
-  async function submitTelegramMessage() {
+  async function submitTelegramMessage(confirmUncertainRetry = false) {
     if (
       !telegramResource ||
       !telegramMessage ||
@@ -3112,7 +3337,7 @@ export default function AdminApp({
       telegramMessageSaving ||
       telegramCustomTitleMissing ||
       !telegramMediaValid ||
-      telegramPreviewLength > TELEGRAM_MESSAGE_LIMIT
+      telegramPreviewLength > telegramContentLimit
     ) {
       return;
     }
@@ -3152,7 +3377,8 @@ export default function AdminApp({
             {
               category: getTelegramStoredCategory(telegramCategory),
               title: telegramCustomTitle,
-              resource: telegramEditedResource ?? undefined
+              resource: telegramEditedResource ?? undefined,
+              confirmUncertainRetry
             }
           );
       setTelegramMessage(message);
@@ -3173,13 +3399,33 @@ export default function AdminApp({
       setTelegramBodyMarkdown("");
       setTelegramMediaEnabled(false);
       setTelegramMediaUrl("");
+      setPendingTelegramUncertainRetry(null);
     } catch (error) {
-      const errorCode = getTelegramMessageErrorCode(error);
-      setTelegramMessageErrorCode(errorCode);
-      setStatus(errorCode ? "" : getLocalizedErrorMessage(error, t));
+      if (!telegramMessage.exists && isTelegramPushUncertainError(error)) {
+        setTelegramMessageErrorCode("");
+        setPendingTelegramUncertainRetry("editor");
+        setStatus("");
+      } else {
+        const errorCode = getTelegramMessageErrorCode(error);
+        setTelegramMessageErrorCode(errorCode);
+        setStatus(errorCode ? "" : getLocalizedErrorMessage(error, t));
+      }
     } finally {
       releaseWriteAction(actionKey);
       setTelegramMessageSaving(false);
+    }
+  }
+
+  function confirmTelegramUncertainRetry() {
+    const context = pendingTelegramUncertainRetry;
+    if (!context) return;
+    setPendingTelegramUncertainRetry(null);
+    if (context === "record") {
+      void confirmPushTelegramRecord(true);
+    } else if (context === "quick") {
+      void confirmTelegramQuickPush(true);
+    } else {
+      void submitTelegramMessage(true);
     }
   }
 
@@ -3195,7 +3441,7 @@ export default function AdminApp({
       !telegramBodyMarkdown.trim() ||
       telegramCustomTitleMissing ||
       !telegramMediaValid ||
-      telegramPreviewLength > TELEGRAM_MESSAGE_LIMIT
+      telegramPreviewLength > telegramContentLimit
     ) {
       return;
     }
@@ -3236,6 +3482,7 @@ export default function AdminApp({
 
   function closeArticleEditor() {
     articleEditorLoadRequestRef.current += 1;
+    setPendingAiDocumentImport(null);
     setArticleFormOpen(false);
   }
 
@@ -3253,8 +3500,12 @@ export default function AdminApp({
   }
 
   function closeContentConvertDialog() {
+    contentConvertPreviewRequestRef.current += 1;
     setPendingConvertItem(null);
     setConvertArticleCategory("");
+    setConvertArticlePreview(null);
+    setConvertArticlePreviewLoading(false);
+    setConvertArticlePreviewError("");
     setConvertPublishMode("published");
   }
 
@@ -3414,6 +3665,7 @@ export default function AdminApp({
     contentPreviewRequestRef.current += 1;
     contentPreviewAbortRef.current?.abort();
     contentPreviewAbortRef.current = null;
+    contentPreviewAppliedTitleRef.current = "";
     setIsContentPreviewing(false);
     setContentPreview(null);
   }
@@ -3447,14 +3699,14 @@ export default function AdminApp({
       setContentPreview(preview);
       setStatus(contentText.previewLoaded(preview.items.length));
 
-      setContentSourceForm((current) =>
-        current.title.trim()
-          ? current
-          : {
-              ...current,
-              title: preview.title
-            }
-      );
+      setContentSourceForm((current) => {
+        if (current.title.trim()) {
+          contentPreviewAppliedTitleRef.current = "";
+          return current;
+        }
+        contentPreviewAppliedTitleRef.current = preview.title;
+        return { ...current, title: preview.title };
+      });
 
       window.requestAnimationFrame(() => {
         if (contentPreviewRequestRef.current === requestId) {
@@ -3509,6 +3761,13 @@ export default function AdminApp({
         ? await updateContentSource(editingContentSource.id, payload, token)
         : await createContentSource(payload, token);
 
+      if (!editingContentSource) {
+        setContentSources((current) => [
+          savedSource,
+          ...current.filter((source) => source.id !== savedSource.id)
+        ]);
+        contentSourcesLoadedRef.current = true;
+      }
       requestContentSourceEditorClose();
 
       if (!editingContentSource) {
@@ -3536,25 +3795,60 @@ export default function AdminApp({
     }
   }
 
-  async function handleSyncContentSource(source: ContentSource) {
-    const actionKey = getAdminWriteEntityKey("content-source", source.id);
-    if (!acquireWriteAction(actionKey)) return;
-    if (!source.category.trim()) {
+  async function handleSyncContentSources(sources: ContentSource[]) {
+    const targets = sources.filter((source) => source.category.trim());
+    if (sources.length && !targets.length) {
       setStatus(contentText.categoryRequired);
-      releaseWriteAction(actionKey);
       return;
     }
+
+    const actionKeys = targets
+      .map((source) => getAdminWriteEntityKey("content-source", source.id))
+      .filter((key) => acquireWriteAction(key));
+    if (!actionKeys.length) return;
 
     setStatus("");
 
     try {
-      const result = await syncContentSource(source.id, token);
-      setStatus(contentText.synced(result.imported, result.updated));
+      const results = await Promise.allSettled(
+        targets
+          .filter((source) =>
+            actionKeys.includes(getAdminWriteEntityKey("content-source", source.id))
+          )
+          .map((source) => syncContentSource(source.id, token))
+      );
+      const succeeded = results.filter(
+        (result): result is PromiseFulfilledResult<ContentSyncResponse> =>
+          result.status === "fulfilled"
+      );
+      const failed = results.length - succeeded.length;
+      const imported = succeeded.reduce((total, result) => total + result.value.imported, 0);
+      const updated = succeeded.reduce((total, result) => total + result.value.updated, 0);
+
+      if (!succeeded.length) {
+        const firstFailure = results.find(
+          (result): result is PromiseRejectedResult => result.status === "rejected"
+        );
+        setStatus(
+          getContentFeedErrorMessage(
+            firstFailure?.reason,
+            contentText,
+            t.status.saveFailed
+          )
+        );
+        return;
+      }
+
+      setStatus(
+        results.length === 1
+          ? contentText.synced(imported, updated)
+          : `${contentText.syncedCategory(succeeded.length, imported, updated)}${
+              failed ? ` ${contentText.syncedCategoryPartial(failed)}` : ""
+            }`
+      );
       await refreshAfterMutation(() => refreshContent());
-    } catch (error) {
-      setStatus(getContentFeedErrorMessage(error, contentText, t.status.saveFailed));
     } finally {
-      releaseWriteAction(actionKey);
+      for (const key of actionKeys) releaseWriteAction(key);
     }
   }
 
@@ -3618,6 +3912,9 @@ export default function AdminApp({
       await deleteContentSource(source.id, token);
       setStatus(contentText.deleted);
       setPendingDeleteContentSource(null);
+      setContentSources((current) =>
+        current.filter((item) => item.id !== source.id)
+      );
       setContentSourceFilter((current) => (current === source.id ? "all" : current));
       await refreshAfterMutation(() => refreshContent());
       return true;
@@ -3650,7 +3947,7 @@ export default function AdminApp({
     }
   }
 
-  function openConvertContentItem(item: ContentItemSummary) {
+  async function openConvertContentItem(item: ContentItemSummary) {
     if (isWriteEntityLocked("content-item", item.id)) {
       return;
     }
@@ -3669,9 +3966,29 @@ export default function AdminApp({
 
     setPendingConvertItem(item);
     setConvertArticleCategory(initialCategory);
+    setConvertArticlePreview(null);
+    setConvertArticlePreviewError("");
+    setConvertArticlePreviewLoading(true);
     setConvertPublishMode(
       item.articleId && item.articlePublished === false ? "draft" : "published"
     );
+
+    const requestId = contentConvertPreviewRequestRef.current + 1;
+    contentConvertPreviewRequestRef.current = requestId;
+    try {
+      const preview = await loadContentItemArticlePreview(item.id, token);
+      if (contentConvertPreviewRequestRef.current === requestId) {
+        setConvertArticlePreview(preview);
+      }
+    } catch (error) {
+      if (contentConvertPreviewRequestRef.current === requestId) {
+        setConvertArticlePreviewError(getLocalizedErrorMessage(error, t));
+      }
+    } finally {
+      if (contentConvertPreviewRequestRef.current === requestId) {
+        setConvertArticlePreviewLoading(false);
+      }
+    }
   }
 
   async function handleConvertContentItem(
@@ -3799,8 +4116,7 @@ export default function AdminApp({
       <div className="admin-shell auth-shell">
         <section className="auth-card">
           <div className="auth-card-actions">
-            <button
-              className="auth-home-brand"
+            <button className="auth-home-brand"
               type="button"
               onClick={onBackHome}
               aria-label={`${t.actions.backHome}: ${siteName}`}
@@ -3847,8 +4163,7 @@ export default function AdminApp({
                 siteKey={authConfig.turnstileSiteKey}
               />
             ) : null}
-            <button
-              className="primary-button wide"
+            <button className="primary-button wide"
               disabled={isLoggingIn || !authConfig}
               type="submit"
             >
@@ -3863,6 +4178,131 @@ export default function AdminApp({
   const pendingCategoryIsAll = pendingCategoryAction
     ? isAllCategoryValue(pendingCategoryAction.category)
     : false;
+  const pendingCategoryIsPushSource = pendingCategoryAction?.scope === "push" &&
+    isTelegramPushSourceFilter(pendingCategoryAction.category);
+  const pendingCategoryIsBulkClear = pendingCategoryIsAll || pendingCategoryIsPushSource;
+  const pendingCategoryPushScopeLabel = pendingCategoryAction?.scope === "push"
+    ? pendingCategoryIsPushSource
+      ? categoryText.pushSourceScopeLabel(
+          getTelegramPushCategoryLabel(pendingCategoryAction.category, telegramText, t)
+        )
+      : categoryText.scopeLabel("push")
+    : "";
+  const sidebarToggleLabel = isMobileSidebarViewport
+    ? mobileSidebarOpen
+      ? t.actions.close
+      : t.admin.expandSidebar
+    : sidebarCollapsed
+      ? t.admin.expandSidebar
+      : t.admin.collapseSidebar;
+  const telegramResourceUrlField = telegramResource && telegramResource.type !== "content" ? (
+    <AdminUrlField
+      disabled={telegramMessageLoading || telegramMessageSaving}
+      inputAside={
+        telegramResource.type === "tool" || telegramResource.type === "custom" ? (
+          <AdminGitHubMetadataButton
+            disabled={telegramGitHub.loading}
+            label={t.form.githubMetadata}
+            mobileLabel={locale === "zh" ? "仓库" : "Repo"}
+            onClick={() =>
+              void telegramGitHub.load(telegramUrl, {
+                force: true,
+                apply: true,
+                notify: true,
+                overwrite: true
+              })
+            }
+            onUnavailable={() => setStatus(t.form.githubMetadataUnavailable)}
+            unavailable={!telegramGitHub.canLoad}
+            unavailableTitle={t.form.githubMetadataUnavailable}
+          />
+        ) : undefined
+      }
+      label={
+        telegramResource.type === "article"
+          ? (locale === "zh" ? "文章地址" : "Article URL")
+          : t.form.url
+      }
+      onChange={(url) => {
+        if (url !== telegramUrl) telegramGitHub.reset(url);
+        setTelegramUrl(url);
+        setTelegramBodyMarkdown((current) =>
+          syncTelegramBodyField(
+            current,
+            { url, resourceType: telegramResource.type },
+            telegramSettings.footerMarkdown,
+            locale
+          )
+        );
+      }}
+      placeholder={
+        telegramResource.type === "article"
+          ? telegramText.articleUrlPlaceholder
+          : t.form.urlPlaceholder
+      }
+      value={telegramUrl}
+    />
+  ) : null;
+  const telegramContentOriginalUrlField = telegramResource?.type === "content" ? (
+    <AdminUrlField
+      disabled={telegramMessageLoading || telegramMessageSaving}
+      label={telegramText.contentOriginalUrlLabel}
+      onChange={(demoUrl) => {
+        setTelegramDemoUrl(demoUrl);
+        setTelegramBodyMarkdown((current) =>
+          syncTelegramBodyField(
+            current,
+            { demoUrl, resourceType: telegramResource.type },
+            telegramSettings.footerMarkdown,
+            locale
+          )
+        );
+      }}
+      placeholder={telegramText.contentOriginalUrlPlaceholder}
+      value={telegramDemoUrl}
+    />
+  ) : null;
+  const telegramMediaUrlField = telegramResource ? (
+    <AdminUrlField
+      className="telegram-media-url-field"
+      disabled={telegramMessageLoading || telegramMessageSaving}
+      help={telegramText.mediaHelp}
+      titleAside={
+        <SettingsStatusBadge
+          disabled={telegramMessageLoading || telegramMessageSaving}
+          disabledLabel={telegramText.mediaDisabled}
+          enabled={telegramMediaEnabled}
+          enabledLabel={telegramText.mediaEnabled}
+          onChange={handleTelegramMediaEnabledChange}
+        />
+      }
+      inputAside={
+        <AdminImageUploadButton
+          disabled={telegramMessageLoading || telegramMessageSaving}
+          label={t.form.imageUpload}
+          mobileLabel={locale === "zh" ? "上传" : "Upload"}
+          onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+          onUploaded={(url) => {
+            setTelegramMediaUrl(url);
+            setStatus(t.form.imageUploadSuccess);
+          }}
+          token={token}
+        />
+      }
+      id="telegram-media-url"
+      label={telegramText.mediaUrlLabel}
+      maxLength={2048}
+      onChange={setTelegramMediaUrl}
+      placeholder={telegramText.mediaUrlPlaceholder}
+      value={telegramMediaUrl}
+    >
+      {!telegramMediaValid ? (
+        <p className="telegram-media-error" role="alert">
+          {telegramText.mediaInvalid}
+        </p>
+      ) : null}
+    </AdminUrlField>
+  ) : null;
 
   return (
     <div
@@ -3879,8 +4319,7 @@ export default function AdminApp({
           <button className="admin-brand" type="button" onClick={onBackHome}>
             <SiteBrandIdentity markClassName="compact-mark" showSubtitle />
           </button>
-          <button
-            ref={mobileSidebarCloseRef}
+          <button ref={mobileSidebarCloseRef}
             className="admin-mobile-sidebar-close"
             type="button"
             aria-label={t.actions.close}
@@ -3892,58 +4331,51 @@ export default function AdminApp({
 
         <nav className="admin-sidebar-nav" aria-label={t.admin.dashboard}>
           <span className="admin-sidebar-section">{t.admin.platform}</span>
-          <button
-            className={adminView === "tools" ? "is-active" : ""}
+          <button className={adminView === "tools" ? "is-active" : ""}
             type="button"
             onClick={() => selectAdminView("tools")}
           >
             <Wrench size={18} />
             <span>{t.admin.toolLibrary}</span>
           </button>
-          <button
-            className={adminView === "articles" ? "is-active" : ""}
+          <button className={adminView === "articles" ? "is-active" : ""}
             type="button"
             onClick={() => selectAdminView("articles")}
           >
             <FileText size={18} />
             <span>{articleText.adminNav}</span>
           </button>
-          <button
-            className={adminView === "push" ? "is-active" : ""}
-            type="button"
-            onClick={() => selectAdminView("push")}
-          >
-            <Send size={18} />
-            <span>{telegramText.management.nav}</span>
-          </button>
-          <button
-            className={adminView === "content" ? "is-active" : ""}
+          <button className={adminView === "content" ? "is-active" : ""}
             type="button"
             onClick={() => selectAdminView("content")}
           >
             <Rss size={18} />
             <span>{contentText.nav}</span>
           </button>
+          <button className={adminView === "push" ? "is-active" : ""}
+            type="button"
+            onClick={() => selectAdminView("push")}
+          >
+            <Send size={18} />
+            <span>{telegramText.management.nav}</span>
+          </button>
 
           <span className="admin-sidebar-section">{t.admin.settings}</span>
-          <button
-            className={adminView === "import-export" ? "is-active" : ""}
+          <button className={adminView === "import-export" ? "is-active" : ""}
             type="button"
             onClick={() => selectAdminView("import-export")}
           >
             <ArrowRightLeft size={18} />
             <span>{maintenanceText.importExportTab}</span>
           </button>
-          <button
-            className={adminView === "link-check" ? "is-active" : ""}
+          <button className={adminView === "link-check" ? "is-active" : ""}
             type="button"
             onClick={() => selectAdminView("link-check")}
           >
             <ShieldCheck size={18} />
             <span>{maintenanceText.linkCheckTab}</span>
           </button>
-          <button
-            className={adminView === "system" ? "is-active" : ""}
+          <button className={adminView === "system" ? "is-active" : ""}
             type="button"
             onClick={() => selectAdminView("system")}
           >
@@ -3966,24 +4398,23 @@ export default function AdminApp({
             themeMode={themeMode}
           />
 
-          <button
-            className="admin-user-card"
-            type="button"
-            onClick={handleLogout}
-            aria-label={t.actions.logout}
-          >
+          <div className="admin-user-card">
             <span className="admin-user-card-copy">
               <strong>{t.admin.rootUser}</strong>
               <small>{t.admin.directoryService}</small>
             </span>
-            <span className="icon-button" aria-hidden="true">
-              <LogOut size={17} />
-            </span>
-          </button>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={handleLogout}
+              aria-label={t.actions.logout}
+            >
+              <LogOut aria-hidden="true" size={17} />
+            </button>
+          </div>
         </div>
       </aside>
-      <button
-        className="admin-mobile-sidebar-overlay"
+      <button className="admin-mobile-sidebar-overlay"
         type="button"
         aria-label={t.actions.close}
         onClick={closeMobileSidebar}
@@ -3992,14 +4423,14 @@ export default function AdminApp({
       <main className="admin-main">
         <header className="admin-topbar">
           <div className="admin-breadcrumb">
-            <button
-              ref={sidebarToggleRef}
+            <button ref={sidebarToggleRef}
               className={`admin-sidebar-toggle ${sidebarAnimating ? "is-toggling" : ""}`}
               type="button"
-              aria-label={
-                sidebarCollapsed ? t.admin.expandSidebar : t.admin.collapseSidebar
+              aria-expanded={
+                isMobileSidebarViewport ? mobileSidebarOpen : !sidebarCollapsed
               }
-              title={sidebarCollapsed ? t.admin.expandSidebar : t.admin.collapseSidebar}
+              aria-label={sidebarToggleLabel}
+              title={sidebarToggleLabel}
               onClick={toggleSidebar}
             >
               <PanelLeft size={18} />
@@ -4018,8 +4449,7 @@ export default function AdminApp({
             ) : null}
             {adminView === "tools" ? (
               <div className="admin-command-row">
-                <button
-                  className="ghost-button admin-create-button"
+                <button className="ghost-button admin-create-button"
                   type="button"
                   onClick={openCreate}
                 >
@@ -4034,8 +4464,7 @@ export default function AdminApp({
             ) : null}
             {adminView === "articles" ? (
               <div className="admin-command-row">
-                <button
-                  className="ghost-button admin-create-button"
+                <button className="ghost-button admin-create-button"
                   type="button"
                   onClick={openCreateArticle}
                 >
@@ -4054,8 +4483,7 @@ export default function AdminApp({
             ) : null}
             {adminView === "content" ? (
               <div className="admin-command-row">
-                <button
-                  className="ghost-button admin-create-button"
+                <button className="ghost-button admin-create-button"
                   type="button"
                   onClick={openCreateContentSource}
                 >
@@ -4074,8 +4502,7 @@ export default function AdminApp({
             ) : null}
             {adminView === "push" ? (
               <div className="admin-command-row">
-                <button
-                  className="ghost-button admin-create-button"
+                <button className="ghost-button admin-create-button"
                   disabled={!telegramSettings.enabled}
                   type="button"
                   onClick={openCreateTelegramPush}
@@ -4189,6 +4616,7 @@ export default function AdminApp({
                   }
                   onChange={(category) => {
                     setContentCategoryFilter(category);
+                    setContentRailCategory(null);
                     setContentSourceFilter("all");
                     void rememberAdminCategory("content", category);
                   }}
@@ -4201,6 +4629,7 @@ export default function AdminApp({
               <AdminFilterBar
                 categoryControl={<AdminCategoryFilter
                   allLabel={categoryText.pushLabel}
+                  deletableFixedCategories={TELEGRAM_PUSH_FIXED_FILTERS}
                   fixedCategories={TELEGRAM_PUSH_FIXED_FILTERS}
                   categories={pushFilterCategories}
                   categoryText={categoryText}
@@ -4359,9 +4788,7 @@ export default function AdminApp({
                 </section>
                 {adminArticlesHasMore ? (
                   <div className="content-flow-load-more">
-                    <button
-                      className="ghost-button"
-                      disabled={isLoadingMoreArticles}
+                    <button className="ghost-button" disabled={isLoadingMoreArticles}
                       type="button"
                       onClick={() => void loadMoreAdminArticles()}
                     >
@@ -4403,12 +4830,14 @@ export default function AdminApp({
             <AdminContentFlowPanel
               contentSourceCounts={contentSourceCounts}
               clearFiltersLabel={t.actions.clearFilters}
+              categoryOrder={contentFilterCategories}
+              contentCategoryFilter={effectiveContentCategory}
               contentSourceFilter={contentSourceFilter}
-              contentSources={visibleContentSources}
+              contentSources={contentSources}
               contentText={contentText}
               contentCategoryItemCount={contentItemsTotal}
               hasActiveFilter={
-                !isAllCategoryValue(contentCategoryFilter) ||
+                !isAllCategoryValue(effectiveContentCategory) ||
                 contentSourceFilter !== "all" ||
                 Boolean(contentSearch.trim())
               }
@@ -4418,6 +4847,7 @@ export default function AdminApp({
               loadError={contentLoadError}
               isLoadingContent={isLoadingContent}
               isLoadingMoreContent={isLoadingMoreContent}
+              locale={locale}
               hasMoreContent={contentItemsHasMore}
               onConvertItem={openConvertContentItem}
               onTelegram={(item) =>
@@ -4431,22 +4861,31 @@ export default function AdminApp({
                 }
               }}
               onEditSource={openEditContentSource}
-              onSelectSource={setContentSourceFilter}
-              onSyncSource={(source) => void handleSyncContentSource(source)}
+              onSelectScope={({ category, sourceId }) => {
+                const normalized = normalizeAdminCategoryValue(category);
+                setContentRailCategory(
+                  isAllCategoryValue(normalized) || !normalized ? null : normalized
+                );
+                setContentSourceFilter(sourceId);
+              }}
+              onSyncSources={(sources) => void handleSyncContentSources(sources)}
               onLoadMore={() => void loadMoreContentItems()}
               onRetry={() => void refreshContent()}
               onClearFilters={() => {
                 setContentCategoryFilter("All");
+                setContentRailCategory(null);
                 setContentSourceFilter("all");
                 setContentSearch("");
                 setDebouncedContentSearch("");
               }}
               proxySettings={proxySettings}
+              readerEnabled={isContentReaderViewport}
               onAddSource={openCreateContentSource}
               showSkeletons={showAdminContentSkeletons}
               t={t}
               telegramEnabled={telegramSettings.enabled}
               telegramText={telegramText}
+              token={token}
               visibleContentItems={visibleContentItems}
               writeLockedEntityKeys={writeLockedEntityKeys}
             />
@@ -4527,6 +4966,11 @@ export default function AdminApp({
                 ]);
               }}
               onSiteSettingsChange={onSiteSettingsChange}
+              adminAiSettings={adminAiSettings}
+              adminAiSettingsLoadError={adminAiSettingsLoadError}
+              adminAiSettingsLoading={adminAiSettingsLoading}
+              onAdminAiSettingsChange={applyAdminAiSettings}
+              onReloadAdminAiSettings={refreshAdminAiSettings}
               onTelegramSettingsChange={applyTelegramSettings}
               onUmamiSettingsChange={onUmamiSettingsChange}
               onReloadTelegramSettings={refreshTelegramSettings}
@@ -4547,7 +4991,7 @@ export default function AdminApp({
         </div>
       </main>
 
-      {telegramQuickResource ? (
+      {telegramQuickResource && !telegramQuickLoading ? (
         <Dialog
           closeDisabled={telegramQuickSaving}
           closeLabel={t.actions.close}
@@ -4558,7 +5002,7 @@ export default function AdminApp({
           }
           descriptionId="telegram-quick-push-description"
           onClose={closeTelegramQuickPush}
-          panelClassName="tool-editor-dialog"
+          panelClassName="tool-editor-dialog admin-tool-editor-dialog"
           title={telegramText.title}
           footer={
             <AdminDialogActions
@@ -4586,10 +5030,10 @@ export default function AdminApp({
           }
         >
           <div className="tool-form article-form">
-            {!telegramQuickLoading && !telegramQuickMessage?.exists ? (
+            {!telegramQuickMessage?.exists ? (
               <>
                 <PublishModeField
-                  disabled={telegramQuickSaving}
+                  disabled={telegramQuickLoading || telegramQuickSaving}
                   draftLabel={telegramText.quickPush.draftLabel}
                   label={telegramText.quickPush.modeLabel}
                   onChange={setTelegramQuickMode}
@@ -4609,6 +5053,7 @@ export default function AdminApp({
                     ])}
                     categoryText={categoryText}
                     className="tool-form-category-filter"
+                    disabled={telegramQuickLoading || telegramQuickSaving}
                     fixedCategories={[
                       getTelegramPushDefaultFilter(telegramQuickResource.type)
                     ]}
@@ -4631,8 +5076,8 @@ export default function AdminApp({
             ) : null}
             <div className="tool-form-field telegram-message-preview-field">
               <span className="tool-form-label">{telegramText.previewTitle}</span>
-              <section className="tool-github-detail-card telegram-message-preview">
-                {telegramQuickMessage ? (
+              <section className="telegram-message-preview">
+                {!telegramQuickLoading && telegramQuickMessage ? (
                   <TelegramMessagePreview
                     content={telegramQuickMessage.bodyMarkdown}
                     mediaEnabled={telegramQuickMessage.mediaEnabled}
@@ -4642,10 +5087,13 @@ export default function AdminApp({
                     resource={telegramQuickResource}
                   />
                 ) : (
-                  <div className="tool-github-detail-placeholder">
-                    <Send size={16} />
-                    <span>{telegramText.loading}</span>
-                  </div>
+                  <AdminDetailPlaceholder
+                    className="telegram-channel-preview-message"
+                    icon={<Send size={16} />}
+                    role="status"
+                  >
+                    {telegramText.loading}
+                  </AdminDetailPlaceholder>
                 )}
               </section>
             </div>
@@ -4665,12 +5113,32 @@ export default function AdminApp({
           }
           descriptionId="telegram-message-dialog-description"
           onClose={closeTelegramMessageDialog}
-          panelClassName="tool-editor-dialog telegram-message-dialog"
+          panelClassName="tool-editor-dialog admin-tool-editor-dialog telegram-message-dialog"
           footer={
             <>
-              <button
-                className="ghost-button"
-                disabled={
+              {telegramResource.type !== "custom" ? (
+                <button
+                  aria-busy={telegramSourceLoading || undefined}
+                  className="ghost-button"
+                  disabled={
+                    telegramMessageLoading ||
+                    telegramMessageSaving ||
+                    telegramSourceLoading
+                  }
+                  type="button"
+                  onClick={() => {
+                    if (telegramMessage?.resourceExists === false) {
+                      setStatus(telegramText.management.resourceDeleted);
+                      return;
+                    }
+                    setPendingTelegramSourceSync(true);
+                  }}
+                  title={telegramText.syncSourceHint}
+                >
+                  {telegramText.syncSource}
+                </button>
+              ) : null}
+              <button className="ghost-button" disabled={
                   telegramMessageLoading ||
                   telegramMessageSaving ||
                   !telegramMessage ||
@@ -4678,16 +5146,14 @@ export default function AdminApp({
                   !telegramBodyMarkdown.trim() ||
                   telegramCustomTitleMissing ||
                   !telegramMediaValid ||
-                  telegramPreviewLength > TELEGRAM_MESSAGE_LIMIT
+                  telegramPreviewLength > telegramContentLimit
                 }
                 type="button"
                 onClick={() => void saveTelegramMessageChanges()}
               >
                 {telegramText.save}
               </button>
-              <button
-                className="primary-button"
-                disabled={
+              <button className="primary-button" disabled={
                   telegramMessageLoading ||
                   telegramMessageSaving ||
                   !telegramMessage ||
@@ -4696,7 +5162,7 @@ export default function AdminApp({
                   !telegramBodyMarkdown.trim() ||
                   telegramCustomTitleMissing ||
                   !telegramMediaValid ||
-                  telegramPreviewLength > TELEGRAM_MESSAGE_LIMIT
+                  telegramPreviewLength > telegramContentLimit
                 }
                 type="button"
                 onClick={() => void submitTelegramMessage()}
@@ -4710,68 +5176,59 @@ export default function AdminApp({
             <div className="telegram-message-loading tool-form" role="status">
               <div className="tool-form-field telegram-message-preview-field is-placeholder">
                 <span className="tool-form-label">{telegramText.previewTitle}</span>
-                <section className="tool-github-detail-card telegram-message-preview">
-                  <div className="tool-github-detail-placeholder">
-                    <Send size={16} />
-                    <span>{telegramText.loading}</span>
-                  </div>
+                <section className="telegram-message-preview">
+                  <AdminDetailPlaceholder
+                    className="telegram-channel-preview-message"
+                    icon={<Send size={16} />}
+                  >
+                    {telegramText.loading}
+                  </AdminDetailPlaceholder>
                 </section>
               </div>
             </div>
           ) : (
             <>
-              <EditorTopActions>
-                {telegramResource.type === "custom" &&
-                isCreatingTelegramPush &&
-                telegramGitHub.canLoad ? (
-                  <AdminGitHubMetadataButton
-                    disabled={telegramGitHub.loading}
-                    label={t.form.githubMetadata}
-                    onClick={() =>
-                      void telegramGitHub.load(telegramUrl, {
-                        force: true,
-                        apply: true,
-                        notify: true,
-                        overwrite: true
-                      })
-                    }
-                  />
-                ) : null}
-                {telegramResource.type !== "custom" ? (
-                  <button
-                    className="ghost-button tool-editor-action-button"
-                    disabled={telegramMessageLoading || telegramMessageSaving || telegramSourceLoading}
-                    type="button"
-                    aria-label={telegramText.syncSourceHint}
-                    title={telegramText.syncSourceHint}
-                    onClick={() => void refreshTelegramSource()}
-                  >
-                    <RefreshCw size={16} />
-                    <span>{telegramText.syncSource}</span>
-                  </button>
-                ) : null}
-                <BooleanSegmentedToggle
-                  className="telegram-media-status-toggle"
-                  disabled={telegramMessageLoading || telegramMessageSaving}
-                  disabledLabel={telegramText.mediaDisabled}
-                  enabledLabel={telegramText.mediaEnabled}
-                  onChange={handleTelegramMediaEnabledChange}
-                  value={telegramMediaEnabled}
-                />
-              </EditorTopActions>
               <div className="telegram-message-editor tool-form">
+              {telegramResource.type === "tool" || telegramResource.type === "custom"
+                ? telegramResourceUrlField
+                : null}
               <AdminTextField
                 disabled={telegramMessageLoading || telegramMessageSaving}
-                headingAside={
-                  <span
-                    aria-busy={telegramMessageLoading}
-                    aria-live="polite"
-                    className={`telegram-message-heading-status source-card-status ${
-                      telegramMessageLoading ? "is-loading" : ""
-                    }`.trim()}
-                  >
-                    {telegramText.statuses[telegramMessage.syncStatus]}
-                  </span>
+                inputAside={
+                  <AdminAiAction
+                    available={adminAiSettings.available}
+                    disabled={telegramMessageLoading || telegramMessageSaving}
+                    disabledTitle={maintenanceText.aiEnableHint}
+                    enabled={adminAiSettings.enabled}
+                    input={{
+                      title: telegramCustomTitle,
+                      description: telegramDescription,
+                      bodyMarkdown: telegramBodyMarkdown,
+                      url: telegramUrl,
+                      demoUrl: telegramDemoUrl,
+                      category: telegramCategory,
+                      tags: parseArticleTagsInput(telegramTagText)
+                    }}
+                    label={maintenanceText.aiGeneratePushTitle}
+                    locale={locale}
+                    onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                    onResult={(result) => {
+                      if (result.title) {
+                        setTelegramCustomTitle(result.title);
+                        setTelegramBodyMarkdown((current) =>
+                          syncTelegramBodyField(
+                            current,
+                            { title: result.title },
+                            telegramSettings.footerMarkdown,
+                            locale
+                          )
+                        );
+                      }
+                      setStatus(getAiAppliedStatus(result));
+                    }}
+                    task="telegram_title"
+                    token={token}
+                  />
                 }
                 id="telegram-custom-title"
                 label={telegramText.customTitleLabel}
@@ -4787,11 +5244,47 @@ export default function AdminApp({
                     )
                   );
                 }}
-                placeholder={t.form.namePlaceholder}
+                placeholder={ADMIN_RESOURCE_FIELD_EXAMPLES[locale].adminName}
                 value={telegramCustomTitle}
               />
               <AdminTextareaField
                 disabled={telegramMessageLoading || telegramMessageSaving}
+                inputAside={
+                  <AdminAiAction
+                    available={adminAiSettings.available}
+                    disabled={telegramMessageLoading || telegramMessageSaving}
+                    disabledTitle={maintenanceText.aiEnableHint}
+                    enabled={adminAiSettings.enabled}
+                    input={{
+                      title: telegramCustomTitle,
+                      description: telegramDescription,
+                      bodyMarkdown: telegramBodyMarkdown,
+                      url: telegramUrl,
+                      demoUrl: telegramDemoUrl,
+                      category: telegramCategory,
+                      tags: parseArticleTagsInput(telegramTagText)
+                    }}
+                    label={maintenanceText.aiGenerateDescription}
+                    locale={locale}
+                    onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                    onResult={(result) => {
+                      if (result.description) {
+                        setTelegramDescription(result.description);
+                        setTelegramBodyMarkdown((current) =>
+                          syncTelegramBodyField(
+                            current,
+                            { description: result.description },
+                            telegramSettings.footerMarkdown,
+                            locale
+                          )
+                        );
+                      }
+                      setStatus(getAiAppliedStatus(result));
+                    }}
+                    task="telegram_description"
+                    token={token}
+                  />
+                }
                 label={t.form.description}
                 onChange={(description) => {
                   setTelegramDescription(description);
@@ -4804,65 +5297,69 @@ export default function AdminApp({
                     )
                   );
                 }}
-                placeholder={t.form.descriptionPlaceholder}
+                placeholder={ADMIN_RESOURCE_FIELD_EXAMPLES[locale].adminDescription}
                 rows={4}
                 value={telegramDescription}
               />
-              {telegramResource.type !== "content" ? (
+              {telegramContentOriginalUrlField}
+              {telegramResource.type === "article" ? telegramResourceUrlField : null}
+              {telegramResource.type === "tool" || telegramResource.type === "custom" ? (
                 <AdminUrlField
                   disabled={telegramMessageLoading || telegramMessageSaving}
-                  label={
-                    telegramResource.type === "article"
-                      ? (locale === "zh" ? "文章地址" : "Article URL")
-                      : t.form.url
-                  }
-                  onChange={(url) => {
-                    if (url !== telegramUrl) telegramGitHub.reset(url);
-                    setTelegramUrl(url);
+                  label={t.form.demoUrl}
+                  onChange={(demoUrl) => {
+                    setTelegramDemoUrl(demoUrl);
                     setTelegramBodyMarkdown((current) =>
                       syncTelegramBodyField(
                         current,
-                        { url, resourceType: telegramResource.type },
+                        { demoUrl, resourceType: telegramResource.type },
                         telegramSettings.footerMarkdown,
                         locale
                       )
                     );
                   }}
-                  placeholder={
-                    telegramResource.type === "article"
-                      ? telegramText.articleUrlPlaceholder
-                      : t.form.urlPlaceholder
-                  }
-                  value={telegramUrl}
+                  placeholder={t.form.demoUrlPlaceholder}
+                  value={telegramDemoUrl}
                 />
               ) : null}
-              <AdminUrlField
-                disabled={telegramMessageLoading || telegramMessageSaving}
-                label={
-                  telegramResource.type === "content"
-                    ? telegramText.contentOriginalUrlLabel
-                    : t.form.demoUrl
-                }
-                onChange={(demoUrl) => {
-                  setTelegramDemoUrl(demoUrl);
-                  setTelegramBodyMarkdown((current) =>
-                    syncTelegramBodyField(
-                      current,
-                      { demoUrl, resourceType: telegramResource.type },
-                      telegramSettings.footerMarkdown,
-                      locale
-                    )
-                  );
-                }}
-                placeholder={
-                  telegramResource.type === "content"
-                    ? telegramText.contentOriginalUrlPlaceholder
-                    : t.form.demoUrlPlaceholder
-                }
-                value={telegramDemoUrl}
-              />
               <AdminTagsField
                 disabled={telegramMessageLoading || telegramMessageSaving}
+                inputAside={
+                  <AdminAiAction
+                    available={adminAiSettings.available}
+                    disabled={telegramMessageLoading || telegramMessageSaving}
+                    disabledTitle={maintenanceText.aiEnableHint}
+                    enabled={adminAiSettings.enabled}
+                    input={{
+                      title: telegramCustomTitle,
+                      description: telegramDescription,
+                      bodyMarkdown: telegramBodyMarkdown,
+                      url: telegramUrl,
+                      demoUrl: telegramDemoUrl,
+                      category: telegramCategory,
+                      tags: parseArticleTagsInput(telegramTagText)
+                    }}
+                    label={maintenanceText.aiGenerateTags}
+                    locale={locale}
+                    onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                    onResult={(result) => {
+                      if (result.tags) {
+                        setTelegramTagText(formatTagInputText(result.tags));
+                        setTelegramBodyMarkdown((current) =>
+                          syncTelegramBodyField(
+                            current,
+                            { tags: result.tags },
+                            telegramSettings.footerMarkdown,
+                            locale
+                          )
+                        );
+                      }
+                      setStatus(getAiAppliedStatus(result));
+                    }}
+                    task="telegram_tags"
+                    token={token}
+                  />
+                }
                 label={t.form.tags}
                 onChange={(tagText) => {
                   setTelegramTagText(tagText);
@@ -4875,16 +5372,12 @@ export default function AdminApp({
                     )
                   );
                 }}
-                placeholder={t.form.tagsPlaceholder}
+                placeholder={ADMIN_RESOURCE_FIELD_EXAMPLES[locale].adminTags}
                 value={telegramTagText}
               />
-              <AdminUrlField
-                disabled={telegramMessageLoading || telegramMessageSaving}
-                label={t.form.image}
-                onChange={setTelegramImage}
-                placeholder={t.form.imagePlaceholder}
-                value={telegramImage}
-              />
+              {telegramResource.type === "article" || telegramResource.type === "content"
+                ? telegramMediaUrlField
+                : null}
               <div className="tool-form-field">
                 <span className="tool-form-label">{telegramText.categoryLabel}</span>
                 <AdminCategoryFilter
@@ -4908,18 +5401,6 @@ export default function AdminApp({
                   value={telegramCategory}
                 />
               </div>
-              <AdminGitHubMetadataCard
-                canLoad={
-                  telegramResource.type === "custom" &&
-                  isCreatingTelegramPush &&
-                  telegramGitHub.canLoad
-                }
-                detailText={githubMetadataDetailText}
-                failed={telegramGitHub.failed}
-                loading={telegramGitHub.loading}
-                metadata={telegramGitHub.metadata}
-                previewLoading={telegramGitHub.previewLoading}
-              />
               {telegramMessageErrorCode ? (
                 <div className="telegram-message-action-error" role="alert">
                   <p>
@@ -4931,15 +5412,13 @@ export default function AdminApp({
                   </p>
                   {telegramMessageErrorCode === "TELEGRAM_MESSAGE_NOT_FOUND" ||
                   telegramMessageErrorCode === "TELEGRAM_TARGET_CHANGED" ? (
-                    <button
-                      className="ghost-button"
-                      disabled={
+                    <button className="ghost-button" disabled={
                         telegramMessageSaving ||
                         telegramMessageLoading ||
                         !telegramBodyMarkdown.trim() ||
                         telegramCustomTitleMissing ||
                         !telegramMediaValid ||
-                        telegramPreviewLength > TELEGRAM_MESSAGE_LIMIT
+                        telegramPreviewLength > telegramContentLimit
                       }
                       type="button"
                       onClick={() => void recoverTelegramPush()}
@@ -4949,23 +5428,9 @@ export default function AdminApp({
                   ) : null}
                 </div>
               ) : null}
-              <AdminUrlField
-                className="telegram-media-url-field"
-                disabled={telegramMessageLoading || telegramMessageSaving}
-                id="telegram-media-url"
-                label={telegramText.mediaUrlLabel}
-                maxLength={2048}
-                onChange={setTelegramMediaUrl}
-                placeholder={telegramText.mediaUrlPlaceholder}
-                value={telegramMediaUrl}
-              >
-                <p className="telegram-media-help">{telegramText.mediaHelp}</p>
-                {!telegramMediaValid ? (
-                  <p className="telegram-media-error" role="alert">
-                    {telegramText.mediaInvalid}
-                  </p>
-                ) : null}
-              </AdminUrlField>
+              {telegramResource.type === "tool" || telegramResource.type === "custom"
+                ? telegramMediaUrlField
+                : null}
               <AdminMarkdownEditor
                 actions={TELEGRAM_MARKDOWN_EDITOR_ACTIONS}
                 className="telegram-message-body-field"
@@ -4973,7 +5438,7 @@ export default function AdminApp({
                 id="telegram-rich-markdown-body"
                 label={telegramText.bodyLabel}
                 locale={locale}
-                maxLength={TELEGRAM_MESSAGE_LIMIT}
+                maxLength={telegramContentLimit}
                 mode={telegramMarkdownEditorMode}
                 onChange={(value) => {
                   setTelegramBodyMarkdown(value);
@@ -4999,10 +5464,13 @@ export default function AdminApp({
                 onModeChange={setTelegramMarkdownEditorMode}
                 preview={
                   telegramMessageLoading ? (
-                    <div className="tool-github-detail-placeholder" role="status">
-                      <Send size={16} />
-                      <span>{telegramText.loading}</span>
-                    </div>
+                    <AdminDetailPlaceholder
+                      className="telegram-channel-preview-message"
+                      icon={<Send size={16} />}
+                      role="status"
+                    >
+                      {telegramText.loading}
+                    </AdminDetailPlaceholder>
                   ) : (
                     <TelegramMessagePreview
                       content={telegramPreviewMarkdown}
@@ -5021,10 +5489,24 @@ export default function AdminApp({
                 text={t.markdownEditor}
                 value={telegramBodyMarkdown}
               />
-              {telegramPreviewLength > TELEGRAM_MESSAGE_LIMIT ? (
+              {telegramPreviewLength > telegramContentLimit ? (
                 <div className="telegram-message-count" aria-live="polite">
-                  <span className="is-invalid">{telegramText.tooLong}</span>
+                  <span className="is-invalid">
+                    {telegramMediaEnabled
+                      ? telegramText.photoCaptionTooLong
+                      : telegramText.tooLong}
+                  </span>
                 </div>
+              ) : null}
+              {telegramResource.type === "custom" ? (
+                <AdminGitHubMetadataCard
+                  canLoad={telegramGitHub.canLoad}
+                  detailText={githubMetadataDetailText}
+                  failed={telegramGitHub.failed}
+                  loading={telegramGitHub.loading}
+                  metadata={telegramGitHub.metadata}
+                  previewLoading={telegramGitHub.previewLoading}
+                />
               ) : null}
               </div>
             </>
@@ -5040,14 +5522,7 @@ export default function AdminApp({
           title={telegramText.management.viewAction}
         >
           <div className="telegram-push-preview-dialog-body">
-            {!viewingTelegramPush.resourceExists ? (
-              <div className="telegram-push-preview-heading">
-                <span className="source-card-status">
-                  {telegramText.management.resourceDeleted}
-                </span>
-              </div>
-            ) : null}
-            <section className="tool-github-detail-card telegram-message-preview">
+            <section className="telegram-message-preview">
               <TelegramMessagePreview
                 content={viewingTelegramPush.messageMarkdown}
                 mediaEnabled={viewingTelegramPush.mediaEnabled}
@@ -5084,7 +5559,7 @@ export default function AdminApp({
           onClose={() => {
             closeToolEditor();
           }}
-          panelClassName="tool-editor-dialog"
+          panelClassName="tool-editor-dialog admin-tool-editor-dialog"
           footer={
             <AdminDialogActions
               disabled={isSaving}
@@ -5093,68 +5568,28 @@ export default function AdminApp({
             />
           }
         >
-          <EditorTopActions>
-            {canFillGitHubMetadata ? (
-              <AdminGitHubMetadataButton
-                disabled={toolGitHub.loading}
-                label={t.form.githubMetadata}
-                onClick={() =>
-                  void toolGitHub.load(form.url, {
-                    force: true,
-                    apply: true,
-                    notify: true,
-                    overwrite: true
-                  })
-                }
-              />
-            ) : null}
-            <BooleanSegmentedToggle
-              className="tool-featured-status-toggle"
-              disabledLabel={t.form.regularTool}
-              enabledLabel={t.form.featuredTool}
-              onChange={(nextFeatured) => {
-                setForm({ ...form, featured: nextFeatured });
-                setStatus(
-                  nextFeatured
-                    ? t.status.featuredDraftEnabled
-                    : t.status.featuredDraftDisabled
-                );
-              }}
-              value={form.featured}
-            />
-          </EditorTopActions>
-
           <form id="admin-tool-editor-form" className="tool-form" onSubmit={handleSave}>
-            <AdminTextField
-              label={t.form.name}
-              onBlurValue={moveGitHubUrlFromName}
-              onChange={(name) => setForm((current) => ({ ...current, name }))}
-              onPaste={(event) => {
-                  const pastedText = event.clipboardData.getData("text");
-
-                  if (moveGitHubUrlFromName(pastedText)) {
-                    event.preventDefault();
-                  }
-              }}
-              placeholder={t.form.namePlaceholder}
-              required
-              value={form.name}
-            />
-
-            <AdminTextareaField
-              label={t.form.description}
-              onChange={(description) =>
-                setForm((current) => ({ ...current, description }))
-              }
-              placeholder={t.form.descriptionPlaceholder}
-              required
-              rows={4}
-              value={form.description}
-            />
-
             <AdminUrlField
               className="tool-url-field"
               id="admin-tool-url"
+              inputAside={
+                <AdminGitHubMetadataButton
+                  disabled={toolGitHub.loading}
+                  label={t.form.githubMetadata}
+                  mobileLabel={locale === "zh" ? "仓库" : "Repo"}
+                  onClick={() =>
+                    void toolGitHub.load(form.url, {
+                      force: true,
+                      apply: true,
+                      notify: true,
+                      overwrite: true
+                    })
+                  }
+                  onUnavailable={() => setStatus(t.form.githubMetadataUnavailable)}
+                  unavailable={!canFillGitHubMetadata}
+                  unavailableTitle={t.form.githubMetadataUnavailable}
+                />
+              }
               label={t.form.url}
               onChange={(nextUrl) => {
                 if (nextUrl !== form.url) toolGitHub.reset(nextUrl);
@@ -5165,6 +5600,93 @@ export default function AdminApp({
               value={form.url}
             />
 
+            <AdminTextField
+              inputAside={
+                <AdminAiAction
+                  available={adminAiSettings.available}
+                  disabled={isSaving}
+                  disabledTitle={maintenanceText.aiEnableHint}
+                  enabled={adminAiSettings.enabled}
+                  input={{
+                    title: form.name,
+                    description: form.description,
+                    url: form.url,
+                    demoUrl: form.demoUrl,
+                    category: form.category,
+                    tags: form.tags
+                  }}
+                  label={maintenanceText.aiGenerateName}
+                  locale={locale}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onResult={(result) => {
+                    if (result.name) {
+                      setForm((current) => ({
+                        ...current,
+                        name: result.name ?? current.name
+                      }));
+                    }
+                    setStatus(getAiAppliedStatus(result));
+                  }}
+                  task="tool_name"
+                  token={token}
+                />
+              }
+              label={t.form.name}
+              onBlurValue={moveGitHubUrlFromName}
+              onChange={(name) => setForm((current) => ({ ...current, name }))}
+              onPaste={(event) => {
+                  const pastedText = event.clipboardData.getData("text");
+
+                  if (moveGitHubUrlFromName(pastedText)) {
+                    event.preventDefault();
+                  }
+              }}
+              placeholder={ADMIN_RESOURCE_FIELD_EXAMPLES[locale].adminName}
+              required
+              value={form.name}
+            />
+
+            <AdminTextareaField
+              inputAside={
+                <AdminAiAction
+                  available={adminAiSettings.available}
+                  disabled={isSaving}
+                  disabledTitle={maintenanceText.aiEnableHint}
+                  enabled={adminAiSettings.enabled}
+                  input={{
+                    title: form.name,
+                    description: form.description,
+                    url: form.url,
+                    demoUrl: form.demoUrl,
+                    category: form.category,
+                    tags: form.tags
+                  }}
+                  label={maintenanceText.aiGenerateDescription}
+                  locale={locale}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onResult={(result) => {
+                    if (result.description) {
+                      setForm((current) => ({
+                        ...current,
+                        description: result.description ?? current.description
+                      }));
+                    }
+                    setStatus(getAiAppliedStatus(result));
+                  }}
+                  task="tool_description"
+                  token={token}
+                />
+              }
+              label={t.form.description}
+              onChange={(description) =>
+                setForm((current) => ({ ...current, description }))
+              }
+              placeholder={ADMIN_RESOURCE_FIELD_EXAMPLES[locale].adminDescription}
+              required
+              rows={4}
+              value={form.description}
+            />
+
             <AdminUrlField
               label={t.form.demoUrl}
               onChange={(demoUrl) => setForm((current) => ({ ...current, demoUrl }))}
@@ -5173,13 +5695,51 @@ export default function AdminApp({
             />
 
             <AdminTagsField
+              inputAside={
+                <AdminAiAction
+                  available={adminAiSettings.available}
+                  disabled={isSaving}
+                  disabledTitle={maintenanceText.aiEnableHint}
+                  enabled={adminAiSettings.enabled}
+                  input={{
+                    title: form.name,
+                    description: form.description,
+                    url: form.url,
+                    demoUrl: form.demoUrl,
+                    category: form.category,
+                    tags: form.tags
+                  }}
+                  label={maintenanceText.aiGenerateTags}
+                  locale={locale}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onResult={(result) => {
+                    if (result.tags) setToolTagText(formatTagInputText(result.tags));
+                    setStatus(getAiAppliedStatus(result));
+                  }}
+                  task="tool_tags"
+                  token={token}
+                />
+              }
               label={t.form.tags}
               onChange={setToolTagText}
-              placeholder={t.form.tagsPlaceholder}
+              placeholder={ADMIN_RESOURCE_FIELD_EXAMPLES[locale].adminTags}
               value={toolTagText}
             />
 
             <AdminUrlField
+              inputAside={
+                <AdminImageUploadButton
+                  disabled={isSaving}
+                  label={t.form.imageUpload}
+                  mobileLabel={locale === "zh" ? "上传" : "Upload"}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onUploaded={(image) => {
+                    setForm((current) => ({ ...current, image }));
+                    setStatus(t.form.imageUploadSuccess);
+                  }}
+                  token={token}
+                />
+              }
               label={t.form.image}
               onChange={(image) => setForm((current) => ({ ...current, image }))}
               placeholder={t.form.imagePlaceholder}
@@ -5188,22 +5748,46 @@ export default function AdminApp({
 
             <div className="tool-form-field">
               <span className="tool-form-label">{t.form.category}</span>
-              <AdminCategoryFilter
-                allowCreate
-                alignToTopOnOpen
-                categories={adminCategoryOptions}
-                categoryText={categoryText}
-                className="tool-form-category-filter"
-                onDeleteCategory={(category) =>
-                  void deleteAdminCategory("tools", category)
-                }
-                onChange={(category) => {
-                  setForm({ ...form, category });
-                  void rememberAdminCategory("tools", category);
-                }}
-                t={t}
-                value={form.category}
-              />
+              <div className="admin-resource-input-row admin-resource-category-row has-input-aside">
+                <AdminCategoryFilter
+                  allowCreate
+                  alignToTopOnOpen
+                  categories={adminCategoryOptions}
+                  categoryText={categoryText}
+                  className="tool-form-category-filter"
+                  onDeleteCategory={(category) =>
+                    void deleteAdminCategory("tools", category)
+                  }
+                  onChange={(category) => {
+                    setForm({ ...form, category });
+                    void rememberAdminCategory("tools", category);
+                  }}
+                  t={t}
+                  value={form.category}
+                />
+                <BooleanSegmentedToggle
+                  className="tool-featured-status-toggle field-assist-toggle"
+                  disabledLabel={t.form.featuredTool}
+                  enabledIcon={
+                    <Star
+                      fill={form.featured ? "currentColor" : "none"}
+                      size={16}
+                    />
+                  }
+                  enabledLabel={t.form.featuredTool}
+                  mobileEnabledLabel={locale === "zh" ? "精选" : "Featured"}
+                  onChange={(nextFeatured) => {
+                    setForm((current) => ({ ...current, featured: nextFeatured }));
+                    setStatus(
+                      nextFeatured
+                        ? t.status.featuredDraftEnabled
+                        : t.status.featuredDraftDisabled
+                    );
+                  }}
+                  singleOption
+                  value={form.featured}
+                />
+              </div>
             </div>
 
             <AdminGitHubMetadataCard
@@ -5214,7 +5798,6 @@ export default function AdminApp({
               metadata={toolGitHub.metadata}
               previewLoading={toolGitHub.previewLoading}
             />
-
           </form>
         </Dialog>
       ) : null}
@@ -5224,9 +5807,7 @@ export default function AdminApp({
           closeRequestRef={articleEditorCloseRequestRef}
           closeDisabled={isArticleSaving}
           description={
-            editingArticle
-              ? articleText.editArticleDescription
-              : articleText.addArticleDescription
+            editingArticle ? articleText.editArticleDescription : undefined
           }
           descriptionId="article-editor-dialog-description"
           title={editingArticle ? articleText.editArticle : articleText.addArticle}
@@ -5268,6 +5849,35 @@ export default function AdminApp({
             onSubmit={handleSaveArticle}
           >
             <AdminTextField
+              inputAside={
+                <AdminAiAction
+                  available={adminAiSettings.available}
+                  disabled={isArticleSaving}
+                  disabledTitle={maintenanceText.aiEnableHint}
+                  enabled={adminAiSettings.enabled}
+                  input={{
+                    title: articleForm.title,
+                    summary: articleForm.summary,
+                    content: articleForm.content,
+                    category: articleForm.category,
+                    tags: articleForm.tags
+                  }}
+                  label={maintenanceText.aiGenerateTitle}
+                  locale={locale}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onResult={(result) => {
+                    if (result.title) {
+                      setArticleForm((current) => ({
+                        ...current,
+                        title: result.title ?? current.title
+                      }));
+                    }
+                    setStatus(getAiAppliedStatus(result));
+                  }}
+                  task="article_title"
+                  token={token}
+                />
+              }
               label={articleText.titleLabel}
               onChange={(title) =>
                 setArticleForm((current) => ({ ...current, title }))
@@ -5278,6 +5888,35 @@ export default function AdminApp({
             />
 
             <AdminTextareaField
+              inputAside={
+                <AdminAiAction
+                  available={adminAiSettings.available}
+                  disabled={isArticleSaving}
+                  disabledTitle={maintenanceText.aiEnableHint}
+                  enabled={adminAiSettings.enabled}
+                  input={{
+                    title: articleForm.title,
+                    summary: articleForm.summary,
+                    content: articleForm.content,
+                    category: articleForm.category,
+                    tags: articleForm.tags
+                  }}
+                  label={maintenanceText.aiGenerateSummary}
+                  locale={locale}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onResult={(result) => {
+                    if (result.summary) {
+                      setArticleForm((current) => ({
+                        ...current,
+                        summary: result.summary ?? current.summary
+                      }));
+                    }
+                    setStatus(getAiAppliedStatus(result));
+                  }}
+                  task="article_summary"
+                  token={token}
+                />
+              }
               label={articleText.summaryLabel}
               onChange={(summary) =>
                 setArticleForm((current) => ({ ...current, summary }))
@@ -5288,25 +5927,45 @@ export default function AdminApp({
               value={articleForm.summary}
             />
 
-            <label>
-              {articleText.slugLabel}
-              <input
-                value={articleForm.slug}
-                onChange={(event) =>
-                  setArticleForm({ ...articleForm, slug: event.target.value })
-                }
-                onBlur={() =>
-                  setArticleForm((current) => ({
-                    ...current,
-                    slug: normalizeSlugInput(current.slug)
-                  }))
-                }
-                placeholder={articleText.slugPlaceholder}
-              />
-              <small className="form-field-help">{articleText.slugHelp}</small>
-            </label>
+            <AdminTextField
+              id="admin-article-slug"
+              label={articleText.slugLabel}
+              onBlurValue={(slug) =>
+                setArticleForm((current) => ({
+                  ...current,
+                  slug: normalizeSlugInput(slug)
+                }))
+              }
+              onChange={(slug) => setArticleForm((current) => ({ ...current, slug }))}
+              placeholder={articleText.slugPlaceholder}
+              value={articleForm.slug}
+            />
 
             <AdminTagsField
+              inputAside={
+                <AdminAiAction
+                  available={adminAiSettings.available}
+                  disabled={isArticleSaving}
+                  disabledTitle={maintenanceText.aiEnableHint}
+                  enabled={adminAiSettings.enabled}
+                  input={{
+                    title: articleForm.title,
+                    summary: articleForm.summary,
+                    content: articleForm.content,
+                    category: articleForm.category,
+                    tags: articleForm.tags
+                  }}
+                  label={maintenanceText.aiGenerateTags}
+                  locale={locale}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onResult={(result) => {
+                    if (result.tags) setArticleTagText(formatTagInputText(result.tags));
+                    setStatus(getAiAppliedStatus(result));
+                  }}
+                  task="article_tags"
+                  token={token}
+                />
+              }
               label={articleText.tagsLabel}
               onChange={setArticleTagText}
               placeholder={articleText.tagsPlaceholder}
@@ -5314,6 +5973,19 @@ export default function AdminApp({
             />
 
             <AdminUrlField
+              inputAside={
+                <AdminImageUploadButton
+                  disabled={isArticleSaving}
+                  label={t.form.imageUpload}
+                  mobileLabel={locale === "zh" ? "上传" : "Upload"}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onUploaded={(coverImage) => {
+                    setArticleForm((current) => ({ ...current, coverImage }));
+                    setStatus(t.form.imageUploadSuccess);
+                  }}
+                  token={token}
+                />
+              }
               label={articleText.coverImageLabel}
               onChange={(coverImage) =>
                 setArticleForm((current) => ({ ...current, coverImage }))
@@ -5324,6 +5996,7 @@ export default function AdminApp({
 
             <div className="tool-form-field">
               <span className="tool-form-label">{articleText.categoryLabel}</span>
+              <small className="form-field-help">{articleText.categoryPlaceholder}</small>
               <AdminCategoryFilter
                 alignToTopOnOpen
                 categories={articleCategoryOptions}
@@ -5344,31 +6017,67 @@ export default function AdminApp({
                 t={t}
                 value={articleForm.category}
               />
-              <small className="form-field-help">
-                {articleText.categoryPlaceholder}
-              </small>
             </div>
 
-            <label>
-              {articleText.publishTimeLabel}
-              <input
-                type="datetime-local"
-                value={articleForm.publishedAt}
-                onChange={(event) =>
-                  setArticleForm({
-                    ...articleForm,
-                    publishedAt: event.target.value
-                  })
-                }
-              />
-              <small className="form-field-help">
-                {articleText.publishTimeHelp}
-              </small>
-            </label>
+            <div className="tool-form-field">
+              <div className="tool-form-field-head">
+                <label htmlFor="admin-article-published-at">{articleText.publishTimeLabel}</label>
+              </div>
+              <small className="form-field-help">{articleText.publishTimeHelp}</small>
+              <div className="admin-resource-input-row has-input-aside">
+                <input
+                  id="admin-article-published-at"
+                  ref={articlePublishTimeRef}
+                  type="datetime-local"
+                  value={articleForm.publishedAt}
+                  onChange={(event) =>
+                    setArticleForm({
+                      ...articleForm,
+                      publishedAt: event.target.value
+                    })
+                  }
+                />
+                <AdminFieldAssistButton
+                  icon={<CalendarDays size={16} />}
+                  label={articleText.publishTimeAction}
+                  mobileLabel={locale === "zh" ? "时间" : "Time"}
+                  onClick={() => {
+                    const input = articlePublishTimeRef.current;
+                    if (!input) return;
+                    if (typeof input.showPicker === "function") input.showPicker();
+                    else input.focus();
+                  }}
+                />
+              </div>
+            </div>
 
             <AdminMarkdownEditor
               className="tool-form-field article-markdown-editor"
               disabled={isArticleSaving}
+              modeAside={
+                <AdminAiDocumentImport
+                  available={adminAiSettings.available}
+                  disabled={isArticleSaving}
+                  disabledTitle={maintenanceText.aiEnableHint}
+                  enabled={adminAiSettings.enabled}
+                  label={maintenanceText.aiImportDocument}
+                  loadingLabel={maintenanceText.aiImportingDocument}
+                  mobileLabel={locale === "zh" ? "导入" : "Import"}
+                  onError={(error) => setStatus(getLocalizedErrorMessage(error, t))}
+                  onResult={(result) => {
+                    if (articleForm.content.trim()) {
+                      setPendingAiDocumentImport(result.markdown);
+                      return;
+                    }
+                    setArticleForm((current) => ({
+                      ...current,
+                      content: result.markdown
+                    }));
+                    setStatus(maintenanceText.aiDocumentApplied);
+                  }}
+                  token={token}
+                />
+              }
               id="admin-article-content"
               label={articleText.contentLabel}
               locale={locale}
@@ -5411,9 +6120,7 @@ export default function AdminApp({
               formId="admin-content-source-form"
               primaryLabel={contentText.saveSource}
               leading={
-              <button
-                className="ghost-button"
-                disabled={isContentPreviewing || isContentSourceSaving}
+              <button className="ghost-button" disabled={isContentPreviewing || isContentSourceSaving}
                 type="button"
                 onClick={() => void handlePreviewContentSource()}
               >
@@ -5453,16 +6160,24 @@ export default function AdminApp({
               <input
                 value={contentSourceForm.url}
                 onChange={(event) => {
-                  if (event.target.value !== contentSourceForm.url) {
+                  const nextUrl = event.target.value;
+                  const shouldClearPreviewTitle =
+                    nextUrl !== contentSourceForm.url &&
+                    contentPreviewAppliedTitleRef.current &&
+                    contentSourceForm.title.trim() ===
+                      contentPreviewAppliedTitleRef.current.trim();
+                  if (nextUrl !== contentSourceForm.url) {
                     invalidateContentPreview();
                   }
                   setContentSourceForm({
                     ...contentSourceForm,
-                    url: event.target.value
+                    url: nextUrl,
+                    ...(shouldClearPreviewTitle ? { title: "" } : {})
                   });
                 }}
                 onBlur={() => {
-                  const url = normalizeHttpUrlInput(contentSourceForm.url);
+                  const url = normalizeRssHubRouteUrl(contentSourceForm.url) ||
+                    normalizeHttpUrlInput(contentSourceForm.url);
                   if (url !== contentSourceForm.url) invalidateContentPreview();
                   setContentSourceForm({ ...contentSourceForm, url });
                 }}
@@ -5476,18 +6191,25 @@ export default function AdminApp({
               {contentText.sourceTitleLabel}
               <input
                 value={contentSourceForm.title}
-                onChange={(event) =>
+                onChange={(event) => {
+                  if (
+                    event.target.value.trim() !==
+                    contentPreviewAppliedTitleRef.current.trim()
+                  ) {
+                    contentPreviewAppliedTitleRef.current = "";
+                  }
                   setContentSourceForm({
                     ...contentSourceForm,
                     title: event.target.value
-                  })
-                }
+                  });
+                }}
                 placeholder={contentText.sourceTitlePlaceholder}
               />
             </label>
 
             <div className="tool-form-field">
               <span className="tool-form-label">{contentText.categoryLabel}</span>
+              <small className="form-field-help">{contentText.categoryPlaceholder}</small>
               <AdminCategoryFilter
                 alignToTopOnOpen
                 categories={contentCategoryOptions}
@@ -5507,9 +6229,6 @@ export default function AdminApp({
                 t={t}
                 value={contentSourceForm.category}
               />
-              <small className="form-field-help">
-                {contentText.categoryPlaceholder}
-              </small>
             </div>
 
             <label>
@@ -5606,6 +6325,7 @@ export default function AdminApp({
             />
             <div className="tool-form-field">
               <span className="tool-form-label">{articleText.categoryLabel}</span>
+              <small className="form-field-help">{articleText.categoryPlaceholder}</small>
               <AdminCategoryFilter
                 alignToTopOnOpen
                 categories={articleCategoryOptions}
@@ -5622,10 +6342,44 @@ export default function AdminApp({
                 t={t}
                 value={convertArticleCategory}
               />
-              <small className="form-field-help">
-                {articleText.categoryPlaceholder}
-              </small>
             </div>
+            <AdminMarkdownEditor
+              className="tool-form-field article-markdown-editor content-convert-preview-field"
+              id="content-convert-article-preview"
+              label={contentText.convertPreviewTitle}
+              locale={locale}
+              onChange={() => undefined}
+              preview={
+                convertArticlePreviewLoading ? (
+                  <AdminDetailPlaceholder
+                    icon={<FileText size={16} />}
+                    role="status"
+                  >
+                    {contentText.convertPreviewLoading}
+                  </AdminDetailPlaceholder>
+                ) : convertArticlePreview ? (
+                  <MarkdownContent
+                    content={convertArticlePreview.content}
+                    locale={locale}
+                    proxySettings={proxySettings}
+                  />
+                ) : (
+                  <AdminDetailPlaceholder
+                    icon={<FileText size={16} />}
+                    role={convertArticlePreviewError ? "alert" : undefined}
+                  >
+                    {convertArticlePreviewError || contentText.convertPreviewUnavailable}
+                  </AdminDetailPlaceholder>
+                )
+              }
+              previewClassName="content-convert-preview"
+              previewOnly
+              proxySettings={proxySettings}
+              rows={12}
+              text={t.markdownEditor}
+              textareaClassName="article-content-input"
+              value={convertArticlePreview?.content ?? ""}
+            />
           </div>
         </Dialog>
       ) : null}
@@ -5633,7 +6387,15 @@ export default function AdminApp({
       {pendingCategoryAction ? (
         <Dialog
           description={
-            pendingCategoryIsAll
+            pendingCategoryAction.scope === "push"
+              ? `${
+                  pendingCategoryIsBulkClear
+                    ? categoryText.clearDescriptionWithoutCount(
+                        pendingCategoryPushScopeLabel
+                      )
+                    : categoryText.pushCategoryDescription
+                } ${telegramText.management.deleteDescription}`
+              : pendingCategoryIsAll
               ? categoryText.clearDescription(
                   categoryText.scopeLabel(pendingCategoryAction.scope),
                   pendingCategoryAction.contentCount
@@ -5644,8 +6406,12 @@ export default function AdminApp({
           }
           descriptionId="category-action-dialog-description"
           title={
-            pendingCategoryIsAll
-              ? categoryText.clearTitle(categoryText.scopeLabel(pendingCategoryAction.scope))
+            pendingCategoryIsBulkClear
+              ? categoryText.clearTitle(
+                  pendingCategoryAction.scope === "push"
+                    ? pendingCategoryPushScopeLabel
+                    : categoryText.scopeLabel(pendingCategoryAction.scope)
+                )
               : categoryText.manageTitle(
                   getCategoryLabel(pendingCategoryAction.category, t)
                 )
@@ -5660,9 +6426,7 @@ export default function AdminApp({
           panelClassName="tool-editor-dialog admin-action-dialog admin-category-action-dialog"
           footer={
             <>
-              <button
-                className="ghost-button"
-                disabled={isApplyingCategoryAction}
+              <button className="ghost-button" disabled={isApplyingCategoryAction}
                 type="button"
                 onClick={() => {
                   setPendingCategoryAction(null);
@@ -5671,8 +6435,7 @@ export default function AdminApp({
               >
                 {t.status.deleteCancel}
               </button>
-              <button
-                className={pendingCategoryIsAll ? "primary-button" : "ghost-button"}
+              <button className={pendingCategoryIsBulkClear ? "primary-button" : "ghost-button"}
                 disabled={isApplyingCategoryAction}
                 type="button"
                 onClick={() =>
@@ -5684,14 +6447,12 @@ export default function AdminApp({
                   )
                 }
               >
-                {pendingCategoryIsAll
+                {pendingCategoryIsBulkClear
                   ? categoryText.clearAllAction
                   : categoryText.deleteWithContentAction}
               </button>
-              {pendingCategoryIsAll ? null : (
-                <button
-                  className="primary-button"
-                  disabled={isApplyingCategoryAction}
+              {pendingCategoryIsBulkClear ? null : (
+                <button className="primary-button" disabled={isApplyingCategoryAction}
                   type="button"
                   onClick={() =>
                     void applyCategoryAction(
@@ -5709,7 +6470,7 @@ export default function AdminApp({
           }
         >
           <div className="admin-category-action-body">
-            {pendingCategoryIsAll ? null : (
+            {pendingCategoryIsBulkClear ? null : (
               <div className="admin-category-action-field">
                 <div className="admin-category-action-copy">
                   <span className="admin-category-action-label">
@@ -5802,6 +6563,63 @@ export default function AdminApp({
           }}
           onConfirm={() => void confirmPushTelegramRecord()}
           title={telegramText.management.pushConfirmTitle}
+        />
+      ) : null}
+
+      {pendingAiDocumentImport ? (
+        <AdminConfirmDialog
+          cancelLabel={t.status.deleteCancel}
+          closeLabel={t.actions.close}
+          confirmLabel={t.actions.confirm}
+          description={maintenanceText.aiDocumentReplaceDescription}
+          descriptionId="replace-article-document-dialog-description"
+          onCancel={() => setPendingAiDocumentImport(null)}
+          onConfirm={() => {
+            const markdown = pendingAiDocumentImport;
+            setPendingAiDocumentImport(null);
+            setArticleForm((current) => ({ ...current, content: markdown }));
+            setStatus(maintenanceText.aiDocumentApplied);
+          }}
+          title={maintenanceText.aiDocumentReplaceTitle}
+        />
+      ) : null}
+
+      {pendingTelegramUncertainRetry ? (
+        <AdminConfirmDialog
+          cancelLabel={t.status.deleteCancel}
+          closeLabel={t.actions.close}
+          confirmLabel={telegramText.uncertainRetryAction}
+          descriptionId="telegram-uncertain-retry-dialog-description"
+          description={telegramText.uncertainRetryDescription}
+          disabled={
+            pendingTelegramUncertainRetry === "record"
+              ? isPushingTelegramRecord
+              : pendingTelegramUncertainRetry === "quick"
+                ? telegramQuickSaving
+                : telegramMessageSaving
+          }
+          onCancel={() => setPendingTelegramUncertainRetry(null)}
+          onConfirm={confirmTelegramUncertainRetry}
+          title={telegramText.uncertainRetryTitle}
+        />
+      ) : null}
+
+      {pendingTelegramSourceSync ? (
+        <AdminConfirmDialog
+          cancelLabel={t.status.deleteCancel}
+          closeLabel={t.actions.close}
+          confirmLabel={t.actions.confirm}
+          description={telegramText.syncSourceConfirmDescription}
+          descriptionId="telegram-sync-source-dialog-description"
+          disabled={telegramSourceLoading}
+          onCancel={() => {
+            if (!telegramSourceLoading) setPendingTelegramSourceSync(false);
+          }}
+          onConfirm={() => {
+            setPendingTelegramSourceSync(false);
+            void refreshTelegramSource();
+          }}
+          title={telegramText.syncSourceConfirmTitle}
         />
       ) : null}
 
@@ -5940,9 +6758,7 @@ function AdminTelegramPushPanel({
           </section>
           {hasMore ? (
             <div className="content-flow-load-more">
-              <button
-                className="ghost-button"
-                disabled={isLoadingMore}
+              <button className="ghost-button" disabled={isLoadingMore}
                 type="button"
                 onClick={onLoadMore}
               >
@@ -6010,6 +6826,7 @@ function TelegramPushRecordCard({
     record.resource?.description || record.messageMarkdown
   );
   const tags = record.resource?.tags ?? [];
+  const category = record.resource?.category ?? "";
 
   return (
     <article className="admin-tool-card admin-article-card">
@@ -6029,12 +6846,10 @@ function TelegramPushRecordCard({
                     ? text.typeContent
                     : text.typeCustom}
             </span>
-            {!record.resourceExists ? <span>{text.resourceDeleted}</span> : null}
           </div>
         </div>
         <div className="admin-tool-card-actions" ref={actions.rootRef}>
-          <button
-            aria-label={pushed ? text.statusPushed : text.pushAction}
+          <button aria-label={pushed ? text.statusPushed : text.pushAction}
             aria-pressed={pushed}
             className={`icon-button admin-article-publish-button ${
               pushed ? "is-active" : ""
@@ -6053,8 +6868,7 @@ function TelegramPushRecordCard({
           >
             {pushed ? <CheckCircle2 size={16} /> : <Circle size={16} />}
           </button>
-          <button
-            aria-expanded={actions.open}
+          <button aria-expanded={actions.open}
             aria-haspopup="menu"
             aria-label={`${record.title} actions`}
             className={`icon-button admin-tool-menu-trigger ${
@@ -6073,9 +6887,8 @@ function TelegramPushRecordCard({
               onKeyDown={actions.handleMenuKeyDown}
               role="menu"
             >
-              {record.resourceExists ? (
-                <button
-                  disabled={!serviceEnabled}
+              {record.resource ? (
+                <button disabled={!serviceEnabled}
                   role="menuitem"
                   type="button"
                   onClick={() => {
@@ -6088,8 +6901,7 @@ function TelegramPushRecordCard({
                   <span className="admin-action-label-short">{text.editActionShort}</span>
                 </button>
               ) : null}
-              <button
-                className="danger"
+              <button className="danger"
                 role="menuitem"
                 type="button"
                 onClick={() => {
@@ -6108,8 +6920,7 @@ function TelegramPushRecordCard({
       <p className="admin-tool-description">{summary}</p>
       <div className="admin-tool-links">
         <div className="admin-tool-link-row" title={text.viewAction}>
-          <button
-            className="admin-tool-link-text telegram-push-view-link"
+          <button className="admin-tool-link-text telegram-push-view-link"
             type="button"
             onClick={onView}
           >
@@ -6118,7 +6929,7 @@ function TelegramPushRecordCard({
         </div>
       </div>
       <div className="admin-tool-card-footer">
-        <CompactTagRow tags={tags} />
+        <CompactTagRow fallbackCategory={category} tags={tags} />
       </div>
     </article>
   );
@@ -6127,6 +6938,8 @@ function TelegramPushRecordCard({
 function AdminContentFlowPanel({
   clearFiltersLabel,
   contentSourceCounts,
+  categoryOrder,
+  contentCategoryFilter,
   contentSourceFilter,
   contentSources,
   contentText,
@@ -6138,6 +6951,7 @@ function AdminContentFlowPanel({
   hasMoreContent,
   isLoadingContent,
   isLoadingMoreContent,
+  locale,
   loadError,
   onAddSource,
   onConvertItem,
@@ -6146,19 +6960,23 @@ function AdminContentFlowPanel({
   onLoadMore,
   onRetry,
   onClearFilters,
-  onSelectSource,
-  onSyncSource,
+  onSelectScope,
+  onSyncSources,
   onTelegram,
   proxySettings,
+  readerEnabled,
   showSkeletons,
   t,
   telegramEnabled,
   telegramText,
+  token,
   visibleContentItems,
   writeLockedEntityKeys
 }: {
   clearFiltersLabel: string;
   contentSourceCounts: Record<string, number>;
+  categoryOrder: string[];
+  contentCategoryFilter: string;
   contentSourceFilter: string;
   contentSources: ContentSource[];
   contentText: ReturnType<typeof getContentFlowText>;
@@ -6170,6 +6988,7 @@ function AdminContentFlowPanel({
   hasMoreContent: boolean;
   isLoadingContent: boolean;
   isLoadingMoreContent: boolean;
+  locale: Locale;
   loadError: string | null;
   onAddSource: () => void;
   onConvertItem: (item: ContentItemSummary) => void;
@@ -6178,21 +6997,176 @@ function AdminContentFlowPanel({
   onLoadMore: () => void;
   onRetry: () => void;
   onClearFilters: () => void;
-  onSelectSource: (sourceId: string) => void;
-  onSyncSource: (source: ContentSource) => void;
+  onSelectScope: (scope: { category: string; sourceId: string }) => void;
+  onSyncSources: (sources: ContentSource[]) => void;
   onTelegram: (item: ContentItemSummary) => void;
   proxySettings: ProxySettings;
+  readerEnabled: boolean;
   showSkeletons: boolean;
   t: Messages;
   telegramEnabled: boolean;
   telegramText: ReturnType<typeof getTelegramText>;
+  token: string;
   visibleContentItems: ContentItemSummary[];
   writeLockedEntityKeys: Set<string>;
 }) {
+  const categoryGroups = useMemo(() => {
+    const groups = new Map<string, ContentSource[]>();
+    for (const source of contentSources) {
+      const category = normalizeAdminCategoryValue(source.category);
+      const entries = groups.get(category) ?? [];
+      entries.push(source);
+      groups.set(category, entries);
+    }
+    const orderMap = new Map(
+      categoryOrder.map((category, index) => [normalizeAdminCategoryValue(category), index])
+    );
+    return Array.from(groups.entries())
+      .map(([category, sources]) => ({
+        category,
+        label: category || contentText.uncategorized,
+        sources
+      }))
+      .sort((left, right) => {
+        const leftIndex = orderMap.get(left.category);
+        const rightIndex = orderMap.get(right.category);
+        if (leftIndex !== undefined || rightIndex !== undefined) {
+          if (leftIndex === undefined) return 1;
+          if (rightIndex === undefined) return -1;
+          return leftIndex - rightIndex;
+        }
+        return left.label.localeCompare(right.label, "zh-Hans-CN");
+      });
+  }, [categoryOrder, contentSources, contentText.uncategorized]);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    () => new Set()
+  );
+  const toggleCategory = useCallback((category: string) => {
+    setExpandedCategories((current) => {
+      const next = new Set(current);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }, []);
+  const [selectedContentItemId, setSelectedContentItemId] = useState("");
+  const [browsingContentItemId, setBrowsingContentItemId] = useState("");
+  const [readerArticle, setReaderArticle] = useState<Article | null>(null);
+  const [readerError, setReaderError] = useState("");
+  const [readerLoading, setReaderLoading] = useState(false);
+  const readerRequestRef = useRef(0);
+  const readerScrollRef = useRef<HTMLDivElement | null>(null);
+  const selectedContentItem =
+    visibleContentItems.find((item) => item.id === selectedContentItemId) ?? null;
+  const browsingContentItem =
+    visibleContentItems.find((item) => item.id === browsingContentItemId) ?? null;
+  const readerItem = readerEnabled ? selectedContentItem : browsingContentItem;
+  const selectedSource = contentSources.find(
+    (source) => source.id === contentSourceFilter
+  ) ?? null;
+  const scopeSources = useMemo(() => {
+    if (selectedSource) return [selectedSource];
+    if (isAllCategoryValue(contentCategoryFilter)) return contentSources;
+    const normalized = normalizeAdminCategoryValue(contentCategoryFilter);
+    return contentSources.filter(
+      (source) => normalizeAdminCategoryValue(source.category) === normalized
+    );
+  }, [contentCategoryFilter, contentSources, selectedSource]);
+  const sourceActions = useAdminCardActionMenu(
+    selectedSource ? `content-source-header:${selectedSource.id}` : "content-source-header:all"
+  );
+  useEffect(() => {
+    setExpandedCategories((current) => {
+      const next = new Set(current);
+      if (selectedSource) {
+        next.add(normalizeAdminCategoryValue(selectedSource.category));
+      }
+      for (const category of next) {
+        if (!categoryGroups.some((group) => group.category === category)) {
+          next.delete(category);
+        }
+      }
+      return next;
+    });
+  }, [categoryGroups, selectedSource?.category]);
+
+  useEffect(() => {
+    const requestId = readerRequestRef.current + 1;
+    readerRequestRef.current = requestId;
+
+    if (!readerItem) {
+      setReaderArticle(null);
+      setReaderError("");
+      setReaderLoading(false);
+      return;
+    }
+
+    setReaderArticle(null);
+    setReaderError("");
+    setReaderLoading(true);
+
+    const request = readerItem.articleId
+      ? loadAdminArticle(readerItem.articleId, token)
+      : loadContentItemArticlePreview(readerItem.id, token);
+
+    void request
+      .then((article) => {
+        if (readerRequestRef.current === requestId) {
+          setReaderArticle(article);
+        }
+      })
+      .catch((error) => {
+        if (readerRequestRef.current === requestId) {
+          setReaderError(getLocalizedErrorMessage(error, t));
+        }
+      })
+      .finally(() => {
+        if (readerRequestRef.current === requestId) {
+          setReaderLoading(false);
+        }
+      });
+  }, [
+    readerItem?.articleId,
+    readerItem?.id,
+    readerItem?.updated_at,
+    t,
+    token
+  ]);
+
+  const [readerTitlePinned, setReaderTitlePinned] = useState(false);
+
+  useEffect(() => {
+    const container = readerScrollRef.current;
+
+    if (!readerEnabled || !container || !readerArticle) {
+      setReaderTitlePinned(false);
+      return;
+    }
+
+    const update = () => {
+      const heading = container.querySelector(".article-detail-head h1");
+      setReaderTitlePinned(
+        Boolean(heading) &&
+          Boolean(container.clientHeight) &&
+          heading!.getBoundingClientRect().bottom <=
+            container.getBoundingClientRect().top
+      );
+    };
+
+    update();
+    container.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+
+    return () => {
+      container.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [readerArticle, readerEnabled]);
+
   if (isLoadingContent && !hasLoadedContent) {
     return (
       <SkeletonVisibility visible={showSkeletons}>
-        <ContentFlowSkeleton contentText={contentText} />
+        <ContentFlowSkeleton contentText={contentText} locale={locale} />
       </SkeletonVisibility>
     );
   }
@@ -6200,6 +7174,23 @@ function AdminContentFlowPanel({
   if (loadError && !hasExistingContentItems) {
     return <AdminInitialLoadError message={loadError} onRetry={onRetry} t={t} />;
   }
+
+  const readerBody = readerLoading ? (
+    <ArticleDetailContentSkeleton locale={locale} />
+  ) : readerArticle ? (
+    <ArticleDetailContent
+      article={readerArticle}
+      locale={locale}
+      proxySettings={proxySettings}
+    />
+  ) : (
+    <AdminDetailPlaceholder
+      icon={<FileText size={16} />}
+      role={readerError ? "alert" : undefined}
+    >
+      {readerError || contentText.convertPreviewUnavailable}
+    </AdminDetailPlaceholder>
+  );
 
   return (
     <section className="content-flow-layout" aria-label={contentText.title}>
@@ -6210,317 +7201,440 @@ function AdminContentFlowPanel({
         </div>
 
         <div className="content-source-list">
-          {contentSources.map((source) => (
-            <ContentSourceButton
-              contentText={contentText}
-              count={contentSourceCounts[source.id] ?? 0}
-              isBusy={writeLockedEntityKeys.has(
-                getAdminWriteEntityKey("content-source", source.id)
-              )}
-              isSelected={contentSourceFilter === source.id}
-              key={source.id}
-              onDelete={() => onDeleteSource(source)}
-              onEdit={() => onEditSource(source)}
-              onSelect={() => onSelectSource(source.id)}
-              onSync={() => onSyncSource(source)}
-              source={source}
-            />
-          ))}
+          <button
+            className={`content-source-group content-source-all ${
+              contentSourceFilter === "all" && isAllCategoryValue(contentCategoryFilter)
+                ? "is-active"
+                : ""
+            }`}
+            type="button"
+            onClick={() => onSelectScope({ category: "All", sourceId: "all" })}
+          >
+            <span className="content-source-group-chevron" aria-hidden="true" />
+            <span className="content-source-group-copy"><strong>{contentText.allSources}</strong><small>{contentSources.length}</small></span>
+          </button>
+          {categoryGroups.map(({ category, label, sources }) => {
+            const expanded = expandedCategories.has(category);
+            return (
+              <div className="content-source-group-wrap" key={category || "uncategorized"}>
+                <div
+                  className={`content-source-group ${
+                    contentSourceFilter === "all" &&
+                    normalizeAdminCategoryValue(contentCategoryFilter) === category
+                      ? "is-active"
+                      : ""
+                  }`}
+                >
+                  <button
+                    aria-expanded={expanded}
+                    aria-label={`${label} ${expanded ? contentText.collapseCategory : contentText.expandCategory}`}
+                    className="content-source-group-toggle"
+                    type="button"
+                    onClick={() => toggleCategory(category)}
+                  >
+                    {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                  </button>
+                  <button
+                    className="content-source-group-main"
+                    title={contentText.categoryToggleHint}
+                    type="button"
+                    onClick={() => onSelectScope({ category, sourceId: "all" })}
+                    onDoubleClick={() => toggleCategory(category)}
+                  >
+                    <span className="content-source-group-copy"><strong>{label}</strong><small>{sources.length}</small></span>
+                  </button>
+                </div>
+                {expanded ? (
+                  <div className="content-source-group-items">
+                    {sources.map((source) => (
+                      <ContentSourceButton
+                        count={contentSourceCounts[source.id] ?? 0}
+                        isSelected={contentSourceFilter === source.id}
+                        key={source.id}
+                        onSelect={() => onSelectScope({ category: "All", sourceId: source.id })}
+                        proxySettings={proxySettings}
+                        source={source}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </aside>
 
       <div className="content-flow-main">
-        {contentSources.length === 0 ? (
-          <AdminEmptyState
-            action={
-              hasAnyContentSources
-                ? {
-                    label: clearFiltersLabel,
-                    onClick: onClearFilters,
-                    tone: "ghost"
-                  }
-                : { label: contentText.addContent, onClick: onAddSource }
-            }
-            className="content-flow-empty"
-            description={
-              hasAnyContentSources
-                ? contentText.noMatchDescription
-                : contentText.sourceEmptyDescription
-            }
-            title={
-              hasAnyContentSources ? contentText.noMatchTitle : contentText.sourceEmptyTitle
-            }
-          />
-        ) : (
-          <>
-            {visibleContentItems.length ? (
-              <div className="content-item-list">
-                {visibleContentItems.map((item) => (
-                  <ContentItemCard
-                    contentText={contentText}
-                    isBusy={writeLockedEntityKeys.has(
-                      getAdminWriteEntityKey("content-item", item.id)
-                    )}
-                    item={item}
-                    key={item.id}
-                    onConvert={() => onConvertItem(item)}
-                    onTelegram={() => onTelegram(item)}
-                    proxySettings={proxySettings}
-                    telegramEnabled={telegramEnabled}
-                    telegramText={telegramText}
-                  />
-                ))}
-              </div>
-            ) : (
-              <AdminEmptyState
-                action={
-                  hasActiveFilter
-                    ? {
-                        label: clearFiltersLabel,
-                        onClick: onClearFilters,
-                        tone: "ghost"
-                      }
-                    : undefined
-                }
-                className="content-flow-empty"
-                description={
-                  !hasActiveFilter && contentCategoryItemCount === 0
-                    ? contentText.itemEmptyDescription
-                    : contentText.noMatchDescription
-                }
-                title={
-                  !hasActiveFilter && contentCategoryItemCount === 0
-                    ? contentText.itemEmptyTitle
-                    : contentText.noMatchTitle
-                }
-              />
-            )}
-            {hasMoreContent ? (
-              <div className="content-flow-load-more">
-                <button
-                  className="ghost-button"
-                  disabled={isLoadingMoreContent}
-                  type="button"
-                  onClick={onLoadMore}
-                >
-                  {contentText.loadMore}
-                </button>
-              </div>
+        <div className="content-source-toolbar">
+          <div className="content-source-toolbar-title">
+            {selectedSource ? (
+              <ContentSourceIcon proxySettings={proxySettings} source={selectedSource} />
             ) : null}
-          </>
-        )}
+            <strong>
+              {selectedSource?.title ??
+                (isAllCategoryValue(contentCategoryFilter)
+                  ? contentText.allSubscriptions
+                  : normalizeAdminCategoryValue(contentCategoryFilter) ||
+                    contentText.uncategorized)}
+            </strong>
+          </div>
+          {selectedSource ? (
+            <div className="content-source-toolbar-actions" ref={sourceActions.rootRef}>
+              <button className="icon-button" disabled={writeLockedEntityKeys.has(getAdminWriteEntityKey("content-source", selectedSource.id))} type="button" title={contentText.syncSource} onClick={() => onSyncSources([selectedSource])}><RefreshCw size={15} /></button>
+              <button aria-expanded={sourceActions.open} aria-haspopup="menu" aria-label={`${selectedSource.title} actions`} className={`icon-button admin-tool-menu-trigger ${sourceActions.open ? "is-active" : ""}`} ref={sourceActions.triggerRef} type="button" onClick={() => sourceActions.setOpen((current) => !current)} onKeyDown={sourceActions.handleTriggerKeyDown}><ChevronDown size={17} /></button>
+              {sourceActions.open ? (
+                <div className="admin-tool-action-menu" role="menu" onKeyDown={sourceActions.handleMenuKeyDown}>
+                  <button role="menuitem" type="button" onClick={() => { sourceActions.close(); onEditSource(selectedSource); }}>
+                    <SquarePen size={18} />
+                    <span className="admin-action-label-full">{contentText.editSource}</span>
+                    <span className="admin-action-label-short">{t.admin.editAction}</span>
+                  </button>
+                  <button className="danger" role="menuitem" type="button" onClick={() => { sourceActions.close(); onDeleteSource(selectedSource); }}>
+                    <Trash2 size={16} />
+                    <span className="admin-action-label-full">{contentText.deleteSource}</span>
+                    <span className="admin-action-label-short">{t.admin.deleteAction}</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : scopeSources.length ? (
+            <div className="content-source-toolbar-actions">
+              <button
+                className="icon-button"
+                disabled={scopeSources.some((source) =>
+                  writeLockedEntityKeys.has(
+                    getAdminWriteEntityKey("content-source", source.id)
+                  )
+                )}
+                title={contentText.syncCategory}
+                type="button"
+                onClick={() => onSyncSources(scopeSources)}
+              >
+                <RefreshCw size={15} />
+              </button>
+            </div>
+          ) : null}
+        </div>
+        <div className="content-flow-main-scroll">
+          {contentSources.length === 0 ? (
+            <AdminEmptyState
+              action={
+                hasAnyContentSources
+                  ? {
+                      label: clearFiltersLabel,
+                      onClick: onClearFilters,
+                      tone: "ghost"
+                    }
+                  : { label: contentText.addContent, onClick: onAddSource }
+              }
+              className="content-flow-empty"
+              description={
+                hasAnyContentSources
+                  ? contentText.noMatchDescription
+                  : contentText.sourceEmptyDescription
+              }
+              title={
+                hasAnyContentSources ? contentText.noMatchTitle : contentText.sourceEmptyTitle
+              }
+            />
+          ) : (
+            <>
+              {visibleContentItems.length ? (
+                <div className="content-item-list">
+                  {visibleContentItems.map((item) => (
+                    <ContentItemCard
+                      isBusy={writeLockedEntityKeys.has(
+                        getAdminWriteEntityKey("content-item", item.id)
+                      )}
+                      isSelected={readerEnabled && selectedContentItem?.id === item.id}
+                      item={item}
+                      key={item.id}
+                      onSelect={() => {
+                        if (readerEnabled) {
+                          setSelectedContentItemId(item.id);
+                          return;
+                        }
+                        setBrowsingContentItemId(item.id);
+                      }}
+                      proxySettings={proxySettings}
+                      showSourceIcon={!selectedSource}
+                      source={contentSources.find((source) => source.id === item.sourceId) ?? null}
+                      mobileActions={
+                        <ContentItemActions
+                          className="admin-tool-card-actions"
+                          contentText={contentText}
+                          isBusy={writeLockedEntityKeys.has(
+                            getAdminWriteEntityKey("content-item", item.id)
+                          )}
+                          item={item}
+                          menuKey={`content-item-mobile:${item.id}`}
+                          onConvert={() => onConvertItem(item)}
+                          onTelegram={() => onTelegram(item)}
+                          proxySettings={proxySettings}
+                          telegramEnabled={telegramEnabled}
+                          telegramText={telegramText}
+                        />
+                      }
+                    />
+                  ))}
+                </div>
+              ) : (
+                <AdminEmptyState
+                  action={
+                    hasActiveFilter
+                      ? {
+                          label: clearFiltersLabel,
+                          onClick: onClearFilters,
+                          tone: "ghost"
+                        }
+                      : undefined
+                  }
+                  className="content-flow-empty"
+                  description={
+                    !hasActiveFilter && contentCategoryItemCount === 0
+                      ? contentText.itemEmptyDescription
+                      : contentText.noMatchDescription
+                  }
+                  title={
+                    !hasActiveFilter && contentCategoryItemCount === 0
+                      ? contentText.itemEmptyTitle
+                      : contentText.noMatchTitle
+                  }
+                />
+              )}
+              {hasMoreContent ? (
+                <div className="content-flow-load-more">
+                  <button className="ghost-button" disabled={isLoadingMoreContent}
+                    type="button"
+                    onClick={onLoadMore}
+                  >
+                    {contentText.loadMore}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
       </div>
+
+      <aside className="content-flow-reader" aria-live="polite">
+        <div className="content-reader-toolbar">
+          <strong
+            className={`content-reader-title ${readerTitlePinned ? "is-visible" : ""}`}
+          >
+            {selectedContentItem ? getArticleDisplayTitle(selectedContentItem) : ""}
+          </strong>
+          {selectedContentItem ? (
+            <ContentItemActions
+              contentText={contentText}
+              isBusy={writeLockedEntityKeys.has(
+                getAdminWriteEntityKey("content-item", selectedContentItem.id)
+              )}
+              item={selectedContentItem}
+              menuKey={`content-reader:${selectedContentItem.id}`}
+              onConvert={() => onConvertItem(selectedContentItem)}
+              onTelegram={() => onTelegram(selectedContentItem)}
+              proxySettings={proxySettings}
+              telegramEnabled={telegramEnabled}
+              telegramText={telegramText}
+            />
+          ) : null}
+        </div>
+        <div className="content-flow-reader-scroll" ref={readerScrollRef}>
+          {selectedContentItem ? (
+            readerBody
+          ) : (
+            <AdminDetailPlaceholder icon={<FileText size={16} />}>
+              {contentText.itemEmptyTitle}
+            </AdminDetailPlaceholder>
+          )}
+        </div>
+      </aside>
+
+      {browsingContentItem ? (
+        <Dialog
+          closeLabel={t.actions.close}
+          onClose={() => setBrowsingContentItemId("")}
+          panelClassName="tool-editor-dialog content-browse-dialog"
+          title={getArticleDisplayTitle(browsingContentItem)}
+        >
+          <div className="content-browse-dialog-body">{readerBody}</div>
+        </Dialog>
+      ) : null}
     </section>
   );
 }
 
 function ContentSourceButton({
-  contentText,
   count,
-  isBusy,
   isSelected,
-  onDelete,
-  onEdit,
   onSelect,
-  onSync,
+  proxySettings,
   source
 }: {
-  contentText: ReturnType<typeof getContentFlowText>;
   count: number;
-  isBusy: boolean;
   isSelected: boolean;
-  onDelete: () => void;
-  onEdit: () => void;
   onSelect: () => void;
-  onSync: () => void;
+  proxySettings: ProxySettings;
   source: ContentSource;
 }) {
   return (
     <div className={`content-source-item ${isSelected ? "is-active" : ""}`}>
-      <button className="content-source-main" type="button" onClick={onSelect}>
+      <button className="content-source-main" type="button" onClick={() => {
+        onSelect();
+      }}>
+        <ContentSourceIcon proxySettings={proxySettings} source={source} />
         <span className="content-source-copy">
           <strong>{source.title}</strong>
-          <small>{contentText.sourceCount(count)}</small>
+          <small>{count}</small>
         </span>
       </button>
-      <div className="content-source-actions">
-        <button
-          className="icon-button"
-          disabled={isBusy}
-          type="button"
-          title={contentText.syncSource}
-          onClick={onSync}
-        >
-          <RefreshCw size={15} />
-        </button>
-        <button
-          className="icon-button"
-          disabled={isBusy}
-          type="button"
-          title={contentText.editSource}
-          onClick={onEdit}
-        >
-          <SquarePen size={15} />
-        </button>
-        <button
-          className="icon-button"
-          disabled={isBusy}
-          type="button"
-          title={contentText.deleteSource}
-          onClick={onDelete}
-        >
-          <Trash2 size={15} />
-        </button>
-      </div>
     </div>
   );
 }
 
+function ContentSourceIcon({
+  proxySettings,
+  source
+}: {
+  proxySettings: ProxySettings;
+  source: ContentSource;
+}) {
+  return (
+    <AdminSiteIcon
+      className="content-source-icon"
+      proxySettings={proxySettings}
+      url={source.siteUrl || source.url}
+    />
+  );
+}
+
 function ContentItemCard({
+  isBusy,
+  isSelected,
+  item,
+  mobileActions,
+  onSelect,
+  proxySettings,
+  showSourceIcon,
+  source
+}: {
+  isBusy: boolean;
+  isSelected: boolean;
+  item: ContentItemSummary;
+  mobileActions: ReactNode;
+  onSelect: () => void;
+  proxySettings: ProxySettings;
+  showSourceIcon: boolean;
+  source: ContentSource | null;
+}) {
+  const displayDate = formatAdminDate(item.published_at ?? item.updated_at);
+  const displayTitle = getArticleDisplayTitle(item);
+
+  return (
+    <article className={`content-item-card ${showSourceIcon ? "has-source-icon" : ""} ${isSelected ? "is-active" : ""}`}>
+      {showSourceIcon && source ? (
+        <ContentSourceIcon proxySettings={proxySettings} source={source} />
+      ) : null}
+      <button
+        aria-pressed={isSelected}
+        className="content-item-select"
+        disabled={isBusy}
+        type="button"
+        onClick={onSelect}
+      >
+        <span className="content-item-title-row">
+          <strong>{displayTitle}</strong>
+          {displayDate ? <time>{displayDate}</time> : null}
+        </span>
+        <span className="content-item-summary">
+          {cleanArticleDisplayText(item.summary)}
+        </span>
+      </button>
+      <div className="content-item-mobile-actions">{mobileActions}</div>
+    </article>
+  );
+}
+
+function ContentItemActions({
+  className = "content-reader-actions",
   contentText,
   isBusy,
   item,
+  menuKey,
   onConvert,
   onTelegram,
   proxySettings,
   telegramEnabled,
   telegramText
 }: {
+  className?: string;
   contentText: ReturnType<typeof getContentFlowText>;
   isBusy: boolean;
   item: ContentItemSummary;
+  menuKey: string;
   onConvert: () => void;
   onTelegram: () => void;
   proxySettings: ProxySettings;
   telegramEnabled: boolean;
   telegramText: ReturnType<typeof getTelegramText>;
 }) {
-  const actions = useAdminCardActionMenu(`content-item:${item.id}`);
-  const Icon = getCategoryIcon(item.category);
-  const displayDate = formatAdminDate(item.published_at ?? item.updated_at);
+  const actions = useAdminCardActionMenu(menuKey);
   const displayTitle = getArticleDisplayTitle(item);
-  const previewImage = getContentItemPreviewImage(item);
-  const coverSrc = previewImage
-    ? proxifyUrl(previewImage, proxySettings, { resourceType: "image" })
-    : "";
   const originalHref = proxifyUrl(item.url, proxySettings);
-  const browseHref = item.articleId && item.articleSlug
-    ? createArticleBrowseHref(item.articleSlug, item.articlePublished)
-    : createContentItemPreviewHref(item.id);
-  const [coverFailed, setCoverFailed] = useState(false);
-  const showCover = Boolean(coverSrc && !coverFailed);
-
-  useEffect(() => {
-    setCoverFailed(false);
-  }, [coverSrc]);
 
   return (
-    <article className={`content-item-card ${showCover ? "has-cover" : ""}`}>
-      <div className="content-item-head">
-        <div className="content-item-meta">
-          <span>
-            <Icon size={15} />
-            {item.sourceTitle || item.category}
-          </span>
-          {displayDate ? <span>{displayDate}</span> : null}
-        </div>
-        <div className="admin-tool-card-actions" ref={actions.rootRef}>
-          {telegramEnabled ? (
-            <AdminTelegramPushButton
-              disabled={isBusy}
-              label={`${telegramText.action}: ${displayTitle}`}
-              onClick={() => {
-                actions.close();
-                onTelegram();
-              }}
-            />
-          ) : null}
-          <button
-            aria-label={`${item.articleId ? contentText.updateArticle : contentText.convert}: ${displayTitle}`}
-            aria-pressed={Boolean(item.articleId)}
-            className={`icon-button admin-article-publish-button ${
-              item.articleId ? "is-active" : ""
-            }`}
-            disabled={isBusy}
-            title={item.articleId ? contentText.updateArticle : contentText.convert}
-            type="button"
-            onClick={() => {
-              actions.close();
-              onConvert();
-            }}
-          >
-            {item.articleId ? <CheckCircle2 size={16} /> : <Circle size={16} />}
-          </button>
-          <button
-            aria-expanded={actions.open}
-            aria-haspopup="menu"
-            aria-label={`${displayTitle} actions`}
-            className={`icon-button admin-tool-menu-trigger ${
-              actions.open ? "is-active" : ""
-            }`}
-            disabled={isBusy}
-            ref={actions.triggerRef}
-            type="button"
-            onClick={() => actions.setOpen((current) => !current)}
-            onKeyDown={actions.handleTriggerKeyDown}
-          >
-            <ChevronDown size={17} />
-          </button>
-          {actions.open ? (
-            <div
-              className="admin-tool-action-menu"
-              onKeyDown={actions.handleMenuKeyDown}
-              role="menu"
-            >
-              <button
-                role="menuitem"
-                type="button"
-                onClick={() => {
-                  actions.close();
-                  window.open(originalHref, "_blank", "noopener,noreferrer");
-                }}
-              >
-                <ArrowUpRight size={16} />
-                <span className="admin-action-label-full">
-                  {contentText.openOriginal}
-                </span>
-                <span className="admin-action-label-short">
-                  {contentText.openOriginalShort}
-                </span>
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-      <div className="content-item-main">
-        <h3>{displayTitle}</h3>
-        <p>{cleanArticleDisplayText(item.summary)}</p>
-        <div className="admin-tool-links">
-          <div className="admin-tool-link-row" title={browseHref}>
-            <a
-              className="admin-tool-link-text"
-              href={browseHref}
-              rel="noreferrer"
-              target="_blank"
-              aria-label={contentText.browseArticle}
-            >
-              {browseHref}
-            </a>
-          </div>
-        </div>
-        <CompactTagRow tags={item.tags} />
-      </div>
-      {showCover ? (
-        <img
-          className="content-item-cover"
-          src={coverSrc}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          onError={() => setCoverFailed(true)}
+    <div className={className} ref={actions.rootRef}>
+      {telegramEnabled ? (
+        <AdminTelegramPushButton
+          disabled={isBusy}
+          label={`${telegramText.action}: ${displayTitle}`}
+          onClick={() => {
+            actions.close();
+            onTelegram();
+          }}
         />
       ) : null}
-    </article>
+      <button
+        aria-label={`${item.articleId ? contentText.updateArticle : contentText.convert}: ${displayTitle}`}
+        aria-pressed={Boolean(item.articleId)}
+        className={`icon-button admin-article-publish-button ${item.articleId ? "is-active" : ""}`}
+        disabled={isBusy}
+        title={item.articleId ? contentText.updateArticle : contentText.convert}
+        type="button"
+        onClick={() => {
+          actions.close();
+          onConvert();
+        }}
+      >
+        {item.articleId ? <CheckCircle2 size={16} /> : <Circle size={16} />}
+      </button>
+      <button
+        aria-expanded={actions.open}
+        aria-haspopup="menu"
+        aria-label={`${displayTitle} actions`}
+        className={`icon-button admin-tool-menu-trigger ${actions.open ? "is-active" : ""}`}
+        disabled={isBusy}
+        ref={actions.triggerRef}
+        type="button"
+        onClick={() => actions.setOpen((current) => !current)}
+        onKeyDown={actions.handleTriggerKeyDown}
+      >
+        <ChevronDown size={17} />
+      </button>
+      {actions.open ? (
+        <div className="admin-tool-action-menu" role="menu" onKeyDown={actions.handleMenuKeyDown}>
+          <button role="menuitem" type="button" onClick={() => {
+            actions.close();
+            window.open(originalHref, "_blank", "noopener,noreferrer");
+          }}>
+            <ArrowUpRight size={16} />
+            <span className="admin-action-label-full">{contentText.openOriginal}</span>
+            <span className="admin-action-label-short">{contentText.openOriginalShort}</span>
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -6529,13 +7643,20 @@ type AdminCategoryText = ReturnType<typeof getAdminWorkspaceText>["category"];
 function getAdminCategoryDeleteLabel(
   categoryText: AdminCategoryText,
   t: Messages,
-  category: string
+  category: string,
+  resolvedLabel?: string
 ) {
   if (isAllCategoryValue(category)) {
     return categoryText.clearAllAction;
   }
 
-  const label = getCategoryLabel(category, t);
+  if (isTelegramPushSourceFilter(category)) {
+    return categoryText.clearTitle(
+      categoryText.pushSourceScopeLabel(resolvedLabel ?? getCategoryLabel(category, t))
+    );
+  }
+
+  const label = resolvedLabel ?? getCategoryLabel(category, t);
   return categoryText.deleteLabel(label);
 }
 
@@ -6585,6 +7706,7 @@ function AdminCategoryFilter({
   categories,
   categoryText,
   className = "",
+  deletableFixedCategories = [],
   disabled = false,
   emptyLabel,
   fixedCategories = [],
@@ -6601,6 +7723,7 @@ function AdminCategoryFilter({
   categories: string[];
   categoryText: AdminCategoryText;
   className?: string;
+  deletableFixedCategories?: string[];
   disabled?: boolean;
   emptyLabel?: string;
   fixedCategories?: string[];
@@ -6622,6 +7745,10 @@ function AdminCategoryFilter({
   const normalizedFixedCategories = useMemo(
     () => new Set(fixedCategories.map(normalizeAdminCategoryValue)),
     [fixedCategories]
+  );
+  const normalizedDeletableFixedCategories = useMemo(
+    () => new Set(deletableFixedCategories.map(normalizeAdminCategoryValue)),
+    [deletableFixedCategories]
   );
   const resolveLabel = useCallback(
     (category: string) => labelFor?.(category) ?? getCategoryLabel(category, t),
@@ -6887,8 +8014,7 @@ function AdminCategoryFilter({
               }}
             />
           </span>
-          <button
-            className="admin-category-filter-arrow"
+          <button className="admin-category-filter-arrow"
             type="button"
             aria-label={t.actions.close}
             onClick={(event) => closeCategoryFilter(event.detail === 0)}
@@ -6897,8 +8023,7 @@ function AdminCategoryFilter({
           </button>
         </div>
       ) : (
-        <button
-          ref={triggerRef}
+        <button ref={triggerRef}
           className="admin-category-filter-trigger"
           disabled={disabled}
           type="button"
@@ -6942,8 +8067,7 @@ function AdminCategoryFilter({
       {open ? (
         <div className="admin-category-filter-popover" role="listbox">
           {canCreateCategory ? (
-            <button
-              className="admin-category-create-option"
+            <button className="admin-category-create-option"
               type="button"
               role="option"
               aria-selected="false"
@@ -6963,7 +8087,9 @@ function AdminCategoryFilter({
                 {filteredCategories.map((category) => {
                   const selected = category === normalizedValue;
                   const fixed = normalizedFixedCategories.has(category);
-                  const canDelete = Boolean(onDeleteCategory) && !fixed;
+                  const canDelete = Boolean(onDeleteCategory) && (
+                    !fixed || normalizedDeletableFixedCategories.has(category)
+                  );
                   const categoryLabel = resolveLabel(category);
                   const displayCategoryLabel =
                     getAdminCategoryDisplayLabel(categoryLabel);
@@ -6979,8 +8105,7 @@ function AdminCategoryFilter({
 
                   return (
                     <div className="admin-category-filter-option" key={category}>
-                      <button
-                        className={`admin-category-select-option ${
+                      <button className={`admin-category-select-option ${
                           selected ? "is-selected" : ""
                         }`}
                         type="button"
@@ -6996,8 +8121,7 @@ function AdminCategoryFilter({
                       {canMove || canDelete ? (
                         <div className="admin-category-option-actions">
                           {canMove ? (
-                            <button
-                              className="admin-category-option-action admin-category-move-option"
+                            <button className="admin-category-option-action admin-category-move-option"
                               type="button"
                               aria-label={getAdminCategoryMoveLabel(categoryText, t, category)}
                               title={getAdminCategoryMoveLabel(categoryText, t, category)}
@@ -7011,11 +8135,20 @@ function AdminCategoryFilter({
                             </button>
                           ) : null}
                           {canDelete ? (
-                            <button
-                              className="admin-category-option-action admin-category-delete-option"
+                            <button className="admin-category-option-action admin-category-delete-option"
                               type="button"
-                              aria-label={getAdminCategoryDeleteLabel(categoryText, t, category)}
-                              title={getAdminCategoryDeleteLabel(categoryText, t, category)}
+                              aria-label={getAdminCategoryDeleteLabel(
+                                categoryText,
+                                t,
+                                category,
+                                categoryLabel
+                              )}
+                              title={getAdminCategoryDeleteLabel(
+                                categoryText,
+                                t,
+                                category,
+                                categoryLabel
+                              )}
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
@@ -7142,26 +8275,18 @@ function AdminToolCard({
   return (
     <article className="admin-tool-card">
       <div className="admin-tool-card-head">
-        <span className={`admin-tool-avatar ${isGitHubTool ? "is-github" : ""}`}>
-          {isGitHubTool ? (
+        {isGitHubTool ? (
+          <span className="admin-tool-avatar is-github">
             <Github size={25} strokeWidth={2.1} fill="currentColor" />
-          ) : (
-            <>
-              <span>{getToolInitials(tool.name)}</span>
-              <img
-                src={proxifyUrl(createAdminIconFromUrl(tool.url), proxySettings, {
-                  resourceType: "image"
-                })}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                onError={(event) => {
-                  event.currentTarget.style.display = "none";
-                }}
-              />
-            </>
-          )}
-        </span>
+          </span>
+        ) : (
+          <AdminSiteIcon
+            className="admin-tool-avatar"
+            iconSize={20}
+            proxySettings={proxySettings}
+            url={tool.url}
+          />
+        )}
         <div className="admin-tool-title">
           <div className="admin-tool-title-row">
             <h2>{tool.name}</h2>
@@ -7185,8 +8310,7 @@ function AdminToolCard({
               }}
             />
           ) : null}
-          <button
-            className={`icon-button admin-featured-badge ${
+          <button className={`icon-button admin-featured-badge ${
               tool.featured ? "is-active" : ""
             }`}
             type="button"
@@ -7200,8 +8324,7 @@ function AdminToolCard({
           >
             <Star size={16} fill={tool.featured ? "currentColor" : "none"} />
           </button>
-          <button
-            className={`icon-button admin-tool-menu-trigger ${
+          <button className={`icon-button admin-tool-menu-trigger ${
               actions.open ? "is-active" : ""
             }`}
             type="button"
@@ -7217,8 +8340,7 @@ function AdminToolCard({
           </button>
           {actions.open ? (
             <div className="admin-tool-action-menu" role="menu" onKeyDown={actions.handleMenuKeyDown}>
-              <button
-                disabled={isBusy}
+              <button disabled={isBusy}
                 type="button"
                 role="menuitem"
                 onClick={() => {
@@ -7232,8 +8354,7 @@ function AdminToolCard({
                   {t.admin.editAction}
                 </span>
               </button>
-              <button
-                className="danger"
+              <button className="danger"
                 disabled={isBusy}
                 type="button"
                 role="menuitem"
@@ -7270,7 +8391,7 @@ function AdminToolCard({
       </div>
 
       <div className="admin-tool-card-footer">
-        <CompactTagRow tags={tool.tags} />
+        <CompactTagRow fallbackCategory={tool.category} tags={tool.tags} />
       </div>
     </article>
   );
@@ -7331,8 +8452,7 @@ function AdminArticleCard({
               }}
             />
           ) : null}
-          <button
-            className={`icon-button admin-article-publish-button ${
+          <button className={`icon-button admin-article-publish-button ${
               article.published ? "is-active" : ""
             }`}
             type="button"
@@ -7354,8 +8474,7 @@ function AdminArticleCard({
               <Circle size={16} />
             )}
           </button>
-          <button
-            className={`icon-button admin-tool-menu-trigger ${
+          <button className={`icon-button admin-tool-menu-trigger ${
               actions.open ? "is-active" : ""
             }`}
             type="button"
@@ -7371,8 +8490,7 @@ function AdminArticleCard({
           </button>
           {actions.open ? (
             <div className="admin-tool-action-menu" role="menu" onKeyDown={actions.handleMenuKeyDown}>
-              <button
-                disabled={isBusy}
+              <button disabled={isBusy}
                 type="button"
                 role="menuitem"
                 onClick={() => {
@@ -7388,8 +8506,7 @@ function AdminArticleCard({
                   {articleText.editAction}
                 </span>
               </button>
-              <button
-                className="danger"
+              <button className="danger"
                 disabled={isBusy}
                 type="button"
                 role="menuitem"
@@ -7428,9 +8545,7 @@ function AdminArticleCard({
       </div>
 
       <div className="admin-tool-card-footer">
-        <CompactTagRow
-          tags={Array.from(new Set([article.category, ...article.tags].filter(Boolean)))}
-        />
+        <CompactTagRow fallbackCategory={article.category} tags={article.tags} />
       </div>
     </article>
   );
@@ -7446,8 +8561,7 @@ function AdminTelegramPushButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      className="icon-button admin-telegram-button"
+    <button className="icon-button admin-telegram-button"
       type="button"
       aria-label={label}
       disabled={disabled}
@@ -7504,9 +8618,11 @@ function AdminResourceCardSkeleton() {
 }
 
 function ContentFlowSkeleton({
-  contentText
+  contentText,
+  locale
 }: {
   contentText: ReturnType<typeof getContentFlowText>;
+  locale: Locale;
 }) {
   return (
     <section
@@ -7520,19 +8636,27 @@ function ContentFlowSkeleton({
         </div>
 
         <div className="content-source-list">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div className="content-source-item" key={index}>
-              <button className="content-source-main" disabled type="button">
-                <span className="content-source-icon"><Rss size={16} /></span>
-                <span className="content-source-copy">
-                  <strong>Content source</strong>
-                  <small>{contentText.sourceCount(0)}</small>
+          <div className="content-source-group">
+            <span className="content-source-group-chevron" />
+            <span className="content-source-group-main">
+              <span className="content-source-group-copy"><strong>{contentText.allSources}</strong><small>2</small></span>
+            </span>
+          </div>
+          {Array.from({ length: 2 }).map((_, groupIndex) => (
+            <div className="content-source-group-wrap" key={groupIndex}>
+              <div className="content-source-group">
+                <span className="content-source-group-toggle"><ChevronDown size={15} /></span>
+                <span className="content-source-group-main">
+                  <span className="content-source-group-copy"><strong>{contentText.categoryLabel}</strong><small>1</small></span>
                 </span>
-              </button>
-              <div className="content-source-actions">
-                <button className="icon-button" disabled type="button"><RefreshCw size={15} /></button>
-                <button className="icon-button" disabled type="button"><SquarePen size={15} /></button>
-                <button className="icon-button" disabled type="button"><Trash2 size={15} /></button>
+              </div>
+              <div className="content-source-group-items">
+                <div className="content-source-item">
+                  <span className="content-source-main">
+                    <span className="content-source-icon"><Globe aria-hidden="true" size={15} /></span>
+                    <span className="content-source-copy"><strong>{contentText.addSource}</strong><small>30</small></span>
+                  </span>
+                </div>
               </div>
             </div>
           ))}
@@ -7540,43 +8664,48 @@ function ContentFlowSkeleton({
       </aside>
 
       <div className="content-flow-main">
-        <div className="content-item-list">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <article className="content-item-card has-cover" key={index}>
-              <div className="content-item-head">
-                <div className="content-item-meta">
-                  <span><Rss size={15} />Content source</span>
-                  <span>2026-07-18</span>
+        <div className="content-source-toolbar">
+          <div className="content-source-toolbar-title">
+            <span className="content-source-icon"><Globe aria-hidden="true" size={15} /></span>
+            <strong>{contentText.addSource}</strong>
+          </div>
+          <div className="content-source-toolbar-actions">
+            <button className="icon-button" disabled type="button"><RefreshCw size={15} /></button>
+            <button className="icon-button" disabled type="button"><ChevronDown size={17} /></button>
+          </div>
+        </div>
+        <div className="content-flow-main-scroll">
+          <div className="content-item-list">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <article className="content-item-card has-source-icon" key={index}>
+                <span className="content-source-icon"><Globe aria-hidden="true" size={15} /></span>
+                <div className="content-item-select">
+                  <span className="content-item-title-row"><strong>Content item title placeholder</strong><time>2026-07-18</time></span>
+                  <span className="content-item-summary">
+                    Content item summary follows the final responsive list structure.
+                  </span>
                 </div>
-                <div className="admin-tool-card-actions">
-                  <button className="icon-button" disabled type="button">
-                    <Send size={15} />
-                  </button>
-                  <button className="icon-button" disabled type="button">
-                    <Circle size={16} />
-                  </button>
-                  <button className="icon-button" disabled type="button">
-                    <ChevronDown size={17} />
-                  </button>
-                </div>
-              </div>
-              <div className="content-item-main">
-                <h3>Content item title placeholder</h3>
-                <p>Content item summary follows the final responsive card structure.</p>
-                <div className="admin-tool-links">
-                  <div className="admin-tool-link-row">
-                    <a className="admin-tool-link-text" href="#">
-                      /articles/content-preview?contentItem=content-item
-                    </a>
-                  </div>
-                </div>
-                <CompactTagRow tags={["Content", "RSS", "Article"]} />
-              </div>
-              <span className="content-item-cover content-item-cover-skeleton" />
-            </article>
-          ))}
+                <div className="content-item-mobile-actions"><div className="admin-tool-card-actions">
+                  <button className="icon-button" disabled type="button"><Send size={15} /></button>
+                  <button className="icon-button" disabled type="button"><Circle size={16} /></button>
+                  <button className="icon-button" disabled type="button"><ChevronDown size={17} /></button>
+                </div></div>
+              </article>
+            ))}
+          </div>
         </div>
       </div>
+
+      <aside className="content-flow-reader">
+        <div className="content-reader-toolbar"><div className="content-reader-actions">
+          <button className="icon-button" disabled type="button"><Send size={15} /></button>
+          <button className="icon-button" disabled type="button"><Circle size={16} /></button>
+          <button className="icon-button" disabled type="button"><ChevronDown size={17} /></button>
+        </div></div>
+        <div className="content-flow-reader-scroll">
+          <ArticleDetailContentSkeleton locale={locale} />
+        </div>
+      </aside>
     </section>
   );
 }
@@ -7680,8 +8809,7 @@ function SettingsStatusBadge({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <button
-      aria-checked={enabled}
+    <button aria-checked={enabled}
       aria-describedby={ariaDescribedBy}
       aria-label={enabled ? enabledLabel : disabledLabel}
       aria-live="polite"
@@ -7904,8 +9032,8 @@ function GitHubSettingsForm({
       setSettings(saved);
       setForm((current) => ({ ...current, enabled: saved.enabled }));
       onStatus(saved.enabled
-        ? t.githubSettings.statusEnabled
-        : t.githubSettings.statusDisabled);
+        ? maintenanceText.githubSubmissionEnabledMessage
+        : maintenanceText.githubSubmissionDisabledMessage);
     } catch (error) {
       onStatus(getLocalizedErrorMessage(error, t));
     } finally {
@@ -7927,9 +9055,7 @@ function GitHubSettingsForm({
       <div className="settings-card-error" role="alert">
         <h3>{maintenanceText.githubSubmissionTitle}</h3>
         <p>{settingsError}</p>
-        <button
-          className="ghost-button"
-          type="button"
+        <button className="ghost-button" type="button"
           onClick={() => setSettingsReloadKey((current) => current + 1)}
         >
           {maintenanceText.systemRetry}
@@ -7951,7 +9077,9 @@ function GitHubSettingsForm({
         <SettingsStatusBadge
           ariaDescribedBy="github-settings-description"
           disabled={isSaving || (!settings?.enabled && !hasSavedSubmissionConfig)}
-          disabledLabel={t.githubSettings.statusDisabled}
+          disabledLabel={hasSavedSubmissionConfig
+            ? t.githubSettings.statusDisabled
+            : maintenanceText.serviceUnavailable}
           enabled={settings?.enabled ?? false}
           enabledLabel={t.githubSettings.statusEnabled}
           onChange={() => void toggleEnabled()}
@@ -7998,9 +9126,7 @@ function GitHubSettingsForm({
       </label>
 
       <div className="source-public-actions github-settings-actions">
-        <button
-          className="ghost-button"
-          disabled={isSaving || !isDirty}
+        <button className="ghost-button" disabled={isSaving || !isDirty}
           type="submit"
         >
           {t.actions.saveSettings}
@@ -8028,8 +9154,7 @@ function AdminInitialLoadError({
         <h2>{isChinese ? "\u52a0\u8f7d\u5931\u8d25" : "Unable to load"}</h2>
       </div>
       <p>{message}</p>
-      <button
-        className="ghost-button empty-state-action"
+      <button className="ghost-button empty-state-action"
         type="button"
         onClick={onRetry}
       >
@@ -8090,48 +9215,445 @@ function TelegramMessagePreview({
   }, [source]);
 
   return (
-    <div className="telegram-channel-preview">
-      <div className="tool-github-detail-repo">
-        <Send size={16} />
-        <span>Telegram</span>
-      </div>
-      <div className="telegram-channel-preview-message">
-        <MarkdownContent
-          content={escapeTelegramPreviewHashtags(content)}
-          locale={locale}
-          proxySettings={proxySettings}
-        />
-        {mediaEnabled ? (
-          <div className="telegram-channel-link-preview">
-            <div className="telegram-channel-link-image">
-              {!source || imageFailed ? (
-                <span className="telegram-channel-link-fallback">
-                  <strong>{getToolInitials(resource.title)}</strong>
-                </span>
-              ) : (
-                <>
-                  {!imageLoaded ? (
-                    <span
-                      className="skeleton-shimmer telegram-channel-link-loading"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                  <img
-                    alt=""
-                    className={imageLoaded ? "is-loaded" : ""}
-                    decoding="async"
-                    loading="eager"
-                    onError={() => setImageFailed(true)}
-                    onLoad={() => setImageLoaded(true)}
-                    src={source}
+    <div className={`telegram-channel-preview-message ${mediaEnabled ? "has-photo" : ""}`.trim()}>
+      {mediaEnabled ? (
+        <div className="telegram-channel-photo-message">
+          <div className="telegram-channel-photo-image">
+            {!source || imageFailed ? (
+              <span className="telegram-channel-photo-fallback">
+                <strong>{getToolInitials(resource.title)}</strong>
+              </span>
+            ) : (
+              <>
+                {!imageLoaded ? (
+                  <span
+                    className="skeleton-shimmer telegram-channel-photo-loading"
+                    aria-hidden="true"
                   />
-                </>
-              )}
+                ) : null}
+                <img
+                  alt=""
+                  className={imageLoaded ? "is-loaded" : ""}
+                  decoding="async"
+                  loading="eager"
+                  onError={() => setImageFailed(true)}
+                  onLoad={() => setImageLoaded(true)}
+                  src={source}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
+      <MarkdownContent
+        content={escapeTelegramPreviewHashtags(content)}
+        locale={locale}
+        proxySettings={proxySettings}
+      />
+    </div>
+  );
+}
+
+const IMAGE_BED_UPLOAD_CHANNELS: ImageBedUploadChannel[] = [
+  "telegram",
+  "cfr2",
+  "s3",
+  "discord",
+  "huggingface",
+  "webdav"
+];
+const IMAGE_BED_UPLOAD_NAME_TYPES: ImageBedUploadNameType[] = [
+  "default",
+  "index",
+  "origin",
+  "short"
+];
+
+function ImageBedSettingsCard({
+  maintenanceText,
+  setStatus,
+  t,
+  token
+}: {
+  maintenanceText: ReturnType<typeof getAdminMaintenanceText>;
+  setStatus: (status: string) => void;
+  t: Messages;
+  token: string;
+}) {
+  const emptyForm: Omit<ImageBedSettings, "available"> = {
+    enabled: false,
+    baseUrl: "",
+    uploadChannel: "telegram",
+    channelName: "",
+    uploadNameType: "default",
+    uploadFolder: ""
+  };
+  const [settings, setSettings] = useState<ImageBedSettings | null>(null);
+  const [form, setForm] = useState(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
+  function applySettings(next: ImageBedSettings, syncForm = true) {
+    setSettings(next);
+    if (syncForm) {
+      const { available: _available, ...nextForm } = next;
+      setForm(nextForm);
+    }
+  }
+
+  async function loadSettings(signal?: AbortSignal) {
+    setLoading(true);
+    setLoadError("");
+    try {
+      applySettings(await loadImageBedSettings(token, { signal }));
+    } catch (error) {
+      if (!signal?.aborted) setLoadError(getLocalizedErrorMessage(error, t));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadSettings(controller.signal);
+    return () => controller.abort();
+  }, [token]);
+
+  const hasSavedConfig = Boolean(settings?.baseUrl);
+  const dirty = Boolean(settings && (
+    form.baseUrl.trim() !== settings.baseUrl ||
+    form.uploadChannel !== settings.uploadChannel ||
+    form.channelName.trim() !== settings.channelName ||
+    form.uploadNameType !== settings.uploadNameType ||
+    form.uploadFolder.trim().replace(/^\/+|\/+$/g, "") !== settings.uploadFolder
+  ));
+
+  async function persist(next: Omit<ImageBedSettings, "available">, message: string) {
+    if (saving) return;
+    setSaving(true);
+    setStatus("");
+    try {
+      const saved = await saveImageBedSettings(next, token);
+      applySettings(saved);
+      setStatus(message);
+    } catch (error) {
+      setStatus(getLocalizedErrorMessage(error, t));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function saveForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void persist({ ...form, enabled: settings?.enabled ?? false }, maintenanceText.imageBedUpdated);
+  }
+
+  function toggleEnabled() {
+    if (!settings) return;
+    const enabled = !settings.enabled;
+    const { available: _available, ...stored } = settings;
+    void persist(
+      { ...stored, enabled },
+      enabled
+        ? maintenanceText.imageBedEnabledMessage
+        : maintenanceText.imageBedDisabledMessage
+    );
+  }
+
+  function getChannelLabel(channel: ImageBedUploadChannel) {
+    if (channel === "cfr2") return maintenanceText.imageBedChannelR2;
+    if (channel === "s3") return maintenanceText.imageBedChannelS3;
+    if (channel === "discord") return maintenanceText.imageBedChannelDiscord;
+    if (channel === "huggingface") return maintenanceText.imageBedChannelHuggingFace;
+    if (channel === "webdav") return maintenanceText.imageBedChannelWebDav;
+    return maintenanceText.imageBedChannelTelegram;
+  }
+
+  function getUploadNameTypeLabel(type: ImageBedUploadNameType) {
+    if (type === "index") return maintenanceText.imageBedNameTypeIndex;
+    if (type === "origin") return maintenanceText.imageBedNameTypeOrigin;
+    if (type === "short") return maintenanceText.imageBedNameTypeShort;
+    return maintenanceText.imageBedNameTypeDefault;
+  }
+
+  return (
+    <article className="source-public-card image-bed-settings-card">
+      {loading ? (
+        <SkeletonVisibility visible>
+          <div className="admin-settings-card-loading" aria-hidden="true">
+            <AdminSettingsCopySkeleton
+              className="source-card-heading"
+              description={maintenanceText.imageBedDescription}
+              title={maintenanceText.imageBedTitle}
+              withStatus
+            />
+            <AdminSettingsFieldSkeleton />
+            <AdminSettingsFieldSkeleton />
+            <AdminSettingsFieldSkeleton />
+            <AdminSettingsFieldSkeleton />
+            <AdminSettingsFieldSkeleton />
+            <AdminSettingsActionsSkeleton count={1} />
+          </div>
+        </SkeletonVisibility>
+      ) : loadError ? (
+        <div className="settings-card-error" role="alert">
+          <h3>{maintenanceText.imageBedTitle}</h3>
+          <p>{loadError}</p>
+          <button className="ghost-button" type="button" onClick={() => void loadSettings()}>
+            {maintenanceText.systemRetry}
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="source-card-heading">
+            <h3>{maintenanceText.imageBedTitle}</h3>
+            <SettingsStatusBadge
+              ariaDescribedBy="image-bed-settings-description image-bed-settings-configuration"
+              disabled={saving || !settings?.available || (!settings.enabled && !hasSavedConfig)}
+              disabledLabel={settings?.available && hasSavedConfig
+                ? maintenanceText.imageBedDisabled
+                : maintenanceText.serviceUnavailable}
+              enabled={settings?.enabled ?? false}
+              enabledLabel={maintenanceText.imageBedEnabled}
+              onChange={toggleEnabled}
+            />
+            <p id="image-bed-settings-description">{maintenanceText.imageBedDescription}</p>
+            <div className="turnstile-config-help" id="image-bed-settings-configuration">
+              <span><code>IMGBED_TOKEN</code>{` = ${maintenanceText.imageBedTokenLabel}`}</span>
             </div>
           </div>
-        ) : null}
+          <form
+            aria-describedby="image-bed-settings-description image-bed-settings-configuration"
+            className="proxy-settings-form"
+            onSubmit={saveForm}
+          >
+            <label className="source-url-field">
+              {maintenanceText.imageBedUrlLabel}
+              <input
+                disabled={saving}
+                maxLength={2048}
+                onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
+                placeholder={maintenanceText.imageBedUrlPlaceholder}
+                type="url"
+                value={form.baseUrl}
+              />
+            </label>
+            <label className="source-url-field">
+              {maintenanceText.imageBedChannelLabel}
+              <select
+                disabled={saving}
+                onChange={(event) => setForm({
+                  ...form,
+                  uploadChannel: event.target.value as ImageBedUploadChannel
+                })}
+                value={form.uploadChannel}
+              >
+                {IMAGE_BED_UPLOAD_CHANNELS.map((channel) => (
+                  <option key={channel} value={channel}>{getChannelLabel(channel)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="source-url-field">
+              {maintenanceText.imageBedChannelNameLabel}
+              <input
+                disabled={saving}
+                maxLength={80}
+                onChange={(event) => setForm({ ...form, channelName: event.target.value })}
+                placeholder={maintenanceText.imageBedChannelNamePlaceholder}
+                value={form.channelName}
+              />
+            </label>
+            <label className="source-url-field">
+              {maintenanceText.imageBedNameTypeLabel}
+              <select
+                disabled={saving}
+                onChange={(event) => setForm({
+                  ...form,
+                  uploadNameType: event.target.value as ImageBedUploadNameType
+                })}
+                value={form.uploadNameType}
+              >
+                {IMAGE_BED_UPLOAD_NAME_TYPES.map((type) => (
+                  <option key={type} value={type}>{getUploadNameTypeLabel(type)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="source-url-field">
+              {maintenanceText.imageBedFolderLabel}
+              <input
+                disabled={saving}
+                maxLength={200}
+                onChange={(event) => setForm({ ...form, uploadFolder: event.target.value })}
+                placeholder={maintenanceText.imageBedFolderPlaceholder}
+                value={form.uploadFolder}
+              />
+            </label>
+            <div className="source-public-actions">
+              <button className="ghost-button" disabled={saving || !dirty} type="submit">
+                {maintenanceText.imageBedSave}
+              </button>
+            </div>
+          </form>
+        </>
+      )}
+    </article>
+  );
+}
+
+function RssHubSettingsCard({
+  maintenanceText,
+  setStatus,
+  t,
+  token
+}: {
+  maintenanceText: ReturnType<typeof getAdminMaintenanceText>;
+  setStatus: (status: string) => void;
+  t: Messages;
+  token: string;
+}) {
+  const [settings, setSettings] = useState<RssHubSettings | null>(null);
+  const [baseUrl, setBaseUrl] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
+  async function loadSettings(signal?: AbortSignal) {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const loaded = await loadRssHubSettings(token, { signal });
+      if (signal?.aborted) return;
+      setSettings(loaded);
+      setBaseUrl(loaded.baseUrl);
+    } catch (error) {
+      if (!signal?.aborted) setLoadError(getLocalizedErrorMessage(error, t));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadSettings(controller.signal);
+    return () => controller.abort();
+  }, [token]);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setStatus("");
+    try {
+      const saved = await saveRssHubSettings({
+        enabled: settings?.enabled ?? true,
+        baseUrl
+      }, token);
+      setSettings(saved);
+      setBaseUrl(saved.baseUrl);
+      setStatus(maintenanceText.rssHubUpdated);
+    } catch (error) {
+      setStatus(getLocalizedErrorMessage(error, t));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleEnabled() {
+    if (!settings || saving) return;
+    setSaving(true);
+    setStatus("");
+    try {
+      const saved = await saveRssHubSettings({
+        enabled: !settings.enabled,
+        baseUrl: settings.baseUrl
+      }, token);
+      setSettings(saved);
+      setStatus(saved.enabled
+        ? maintenanceText.rssHubEnabledMessage
+        : maintenanceText.rssHubDisabledMessage);
+    } catch (error) {
+      setStatus(getLocalizedErrorMessage(error, t));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <article className="source-public-card rsshub-settings-card">
+        <SkeletonVisibility visible>
+          <div className="admin-settings-card-loading" aria-hidden="true">
+            <div className="source-card-heading">
+              <h3><AdminSettingsTextMask>{maintenanceText.rssHubTitle}</AdminSettingsTextMask></h3>
+              <span className="skeleton-shimmer settings-config-status-skeleton" />
+              <p><AdminSettingsTextMask>{maintenanceText.rssHubDescription}</AdminSettingsTextMask></p>
+            </div>
+            <AdminSettingsFieldSkeleton />
+            <AdminSettingsActionsSkeleton count={1} />
+          </div>
+        </SkeletonVisibility>
+      </article>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <article className="source-public-card rsshub-settings-card">
+        <div className="settings-card-error" role="alert">
+          <h3>{maintenanceText.rssHubTitle}</h3>
+          <p>{loadError}</p>
+          <button className="ghost-button" type="button" onClick={() => void loadSettings()}>
+            {maintenanceText.systemRetry}
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  const dirty = baseUrl.trim() !== (settings?.baseUrl ?? "");
+
+  return (
+    <article className="source-public-card rsshub-settings-card">
+      <div className="source-card-heading">
+        <h3>{maintenanceText.rssHubTitle}</h3>
+        <SettingsStatusBadge
+          ariaDescribedBy="rsshub-settings-description"
+          disabled={saving}
+          disabledLabel={maintenanceText.rssHubDisabled}
+          enabled={settings?.enabled ?? true}
+          enabledLabel={maintenanceText.rssHubEnabled}
+          onChange={() => void toggleEnabled()}
+        />
+        <p id="rsshub-settings-description">{maintenanceText.rssHubDescription}</p>
       </div>
-    </div>
+      <form
+        aria-describedby="rsshub-settings-description"
+        className="proxy-settings-form"
+        onSubmit={save}
+      >
+        <label className="source-url-field">
+          {maintenanceText.rssHubUrlLabel}
+          <input
+            disabled={saving}
+            maxLength={2048}
+            onBlur={() => {
+              const normalized = normalizeRssHubBaseUrl(baseUrl);
+              if (normalized) setBaseUrl(normalized);
+            }}
+            onChange={(event) => setBaseUrl(event.target.value)}
+            placeholder={maintenanceText.rssHubUrlPlaceholder}
+            type="url"
+            value={baseUrl}
+          />
+        </label>
+        <div className="source-public-actions">
+          <button className="ghost-button" disabled={saving || !dirty} type="submit">
+            {maintenanceText.rssHubSave}
+          </button>
+        </div>
+      </form>
+    </article>
   );
 }
 
@@ -8285,7 +9807,7 @@ function TelegramSettingsCard({
           disabled={saving || testing || !settings.available}
           disabledLabel={settings.available
             ? maintenanceText.telegramDisabled
-            : maintenanceText.telegramUnavailable}
+            : maintenanceText.serviceUnavailable}
           enabled={settings.enabled}
           enabledLabel={maintenanceText.telegramEnabled}
           onChange={(enabled) => {
@@ -8315,7 +9837,6 @@ function TelegramSettingsCard({
         <div className="turnstile-config-help" id="telegram-settings-configuration">
           <span><code>TGTOKEN</code>{` = ${maintenanceText.telegramTokenLabel}`}</span>
         </div>
-        {!settings.available ? <p>{maintenanceText.telegramNotConfigured}</p> : null}
       </div>
       {connection ? (
         <section className="tool-github-detail-card telegram-connection-details" aria-live="polite">
@@ -8385,16 +9906,12 @@ function TelegramSettingsCard({
           />
         </label>
         <div className="source-public-actions telegram-settings-actions">
-          <button
-            className="ghost-button"
-            disabled={saving || testing || !dirty}
+          <button className="ghost-button" disabled={saving || testing || !dirty}
             type="submit"
           >
             {maintenanceText.telegramSave}
           </button>
-          <button
-            className="ghost-button"
-            disabled={saving || testing || !target.trim()}
+          <button className="ghost-button" disabled={saving || testing || !target.trim()}
             type="button"
             onClick={() => void testConnection()}
           >
@@ -8555,8 +10072,7 @@ function LegalSettingsCard({
           <button className="primary-button" disabled={busy || !dirty} type="submit">
             {saveLabel}
           </button>
-          <button
-            className="ghost-button settings-reset-button"
+          <button className="ghost-button settings-reset-button"
             disabled={busy}
             type="button"
             onClick={onReset}
@@ -8671,6 +10187,11 @@ function AdminLinkCheckSkeleton({
           <div className="source-import-main">
             <AdminSettingsHeadingSkeleton className="link-check-heading" />
             <AdminSettingsFieldSkeleton />
+            <div className="source-mode-row source-file-field">
+              <span className="skeleton-shimmer skeleton-line is-short" />
+              <AdminSettingsActionsSkeleton className="source-action-row source-file-actions" count={1} />
+              <span className="skeleton-shimmer skeleton-line is-long" />
+            </div>
             <div className="source-mode-row">
               <span className="skeleton-shimmer skeleton-line is-short" />
               <div className="admin-segmented-toggle admin-segmented-toggle-skeleton">
@@ -8733,8 +10254,7 @@ function AdminLinkCheckSkeleton({
                 t.linkCheck.clear,
                 t.linkCheck.exportCsv
               ].map((label, index) => (
-                <button
-                  className={index === 0 ? "primary-button" : "ghost-button"}
+                <button className={index === 0 ? "primary-button" : "ghost-button"}
                   disabled
                   key={label}
                   type="button"
@@ -8811,11 +10331,16 @@ function getAdminSystemSettingsGroupTitle(
 }
 
 function AdminSystemSettingsPanel({
+  adminAiSettings,
+  adminAiSettingsLoadError,
+  adminAiSettingsLoading,
   locale,
   maintenanceText,
   onTokenChange,
   onProxySettingsChange,
   onDataRestored,
+  onAdminAiSettingsChange,
+  onReloadAdminAiSettings,
   onSiteSettingsChange,
   onTelegramSettingsChange,
   onReloadTelegramSettings,
@@ -8833,11 +10358,16 @@ function AdminSystemSettingsPanel({
   telegramSettingsLoading,
   token
 }: {
+  adminAiSettings: AdminAiSettings;
+  adminAiSettingsLoadError: unknown;
+  adminAiSettingsLoading: boolean;
   locale: Locale;
   maintenanceText: ReturnType<typeof getAdminMaintenanceText>;
   onTokenChange: (token: string) => void;
   onProxySettingsChange: (settings: ProxySettings) => void;
   onDataRestored: () => Promise<void>;
+  onAdminAiSettingsChange: (settings: AdminAiSettings) => void;
+  onReloadAdminAiSettings: () => Promise<void>;
   onSiteSettingsChange: (settings: SiteSettings) => void;
   onTelegramSettingsChange: (settings: TelegramSettings) => void;
   onReloadTelegramSettings: () => Promise<void>;
@@ -8867,6 +10397,8 @@ function AdminSystemSettingsPanel({
   const [sourceSettingsLoading, setSourceSettingsLoading] = useState(true);
   const [turnstileSettingsLoading, setTurnstileSettingsLoading] = useState(true);
   const [umamiSettingsLoading, setUmamiSettingsLoading] = useState(true);
+  const [adminAiSettingsSaving, setAdminAiSettingsSaving] = useState(false);
+  const [adminAiModel, setAdminAiModel] = useState(adminAiSettings.model);
   const [securitySettingsLoading, setSecuritySettingsLoading] = useState(true);
   const [siteSettingsLoading, setSiteSettingsLoading] = useState(!siteSettingsReady);
   const [proxySettingsLoading, setProxySettingsLoading] = useState(!proxySettingsReady);
@@ -9141,6 +10673,10 @@ function AdminSystemSettingsPanel({
       scope: proxySettings.scope
     }));
   }, [proxySettings.baseUrl, proxySettings.mode, proxySettings.scope]);
+
+  useEffect(() => {
+    setAdminAiModel(adminAiSettings.model);
+  }, [adminAiSettings.model]);
 
   useEffect(() => {
     if (!siteSettingsReady) {
@@ -9539,7 +11075,13 @@ function AdminSystemSettingsPanel({
         setProxyForm(normalizedSettings);
       }
       onProxySettingsChange(normalizedSettings);
-      setStatus(maintenanceText.proxyUpdated);
+      setStatus(
+        syncFormAfterSave
+          ? maintenanceText.proxyUpdated
+          : settings.enabled
+            ? maintenanceText.proxyEnabledMessage
+            : maintenanceText.proxyDisabledMessage
+      );
     } catch (error) {
       setStatus(getLocalizedErrorMessage(error, t));
     } finally {
@@ -9578,6 +11120,48 @@ function AdminSystemSettingsPanel({
       releaseSettingsWriteLock(`turnstile`);
       setTurnstileSettingsSaving(false);
     }
+  }
+
+  async function persistAdminAiSettings(
+    enabled: boolean,
+    model: AdminAiSettings["model"],
+    successMessage: string
+  ) {
+    if (adminAiSettingsSaving || !acquireSettingsWriteLock("workers-ai")) return;
+    setAdminAiSettingsSaving(true);
+    clearMessage();
+
+    try {
+      const settings = await saveAdminAiSettings({ enabled, model }, token);
+      onAdminAiSettingsChange(settings);
+      setAdminAiModel(settings.model);
+      setStatus(successMessage);
+    } catch (error) {
+      setStatus(getLocalizedErrorMessage(error, t));
+    } finally {
+      releaseSettingsWriteLock("workers-ai");
+      setAdminAiSettingsSaving(false);
+    }
+  }
+
+  function saveAdminAiForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void persistAdminAiSettings(
+      adminAiSettings.enabled,
+      adminAiModel,
+      maintenanceText.aiUpdated
+    );
+  }
+
+  function toggleAdminAi() {
+    const enabled = !adminAiSettings.enabled;
+    void persistAdminAiSettings(
+      enabled,
+      adminAiSettings.model,
+      enabled
+        ? maintenanceText.aiEnabledMessage
+        : maintenanceText.aiDisabledMessage
+    );
   }
 
   function toggleProxy() {
@@ -10186,12 +11770,13 @@ function AdminSystemSettingsPanel({
   }
 
   async function refreshSettingsAfterMaintenance() {
-    const [source, proxy, configuration, umami, telegram] = await Promise.all([
+    const [source, proxy, configuration, umami, telegram, ai] = await Promise.all([
       loadSourceSettings(token),
       loadProxySettings(),
       loadSiteConfiguration(),
       loadUmamiSettings(token),
-      loadTelegramSettings(token)
+      loadTelegramSettings(token),
+      loadAdminAiSettings(token)
     ]);
     const normalizedProxy = {
       enabled: proxy.enabled,
@@ -10209,6 +11794,7 @@ function AdminSystemSettingsPanel({
     onSiteSettingsChange(configuration.settings);
     applyUmamiSettingsState(umami);
     onTelegramSettingsChange(telegram);
+    onAdminAiSettingsChange(ai);
   }
 
   async function factoryReset() {
@@ -10378,6 +11964,10 @@ function AdminSystemSettingsPanel({
   const publicSourceUrl =
     sourceSettings?.sourceUrl ?? new URL("/api/htools.json", window.location.origin).toString();
   const proxyEnabled = proxySettings.enabled;
+  const hasSavedProxyConfig = Boolean(normalizeProxyBaseUrl(proxySettings.baseUrl));
+  const hasSavedUmamiConfig = hasCompleteUmamiSettings(
+    umamiSettings ?? { scriptUrl: "", websiteId: "" }
+  );
   const footerForm = getFooterFormValues(siteForm);
   const persistedFooterForm = getFooterFormValues(persistedSiteSettings);
   const homeHeroForm = {
@@ -10421,6 +12011,7 @@ function AdminSystemSettingsPanel({
       (umamiForm.scriptUrl.trim() !== umamiSettings.scriptUrl ||
         umamiForm.websiteId.trim() !== umamiSettings.websiteId)
   );
+  const adminAiSettingsDirty = adminAiModel !== adminAiSettings.model;
   const securitySettingsDirty = Object.values(securityForm).some((value) =>
     Boolean(value.trim())
   );
@@ -10434,6 +12025,7 @@ function AdminSystemSettingsPanel({
     githubSettingsDirty ||
     proxySettingsDirty ||
     umamiSettingsDirty ||
+    adminAiSettingsDirty ||
     securitySettingsDirty;
 
   function requestBackupRestore() {
@@ -10489,8 +12081,7 @@ function AdminSystemSettingsPanel({
         const selected = activeSettingsGroup === group.id;
 
         return (
-          <button
-            aria-controls={`system-settings-panel-${group.id}`}
+          <button aria-controls={`system-settings-panel-${group.id}`}
             aria-selected={selected}
             className={`admin-segmented-toggle-option system-settings-tab ${
               selected ? "is-active" : ""
@@ -10545,9 +12136,7 @@ function AdminSystemSettingsPanel({
               <div className="settings-card-error" role="alert">
                 <h3>{maintenanceText.systemGroupGeneral}</h3>
                 <p>{siteSettingsError}</p>
-                <button
-                  className="ghost-button"
-                  type="button"
+                <button className="ghost-button" type="button"
                   onClick={() => void loadSiteSettingsCards()}
                 >
                   {maintenanceText.systemRetry}
@@ -10669,15 +12258,12 @@ function AdminSystemSettingsPanel({
                 </span>
               </div>
               <div className="site-identity-actions">
-                <button
-                  className="primary-button"
-                  disabled={siteIdentityBusy || !siteIdentityDirty}
+                <button className="primary-button" disabled={siteIdentityBusy || !siteIdentityDirty}
                   type="submit"
                 >
                   {maintenanceText.siteSave}
                 </button>
-                <button
-                  className="ghost-button settings-reset-button"
+                <button className="ghost-button settings-reset-button"
                   disabled={siteIdentityBusy}
                   type="button"
                   onClick={() => void resetSiteIdentity()}
@@ -10770,15 +12356,12 @@ function AdminSystemSettingsPanel({
               </label>
             </div>
             <div className="source-public-actions">
-              <button
-                className="primary-button"
-                disabled={homeHeroBusy || !homeHeroDirty}
+              <button className="primary-button" disabled={homeHeroBusy || !homeHeroDirty}
                 type="submit"
               >
                 {maintenanceText.homeSave}
               </button>
-              <button
-                className="ghost-button settings-reset-button"
+              <button className="ghost-button settings-reset-button"
                 disabled={homeHeroBusy}
                 type="button"
                 onClick={() => void resetHomeHeroSettings()}
@@ -10865,15 +12448,12 @@ function AdminSystemSettingsPanel({
             </label>
             <p className="site-icon-choice-help" id="footer-json-help">{maintenanceText.footerJsonHelp}</p>
             <div className="source-public-actions">
-              <button
-                className="primary-button"
-                disabled={footerSettingsBusy || !footerSettingsDirty}
+              <button className="primary-button" disabled={footerSettingsBusy || !footerSettingsDirty}
                 type="submit"
               >
                 {maintenanceText.footerSave}
               </button>
-              <button
-                className="ghost-button settings-reset-button"
+              <button className="ghost-button settings-reset-button"
                 disabled={footerSettingsBusy}
                 type="button"
                 onClick={() => void resetFooterSettings()}
@@ -10983,9 +12563,7 @@ function AdminSystemSettingsPanel({
             <div className="settings-card-error" role="alert">
               <h3>{maintenanceText.publicTitle}</h3>
               <p>{sourceSettingsError}</p>
-              <button
-                className="ghost-button"
-                type="button"
+              <button className="ghost-button" type="button"
                 onClick={() => void loadSourceSettingsCard()}
               >
                 {maintenanceText.systemRetry}
@@ -11049,9 +12627,7 @@ function AdminSystemSettingsPanel({
             <div className="settings-card-error" role="alert">
               <h3>{maintenanceText.umamiTitle}</h3>
               <p>{umamiSettingsError}</p>
-              <button
-                className="ghost-button"
-                type="button"
+              <button className="ghost-button" type="button"
                 onClick={() => void loadUmamiSettingsCard()}
               >
                 {maintenanceText.systemRetry}
@@ -11065,12 +12641,11 @@ function AdminSystemSettingsPanel({
                   ariaDescribedBy="umami-settings-description"
                   disabled={
                     umamiSettingsSaving ||
-                    (!umamiSettings?.enabled &&
-                      !hasCompleteUmamiSettings(
-                        umamiSettings ?? { scriptUrl: "", websiteId: "" }
-                      ))
+                    (!umamiSettings?.enabled && !hasSavedUmamiConfig)
                   }
-                  disabledLabel={maintenanceText.umamiDisabled}
+                  disabledLabel={hasSavedUmamiConfig
+                    ? maintenanceText.umamiDisabled
+                    : maintenanceText.serviceUnavailable}
                   enabled={umamiSettings?.enabled ?? false}
                   enabledLabel={maintenanceText.umamiEnabled}
                   onChange={() => toggleUmami()}
@@ -11117,9 +12692,7 @@ function AdminSystemSettingsPanel({
                   />
                 </label>
                 <div className="source-public-actions">
-                  <button
-                    className="ghost-button"
-                    disabled={umamiSettingsSaving || !umamiSettingsDirty}
+                  <button className="ghost-button" disabled={umamiSettingsSaving || !umamiSettingsDirty}
                     type="submit"
                   >
                     {maintenanceText.umamiSave}
@@ -11129,6 +12702,13 @@ function AdminSystemSettingsPanel({
             </>
           )}
           </article>
+
+          <ImageBedSettingsCard
+            maintenanceText={maintenanceText}
+            setStatus={setStatus}
+            t={t}
+            token={token}
+          />
 
           </div>
 
@@ -11172,7 +12752,7 @@ function AdminSystemSettingsPanel({
                   }
                   disabledLabel={turnstileSettings?.available
                     ? maintenanceText.turnstileDisabled
-                    : maintenanceText.turnstileUnavailable}
+                    : maintenanceText.serviceUnavailable}
                   enabled={turnstileSettings?.enabled ?? false}
                   enabledLabel={maintenanceText.turnstileEnabled}
                   onChange={() => void toggleTurnstile()}
@@ -11188,8 +12768,90 @@ function AdminSystemSettingsPanel({
                     {` = ${maintenanceText.turnstileSecretKeyLabel}`}
                   </span>
                 </div>
-                {!turnstileSettings?.available ? <p>{maintenanceText.turnstileNotConfigured}</p> : null}
               </div>
+            </>
+          )}
+          </article>
+          <RssHubSettingsCard
+            maintenanceText={maintenanceText}
+            setStatus={setStatus}
+            t={t}
+            token={token}
+          />
+          <article className="source-public-card ai-settings-card">
+          {adminAiSettingsLoading ? (
+            <SkeletonVisibility visible>
+              <div className="admin-settings-card-loading" aria-hidden="true">
+                <AdminSettingsCopySkeleton
+                  className="source-card-heading"
+                  description={maintenanceText.aiDescription}
+                  title={maintenanceText.aiTitle}
+                  withStatus
+                />
+                <AdminSettingsFieldSkeleton />
+                <AdminSettingsActionsSkeleton count={1} />
+              </div>
+            </SkeletonVisibility>
+          ) : adminAiSettingsLoadError ? (
+            <div className="settings-card-error" role="alert">
+              <h3>{maintenanceText.aiTitle}</h3>
+              <p>{getLocalizedErrorMessage(adminAiSettingsLoadError, t)}</p>
+              <button className="ghost-button" type="button"
+                onClick={() => void onReloadAdminAiSettings()}
+              >
+                {maintenanceText.systemRetry}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="source-card-heading">
+                <h3>{maintenanceText.aiTitle}</h3>
+                <SettingsStatusBadge
+                  ariaDescribedBy="ai-settings-description ai-settings-configuration"
+                  disabled={adminAiSettingsSaving || !adminAiSettings.available}
+                  disabledLabel={adminAiSettings.available
+                    ? maintenanceText.aiDisabled
+                    : maintenanceText.serviceUnavailable}
+                  enabled={adminAiSettings.enabled}
+                  enabledLabel={maintenanceText.aiEnabled}
+                  onChange={toggleAdminAi}
+                />
+                <p id="ai-settings-description">{maintenanceText.aiDescription}</p>
+                <div className="turnstile-config-help" id="ai-settings-configuration">
+                  <span><code>AI</code>{` = ${maintenanceText.aiBindingLabel}`}</span>
+                </div>
+              </div>
+              <form
+                aria-describedby="ai-settings-description ai-settings-configuration"
+                className="proxy-settings-form"
+                onSubmit={saveAdminAiForm}
+              >
+                <label className="source-url-field">
+                  {maintenanceText.aiModelLabel}
+                  <select
+                    disabled={adminAiSettingsSaving || !adminAiSettings.available}
+                    onChange={(event) => setAdminAiModel(
+                      event.target.value as AdminAiSettings["model"]
+                    )}
+                    value={adminAiModel}
+                  >
+                    {ADMIN_AI_MODELS.map((model, index) => (
+                      <option key={model} value={model}>
+                        {index === 0
+                          ? maintenanceText.aiModelDefault
+                          : maintenanceText.aiModelLlama}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="source-public-actions">
+                  <button className="ghost-button" disabled={adminAiSettingsSaving || !adminAiSettingsDirty}
+                    type="submit"
+                  >
+                    {maintenanceText.aiSave}
+                  </button>
+                </div>
+              </form>
             </>
           )}
           </article>
@@ -11214,9 +12876,7 @@ function AdminSystemSettingsPanel({
             <div className="settings-card-error" role="alert">
               <h3>{maintenanceText.proxyTitle}</h3>
               <p>{proxySettingsError}</p>
-              <button
-                className="ghost-button"
-                type="button"
+              <button className="ghost-button" type="button"
                 onClick={() => void loadProxySettingsCard()}
               >
                 {maintenanceText.systemRetry}
@@ -11230,9 +12890,11 @@ function AdminSystemSettingsPanel({
               ariaDescribedBy="proxy-settings-description proxy-settings-help"
               disabled={
                 proxySaving ||
-                (!proxyEnabled && !normalizeProxyBaseUrl(proxySettings.baseUrl))
+                (!proxyEnabled && !hasSavedProxyConfig)
               }
-              disabledLabel={maintenanceText.proxyDisabled}
+              disabledLabel={hasSavedProxyConfig
+                ? maintenanceText.proxyDisabled
+                : maintenanceText.serviceUnavailable}
               enabled={proxyEnabled}
               enabledLabel={maintenanceText.proxyEnabled}
               onChange={toggleProxy}
@@ -11308,9 +12970,7 @@ function AdminSystemSettingsPanel({
               </a>
             </div>
             <div className="source-public-actions">
-              <button
-                className="ghost-button"
-                disabled={proxySaving || !proxySettingsDirty}
+              <button className="ghost-button" disabled={proxySaving || !proxySettingsDirty}
                 type="submit"
               >
                 {maintenanceText.proxySave}
@@ -11351,9 +13011,7 @@ function AdminSystemSettingsPanel({
             <div className="settings-card-error" role="alert">
               <h3>{maintenanceText.securityTitle}</h3>
               <p>{securitySettingsError}</p>
-              <button
-                className="ghost-button"
-                type="button"
+              <button className="ghost-button" type="button"
                 onClick={() => void loadSecuritySettingsCard()}
               >
                 {maintenanceText.systemRetry}
@@ -11430,9 +13088,7 @@ function AdminSystemSettingsPanel({
                     }}
                   />
                 </label>
-                <button
-                  className="primary-button"
-                  disabled={securitySaving || !securitySettingsDirty}
+                <button className="primary-button" disabled={securitySaving || !securitySettingsDirty}
                   type="submit"
                 >
                   {maintenanceText.securitySave}
@@ -11455,10 +13111,8 @@ function AdminSystemSettingsPanel({
             <p id="factory-reset-warning">{maintenanceText.resetWarning}</p>
           </div>
           <div className="source-public-actions">
-            <button
-              aria-describedby="factory-reset-description factory-reset-warning"
-              className="primary-button"
-              disabled={factoryResetting}
+            <button aria-describedby="factory-reset-description factory-reset-warning"
+              className="primary-button" disabled={factoryResetting}
               type="button"
               onClick={requestFactoryReset}
             >
@@ -11488,10 +13142,8 @@ function AdminSystemSettingsPanel({
             {backupFileName}
           </span>
           <div className="source-public-actions">
-            <button
-              aria-describedby="backup-settings-description backup-settings-help"
-              className="primary-button"
-              disabled={backupExporting || backupRestoring}
+            <button aria-describedby="backup-settings-description backup-settings-help"
+              className="primary-button" disabled={backupExporting || backupRestoring}
               type="button"
               onClick={() => void exportBackup()}
             >
@@ -11507,10 +13159,8 @@ function AdminSystemSettingsPanel({
                 onChange={handleBackupFile}
               />
             </label>
-            <button
-              aria-describedby="backup-settings-description backup-settings-help"
-              className="ghost-button"
-              disabled={!backupPayload || backupExporting || backupRestoring}
+            <button aria-describedby="backup-settings-description backup-settings-help"
+              className="ghost-button" disabled={!backupPayload || backupExporting || backupRestoring}
               type="button"
               onClick={() => {
                 if (!backupPayload) {
@@ -11618,8 +13268,9 @@ function AdminLinkCheckPanel({
   const [batchSize, setBatchSize] = useState(4);
   const [sourceUrl, setSourceUrl] = useState(DEFAULT_SOURCE_URL);
   const [sourceMode, setSourceMode] = useState<ToolImportMode>("skip");
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [sourceItems, setSourceItems] = useState<unknown[] | null>(null);
-  const [checkedSourceUrl, setCheckedSourceUrl] = useState("");
+  const [checkedSourceKey, setCheckedSourceKey] = useState("");
   const [sourceChecking, setSourceChecking] = useState(false);
   const [sourceImporting, setSourceImporting] = useState(false);
   const [sourceExporting, setSourceExporting] = useState(false);
@@ -11709,48 +13360,104 @@ function AdminLinkCheckPanel({
     );
   }
 
-  async function checkSource(url = sourceUrl) {
+  function getSourceFileKey(file: File) {
+    return `file:${file.name}:${file.size}:${file.lastModified}`;
+  }
+
+  function getSourceOriginLabel() {
+    return sourceFile
+      ? maintenanceText.sourceFileOrigin(sourceFile.name)
+      : maintenanceText.sourceUrlOrigin;
+  }
+
+  async function readSelectedSource(url = sourceUrl) {
+    if (sourceFile) {
+      return {
+        items: await readToolSourceFile(sourceFile, maintenanceText),
+        key: getSourceFileKey(sourceFile),
+        url: ""
+      };
+    }
+
     const nextUrl = normalizeSourceUrl(url);
+    return {
+      items: await fetchToolSource(nextUrl, maintenanceText),
+      key: `url:${nextUrl}`,
+      url: nextUrl
+    };
+  }
+
+  async function checkSource(url = sourceUrl) {
     setSourceChecking(true);
     setStatus("");
 
     try {
-      const items = await fetchToolSource(nextUrl, maintenanceText);
-      const preview = createSourcePreview(items, tools, sourceMode, maintenanceText);
-      setSourceUrl(nextUrl);
-      setSourceItems(items);
-      setCheckedSourceUrl(nextUrl);
-      setStatus(maintenanceText.sourceChecked(preview.total));
+      const selected = await readSelectedSource(url);
+      const preview = createSourcePreview(selected.items, tools, sourceMode, maintenanceText);
+      if (selected.url) setSourceUrl(selected.url);
+      setSourceItems(selected.items);
+      setCheckedSourceKey(selected.key);
+      setStatus(maintenanceText.sourceChecked(getSourceOriginLabel(), preview.total));
     } catch (error) {
       setStatus(getSourceErrorMessage(error, maintenanceText, t));
       setSourceItems(null);
-      setCheckedSourceUrl("");
+      setCheckedSourceKey("");
     } finally {
       setSourceChecking(false);
     }
   }
 
   async function importSource() {
-    const nextUrl = normalizeSourceUrl(sourceUrl);
     setSourceImporting(true);
     setStatus("");
 
     try {
-      const items =
-        sourceItems && checkedSourceUrl === nextUrl
-          ? sourceItems
-          : await fetchToolSource(nextUrl, maintenanceText);
+      const activeKey = sourceFile
+        ? getSourceFileKey(sourceFile)
+        : `url:${normalizeSourceUrl(sourceUrl)}`;
+      const selected = sourceItems && checkedSourceKey === activeKey
+        ? { items: sourceItems, key: activeKey, url: sourceFile ? "" : normalizeSourceUrl(sourceUrl) }
+        : await readSelectedSource();
+      const items = selected.items;
       const result = await importTools(items, sourceMode, token);
-      setSourceUrl(nextUrl);
+      if (selected.url) setSourceUrl(selected.url);
       setSourceItems(items);
-      setCheckedSourceUrl(nextUrl);
-      setStatus(maintenanceText.sourceImportSummary(result));
+      setCheckedSourceKey(selected.key);
+      setStatus(maintenanceText.sourceImportSummary(getSourceOriginLabel(), result));
       await onReloadTools();
     } catch (error) {
       setStatus(getSourceErrorMessage(error, maintenanceText, t));
     } finally {
       setSourceImporting(false);
     }
+  }
+
+  async function selectSourceFile(file: File) {
+    setSourceChecking(true);
+    setStatus("");
+
+    try {
+      const items = await readToolSourceFile(file, maintenanceText);
+      const preview = createSourcePreview(items, tools, sourceMode, maintenanceText);
+      setSourceFile(file);
+      setSourceItems(items);
+      setCheckedSourceKey(getSourceFileKey(file));
+      setStatus(maintenanceText.sourceFileChecked(file.name, preview.total));
+    } catch (error) {
+      setSourceFile(null);
+      setSourceItems(null);
+      setCheckedSourceKey("");
+      setStatus(getSourceErrorMessage(error, maintenanceText, t));
+    } finally {
+      setSourceChecking(false);
+    }
+  }
+
+  function clearSourceFile() {
+    setSourceFile(null);
+    setSourceItems(null);
+    setCheckedSourceKey("");
+    setStatus("");
   }
 
   async function exportSource() {
@@ -11920,24 +13627,59 @@ function AdminLinkCheckPanel({
               value={sourceUrl}
               onChange={(event) => {
                 setSourceUrl(event.target.value);
+                setSourceFile(null);
+                setSourceItems(null);
+                setCheckedSourceKey("");
                 setStatus("");
               }}
               placeholder={maintenanceText.sourcePlaceholder}
             />
           </label>
 
+          <div className="source-mode-row source-file-field">
+            <span>{maintenanceText.sourceFileLabel}</span>
+            <div className="source-action-row source-file-actions">
+              <label className="ghost-button backup-file-picker">
+                {sourceFile
+                  ? maintenanceText.sourceFileReplace
+                  : maintenanceText.sourceFileChoose}
+                <input
+                  accept="application/json,.json"
+                  disabled={sourceChecking || sourceImporting || sourceExporting}
+                  type="file"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (file) void selectSourceFile(file);
+                  }}
+                />
+              </label>
+              {sourceFile ? (
+                <button className="ghost-button" disabled={sourceChecking || sourceImporting || sourceExporting}
+                  type="button"
+                  onClick={clearSourceFile}
+                >
+                  {maintenanceText.sourceFileRemove}
+                </button>
+              ) : null}
+            </div>
+            <small>
+              {sourceFile
+                ? maintenanceText.sourceFileSelected(sourceFile.name)
+                : maintenanceText.sourceFileHelp}
+            </small>
+          </div>
+
           <div className="source-mode-row" aria-label={maintenanceText.sourceMode}>
             <span>{maintenanceText.sourceMode}</span>
             <div className="admin-segmented-toggle">
-              <button
-                className={sourceMode === "skip" ? "is-active" : ""}
+              <button className={sourceMode === "skip" ? "is-active" : ""}
                 type="button"
                 onClick={() => setSourceMode("skip")}
               >
                 {maintenanceText.sourceModeSkip}
               </button>
-              <button
-                className={sourceMode === "upsert" ? "is-active" : ""}
+              <button className={sourceMode === "upsert" ? "is-active" : ""}
                 type="button"
                 onClick={() => setSourceMode("upsert")}
               >
@@ -11948,17 +13690,13 @@ function AdminLinkCheckPanel({
           </div>
 
           <div className="source-action-row">
-            <button
-              className="ghost-button"
-              disabled={sourceChecking || sourceImporting || sourceExporting}
+            <button className="ghost-button" disabled={sourceChecking || sourceImporting || sourceExporting}
               type="button"
               onClick={() => void checkSource()}
             >
               {maintenanceText.sourceDetect}
             </button>
-            <button
-              className="primary-button"
-              disabled={sourceChecking || sourceImporting || sourceExporting}
+            <button className="primary-button" disabled={sourceChecking || sourceImporting || sourceExporting}
               type="button"
               onClick={() => void importSource()}
             >
@@ -12036,9 +13774,7 @@ function AdminLinkCheckPanel({
             </div>
           </div>
           <div className="source-action-row">
-            <button
-              className="primary-button"
-              disabled={sourceChecking || sourceImporting || sourceExporting}
+            <button className="primary-button" disabled={sourceChecking || sourceImporting || sourceExporting}
               type="button"
               onClick={() => void exportSource()}
             >
@@ -12088,41 +13824,32 @@ function AdminLinkCheckPanel({
         </div>
 
         <div className="link-check-actions">
-          <button
-            className="primary-button"
-            disabled={checking || loadingLinks || totalCount === 0}
+          <button className="primary-button" disabled={checking || loadingLinks || totalCount === 0}
             onClick={() => void startCheck()}
             type="button"
           >
             {t.linkCheck.start}
           </button>
-          <button
-            className="ghost-button danger-action"
+          <button className="ghost-button danger-action"
             disabled={!checking}
             onClick={stopCheck}
             type="button"
           >
             {t.linkCheck.stop}
           </button>
-          <button
-            className="ghost-button"
-            disabled={checking || loadingLinks}
+          <button className="ghost-button" disabled={checking || loadingLinks}
             onClick={() => void reloadLinks()}
             type="button"
           >
             {t.linkCheck.reload}
           </button>
-          <button
-            className="ghost-button"
-            disabled={checking || !results.length}
+          <button className="ghost-button" disabled={checking || !results.length}
             onClick={clearResults}
             type="button"
           >
             {t.linkCheck.clear}
           </button>
-          <button
-            className="ghost-button"
-            disabled={checking || abnormalCount === 0}
+          <button className="ghost-button" disabled={checking || abnormalCount === 0}
             onClick={exportResults}
             type="button"
           >
@@ -12180,16 +13907,14 @@ function AdminLinkCheckPanel({
         </div>
 
         <div className="link-check-tabs" role="tablist" aria-label={t.linkCheck.resultsTitle}>
-          <button
-            className={activeFilter === "abnormal" ? "is-active" : ""}
+          <button className={activeFilter === "abnormal" ? "is-active" : ""}
             onClick={() => setActiveFilter("abnormal")}
             type="button"
           >
             {t.linkCheck.tabsAbnormal(abnormalCount)}
           </button>
           {statusItems.map((item) => (
-            <button
-              className={activeFilter === item.value ? "is-active" : ""}
+            <button className={activeFilter === item.value ? "is-active" : ""}
               key={item.value}
               onClick={() => setActiveFilter(item.value)}
               type="button"
@@ -12197,8 +13922,7 @@ function AdminLinkCheckPanel({
               {t.linkCheck.tabsStatus(item.status, item.count)}
             </button>
           ))}
-          <button
-            className={activeFilter === "all" ? "is-active" : ""}
+          <button className={activeFilter === "all" ? "is-active" : ""}
             onClick={() => setActiveFilter("all")}
             type="button"
           >
@@ -12280,8 +14004,7 @@ function AdminLinkCheckPanel({
                       <td>
                         <div className="link-check-action-buttons">
                           {showToolUrl ? (
-                            <a
-                              className="ghost-button link-check-open-link"
+                            <a className="ghost-button link-check-open-link"
                               href={proxifyUrl(relatedToolUrl, proxySettings)}
                               aria-label={secondaryTargetLabel}
                               rel="noreferrer"
@@ -12292,8 +14015,7 @@ function AdminLinkCheckPanel({
                             </a>
                           ) : null}
                           {result.url ? (
-                            <a
-                              className="ghost-button link-check-open-link"
+                            <a className="ghost-button link-check-open-link"
                               href={proxifyUrl(result.url, proxySettings)}
                               aria-label={targetLabel}
                               rel="noreferrer"
@@ -12810,7 +14532,7 @@ function Dialog({
     <div
       className={`dialog-backdrop ${backdropClassName} ${isClosing ? "is-closing" : ""}`}
       role="presentation"
-      aria-hidden={isClosing}
+      inert={isClosing}
       onMouseDown={() => requestClose()}
     >
       <section
@@ -12834,9 +14556,7 @@ function Dialog({
         >
           <span className="dialog-drawer-grip" aria-hidden="true" />
           <h2 id={titleId}>{title}</h2>
-          <button
-            className="icon-button"
-            type="button"
+          <button className="icon-button" type="button"
             onClick={() => requestClose()}
             aria-label={closeLabel}
           >

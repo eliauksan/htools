@@ -14,6 +14,10 @@ import type {
   AdminCategoryActionResult,
   AdminCategoryScope,
   AdminCategorySettings,
+  AdminAiResult,
+  AdminAiDocumentResult,
+  AdminAiSettings,
+  AdminAiTask,
   AdminPasswordInput,
   AdminSecuritySettings,
   Article,
@@ -28,9 +32,12 @@ import type {
   GitHubSettings,
   GitHubSettingsInput,
   GitHubToolMetadata,
+  ImageBedSettings,
+  AdminImageUploadResult,
   LinkCheckResponse,
   LinkCheckTarget,
   ProxySettings,
+  RssHubSettings,
   HtoolsBackup,
   BackupRestoreResponse,
   SiteSettings,
@@ -57,6 +64,10 @@ import {
   normalizeProxyMode,
   normalizeProxyScope
 } from "./proxy";
+import {
+  DEFAULT_RSSHUB_BASE_URL,
+  normalizeRssHubBaseUrl
+} from "../shared/rsshub";
 import {
   normalizeUmamiScriptUrl,
   normalizeUmamiWebsiteId
@@ -142,12 +153,36 @@ type TurnstileSettingsResponse = {
   settings: TurnstileSettings;
 };
 
+type AdminAiSettingsResponse = {
+  settings: AdminAiSettings;
+};
+
+type AdminAiGenerateResponse = {
+  result: AdminAiResult;
+};
+
+type AdminAiDocumentResponse = {
+  result: AdminAiDocumentResult;
+};
+
 type ProxySettingsResponse = {
   settings: ProxySettings;
 };
 
+type RssHubSettingsResponse = {
+  settings: RssHubSettings;
+};
+
 type UmamiSettingsResponse = {
   settings: UmamiSettings;
+};
+
+type ImageBedSettingsResponse = {
+  settings: ImageBedSettings;
+};
+
+type AdminImageUploadResponse = {
+  image: AdminImageUploadResult;
 };
 
 type SiteSettingsResponse = {
@@ -532,7 +567,8 @@ export async function convertContentItemToArticle(
   id: string,
   category: string,
   published: boolean,
-  token: string
+  token: string,
+  overrides?: { summary: string; tags: string[] }
 ): Promise<Article> {
   const response = await fetch(
     `/api/admin/content-items/${encodeURIComponent(id)}/to-article`,
@@ -542,7 +578,7 @@ export async function convertContentItemToArticle(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ category, published })
+      body: JSON.stringify({ category, published, ...overrides })
     }
   );
   const data = await readJson<ArticleResponse>(response);
@@ -703,6 +739,49 @@ export async function saveProxySettings(
   });
 }
 
+export async function loadRssHubSettings(
+  token: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {}
+): Promise<RssHubSettings> {
+  const data = await requestJsonWithTimeout<RssHubSettingsResponse>(
+    "/api/admin/rsshub-settings",
+    {
+      signal: options.signal,
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+    },
+    { timeoutMs: options.timeoutMs }
+  );
+  return data.settings;
+}
+
+export async function saveRssHubSettings(
+  input: RssHubSettings,
+  token: string
+): Promise<RssHubSettings> {
+  const expected = {
+    enabled: input.enabled,
+    baseUrl: normalizeRssHubBaseUrl(input.baseUrl) || DEFAULT_RSSHUB_BASE_URL
+  };
+  return confirmTimedOutWrite({
+    write: async () => (await requestJsonWithTimeout<RssHubSettingsResponse>(
+      "/api/admin/rsshub-settings",
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(input)
+      }
+    )).settings,
+    confirm: () => loadRssHubSettings(token, {
+      timeoutMs: TIMED_OUT_WRITE_CONFIRM_TIMEOUT_MS
+    }),
+    matches: (current) =>
+      current.enabled === expected.enabled && current.baseUrl === expected.baseUrl
+  });
+}
+
 export async function loadTurnstileSettings(
   token: string,
   options: { signal?: AbortSignal; timeoutMs?: number } = {}
@@ -769,6 +848,132 @@ export async function saveTurnstileSettings(enabled: boolean, token: string) {
     }),
     matches: (current) => current.enabled === enabled
   });
+}
+
+export async function loadAdminAiSettings(
+  token: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {}
+): Promise<AdminAiSettings> {
+  const data = await requestJsonWithTimeout<AdminAiSettingsResponse>(
+    "/api/admin/ai-settings",
+    {
+      signal: options.signal,
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+    },
+    { timeoutMs: options.timeoutMs }
+  );
+  return data.settings;
+}
+
+export async function saveAdminAiSettings(
+  input: Pick<AdminAiSettings, "enabled" | "model">,
+  token: string
+): Promise<AdminAiSettings> {
+  return confirmTimedOutWrite({
+    write: async () => (await requestJsonWithTimeout<AdminAiSettingsResponse>(
+      "/api/admin/ai-settings",
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(input)
+      }
+    )).settings,
+    confirm: () => loadAdminAiSettings(token, {
+      timeoutMs: TIMED_OUT_WRITE_CONFIRM_TIMEOUT_MS
+    }),
+    matches: (current) => current.enabled === input.enabled && current.model === input.model
+  });
+}
+
+export async function loadImageBedSettings(
+  token: string,
+  options: { signal?: AbortSignal; timeoutMs?: number } = {}
+): Promise<ImageBedSettings> {
+  const data = await requestJsonWithTimeout<ImageBedSettingsResponse>(
+    "/api/admin/image-bed-settings",
+    {
+      signal: options.signal,
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+    },
+    { timeoutMs: options.timeoutMs }
+  );
+  return data.settings;
+}
+
+export async function saveImageBedSettings(
+  input: Omit<ImageBedSettings, "available">,
+  token: string
+): Promise<ImageBedSettings> {
+  return (await requestJsonWithTimeout<ImageBedSettingsResponse>(
+    "/api/admin/image-bed-settings",
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(input)
+    }
+  )).settings;
+}
+
+export async function uploadAdminImage(file: File, token: string) {
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const data = await requestJsonWithTimeout<AdminImageUploadResponse>(
+    "/api/admin/image-upload",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body
+    },
+    { timeoutMs: 90_000 }
+  );
+  return data.image;
+}
+
+export async function generateAdminAi(
+  task: AdminAiTask,
+  input: Record<string, unknown>,
+  locale: "zh" | "en",
+  token: string
+): Promise<AdminAiResult> {
+  const data = await requestJsonWithTimeout<AdminAiGenerateResponse>(
+    "/api/admin/ai/generate",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ task, input, locale })
+    },
+    { timeoutMs: 35_000 }
+  );
+  return data.result;
+}
+
+export async function convertAdminAiDocument(
+  file: File,
+  token: string,
+  options: { signal?: AbortSignal } = {}
+): Promise<AdminAiDocumentResult> {
+  const formData = new FormData();
+  formData.set("file", file, file.name);
+  const data = await requestJsonWithTimeout<AdminAiDocumentResponse>(
+    "/api/admin/ai/to-markdown",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+      signal: options.signal
+    },
+    { timeoutMs: 65_000 }
+  );
+  return data.result;
 }
 
 export async function patchSiteSettings(
@@ -998,6 +1203,7 @@ type TelegramMessageWriteOptions = {
   category?: string;
   title?: string;
   resource?: TelegramPushResource;
+  confirmUncertainRetry?: boolean;
 };
 
 export async function deleteTelegramPush(
@@ -1037,7 +1243,8 @@ export async function sendTelegramMessage(
       body: JSON.stringify({
         bodyMarkdown, mediaEnabled, mediaUrl, locale,
         category: options.category ?? "",
-        title: options.title ?? "", resource: options.resource
+        title: options.title ?? "", resource: options.resource,
+        confirmUncertainRetry: options.confirmUncertainRetry === true
       })
     }
   );

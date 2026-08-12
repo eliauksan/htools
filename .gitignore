@@ -7,6 +7,7 @@ dist/
 # Cloudflare / Wrangler local state
 .wrangler/
 wrangler.local.toml
+wrangler.toml
 
 # Local agent workspace
 .agents/
@@ -18,6 +19,7 @@ tests/
 
 # Local private docs
 CHANGELOG.md
+AGENTS.md
 CLAUDE.md
 DESIGN.md
 

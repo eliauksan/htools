@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { SiteSettings } from "./types";
 import { getSiteDisplayName, getSiteSubtitle } from "./site-helpers";
+import { getEffectiveTags } from "../shared/effective-tags";
 
 export const SiteSettingsContext = createContext<SiteSettings | undefined>(undefined);
 
@@ -201,18 +202,24 @@ export function SkeletonLayoutMask({
 }
 
 export function CompactTagRow({
+  fallbackCategory = "",
   tags,
   visibleCount: maxVisibleCount
 }: {
+  fallbackCategory?: string;
   tags: string[];
   visibleCount?: number;
 }) {
+  const displayTags = useMemo(
+    () => getEffectiveTags(tags, fallbackCategory),
+    [fallbackCategory, tags]
+  );
   const rowRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const [fitCount, setFitCount] = useState(tags.length);
+  const [fitCount, setFitCount] = useState(displayTags.length);
   const visibleLimit = maxVisibleCount ?? fitCount;
-  const visibleTags = tags.slice(0, Math.min(visibleLimit, tags.length));
-  const hiddenCount = Math.max(tags.length - visibleTags.length, 0);
+  const visibleTags = displayTags.slice(0, Math.min(visibleLimit, displayTags.length));
+  const hiddenCount = Math.max(displayTags.length - visibleTags.length, 0);
 
   useEffect(() => {
     if (maxVisibleCount !== undefined) {
@@ -251,8 +258,8 @@ export function CompactTagRow({
 
       let nextFitCount = 0;
 
-      for (let count = tags.length; count >= 0; count -= 1) {
-        const hidden = tags.length - count;
+      for (let count = displayTags.length; count >= 0; count -= 1) {
+        const hidden = displayTags.length - count;
         const tagsWidth = tagWidths
           .slice(0, count)
           .reduce((total, width, index) => total + width + (index > 0 ? gap : 0), 0);
@@ -276,7 +283,7 @@ export function CompactTagRow({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [maxVisibleCount, tags]);
+  }, [displayTags, maxVisibleCount]);
 
   return (
     <div className="tag-row-shell">
@@ -294,7 +301,7 @@ export function CompactTagRow({
       </div>
       {maxVisibleCount === undefined ? (
         <div className="tag-row tag-row-measure" ref={measureRef} aria-hidden="true">
-          {tags.map((tag, index) => {
+          {displayTags.map((tag, index) => {
             const displayTag = tag.trim().replace(/^#+/, "");
 
             return (
@@ -303,8 +310,8 @@ export function CompactTagRow({
               </span>
             );
           })}
-          {tags.map((_, index) => {
-            const count = tags.length - index;
+          {displayTags.map((_, index) => {
+            const count = displayTags.length - index;
 
             return (
               <span

@@ -30,7 +30,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const items = publicArticles.map(({ article, metadata }) => {
     const publishedAt = parsePublicDate(metadata.datePublished);
-    const tags = parsePublicArticleTags(article.tags);
+    const tags = parsePublicArticleTags(article.tags, article.category);
 
     return [
       "    <item>",

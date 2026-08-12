@@ -22,6 +22,7 @@ type ContentItemPageRow = ContentItemSummaryRow & {
 type ContentSourceCountRow = {
   source_id: string;
   total: number;
+  filtered_total: number;
 };
 type ContentCategoryCountRow = {
   category: string;
@@ -106,6 +107,8 @@ async function loadContentItemPage(
   const { category, cursor, limit, sort, sourceId, terms, useFts } = options;
   const sharedConditions: string[] = [];
   const sharedParams: string[] = [];
+  const searchConditions: string[] = [];
+  const searchParams: string[] = [];
 
   if (category) {
     sharedConditions.push("content_items.category = ?");
@@ -114,15 +117,15 @@ async function loadContentItemPage(
 
   if (terms) {
     if (useFts) {
-      sharedConditions.push(
+      searchConditions.push(
         `content_items.id IN (
           SELECT item_id FROM content_items_search
           WHERE content_items_search MATCH ?
         )`
       );
-      sharedParams.push(terms.ftsPhrase);
+      searchParams.push(terms.ftsPhrase);
     } else {
-      sharedConditions.push(
+      searchConditions.push(
         `(content_items.title LIKE ? ESCAPE '\\' OR
           content_items.summary LIKE ? ESCAPE '\\' OR
           content_items.url LIKE ? ESCAPE '\\' OR
@@ -130,7 +133,7 @@ async function loadContentItemPage(
           content_items.tags LIKE ? ESCAPE '\\' OR
           content_sources.title LIKE ? ESCAPE '\\')`
       );
-      sharedParams.push(
+      searchParams.push(
         terms.likePattern,
         terms.likePattern,
         terms.likePattern,
@@ -139,6 +142,8 @@ async function loadContentItemPage(
         terms.likePattern
       );
     }
+    sharedConditions.push(...searchConditions);
+    sharedParams.push(...searchParams);
   }
 
   const conditions = [...sharedConditions];
@@ -161,12 +166,18 @@ async function loadContentItemPage(
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const sourceCountWhereClause = sharedConditions.length
-    ? `WHERE ${sharedConditions.join(" AND ")}`
+  const sourceCountWhereClause = searchConditions.length
+    ? `WHERE ${searchConditions.join(" AND ")}`
     : "";
   const sourceCountJoin = terms && !useFts
     ? "JOIN content_sources ON content_sources.id = content_items.source_id"
     : "";
+  const filteredTotalExpression = category
+    ? "SUM(CASE WHEN content_items.category = ? THEN 1 ELSE 0 END)"
+    : "COUNT(*)";
+  const sourceCountParams = category
+    ? [category, ...searchParams]
+    : [...searchParams];
   const orderBy = sort === "oldest"
     ? "sort_key ASC, content_items.id ASC"
     : "sort_key DESC, content_items.id DESC";
@@ -184,13 +195,15 @@ async function loadContentItemPage(
       .bind(...params, limit + 1)
       .all<ContentItemPageRow>(),
     db.prepare(
-      `SELECT content_items.source_id, COUNT(*) AS total
+      `SELECT content_items.source_id,
+              COUNT(*) AS total,
+              ${filteredTotalExpression} AS filtered_total
        FROM content_items
        ${sourceCountJoin}
        ${sourceCountWhereClause}
        GROUP BY content_items.source_id`
     )
-      .bind(...sharedParams)
+      .bind(...sourceCountParams)
       .all<ContentSourceCountRow>(),
     db.prepare(
       `SELECT category, COUNT(*) AS total
@@ -208,9 +221,15 @@ async function loadContentItemPage(
   const sourceCounts = Object.fromEntries(
     sourceCountRows.results.map((row) => [row.source_id, Number(row.total ?? 0)])
   );
+  const filteredSourceCounts = Object.fromEntries(
+    sourceCountRows.results.map((row) => [
+      row.source_id,
+      Number(row.filtered_total ?? row.total ?? 0)
+    ])
+  );
   const total = sourceId
-    ? Number(sourceCounts[sourceId] ?? 0)
-    : Object.values(sourceCounts).reduce((sum, count) => sum + count, 0);
+    ? Number(filteredSourceCounts[sourceId] ?? 0)
+    : Object.values(filteredSourceCounts).reduce((sum, count) => sum + count, 0);
 
   return {
     items: items.map(contentItemSummaryFromRow),

@@ -17,6 +17,7 @@ type TelegramPayload = {
   title?: unknown;
   resource?: unknown;
   category?: unknown;
+  confirmUncertainRetry?: unknown;
 };
 
 function readRequestContext(request: Request, params: Record<string, string | string[]>) {

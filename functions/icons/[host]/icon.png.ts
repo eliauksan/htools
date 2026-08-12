@@ -1,5 +1,5 @@
 const ICON_CACHE_TTL_SECONDS = 60 * 60 * 24 * 7;
-const ICON_ERROR_CACHE_TTL_SECONDS = 60 * 5;
+const ICON_ERROR_CACHE_TTL_SECONDS = 60 * 60;
 const ICON_UPSTREAM_TIMEOUT_MS = 2500;
 const ICON_MAX_BUFFER_BYTES = 256 * 1024;
 const BITWARDEN_DEFAULT_GLOBE_ICON_BYTES = 500;
@@ -39,7 +39,14 @@ export const onRequest: PagesFunction = async (context) => {
   const rawHost = Array.isArray(context.params.host)
     ? context.params.host[0]
     : context.params.host;
-  const response = await handleWebsiteIcon(String(rawHost ?? ""));
+  const missingStatus =
+    new URL(context.request.url).searchParams.get("fallback") === "empty"
+      ? 204
+      : 404;
+  const response = await handleWebsiteIcon(
+    String(rawHost ?? ""),
+    missingStatus
+  );
 
   if (context.request.method === "HEAD") {
     return new Response(null, {
@@ -194,20 +201,20 @@ function iconResponse(body: BodyInit, contentType: string | null) {
   });
 }
 
-function missingIconResponse() {
+function missingIconResponse(status: 204 | 404) {
   return new Response(null, {
-    status: 404,
+    status,
     headers: {
-      "Cache-Control": `public, max-age=${ICON_ERROR_CACHE_TTL_SECONDS}`
+      "Cache-Control": `public, max-age=${ICON_ERROR_CACHE_TTL_SECONDS}, stale-while-revalidate=${ICON_ERROR_CACHE_TTL_SECONDS}`
     }
   });
 }
 
-async function handleWebsiteIcon(rawHost: string) {
+async function handleWebsiteIcon(rawHost: string, missingStatus: 204 | 404) {
   const normalizedHost = normalizeIconHost(rawHost);
 
   if (!normalizedHost) {
-    return missingIconResponse();
+    return missingIconResponse(missingStatus);
   }
 
   const encodedHost = encodeURIComponent(normalizedHost);
@@ -267,5 +274,5 @@ async function handleWebsiteIcon(rawHost: string) {
     }
   }
 
-  return missingIconResponse();
+  return missingIconResponse(missingStatus);
 }

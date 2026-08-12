@@ -55,8 +55,7 @@ import {
   cleanArticleDisplayText,
   getArticleDisplayTitle,
   getArticleText,
-  getCategoryIcon,
-  stripLeadingArticleDuplicates
+  getCategoryIcon
 } from "./article-helpers";
 import {
   createToolPreviewSource,
@@ -84,6 +83,9 @@ import {
 import UtilityMenuControls, {
   type UtilityMenuController
 } from "./components/UtilityMenuControls";
+import ArticleDetailContent, {
+  ArticleDetailContentSkeleton
+} from "./components/ArticleDetailContent";
 import {
   DEFAULT_SITE_SETTINGS,
   createArticleStructuredData,
@@ -399,6 +401,7 @@ export function App() {
     resolveLocale(localStorage.getItem("htools_locale") ?? navigator.language)
   );
   const toastIdRef = useRef(0);
+  const activeToastKeysRef = useRef(new Set<string>());
   const publicToolsRequestIdRef = useRef(0);
   const publicToolsAbortRef = useRef<AbortController | null>(null);
   const publicToolsLoadingMoreRef = useRef(false);
@@ -450,11 +453,16 @@ export function App() {
   }, []);
 
   const notify = useCallback((toast: ToastInput) => {
+    const toastKey = `${toast.tone}\u0000${toast.message}`;
+    if (activeToastKeysRef.current.has(toastKey)) return;
+
+    activeToastKeysRef.current.add(toastKey);
     const id = ++toastIdRef.current;
     const nextToast = { ...toast, id };
 
     setToasts((current) => [...current, nextToast].slice(-3));
     window.setTimeout(() => {
+      activeToastKeysRef.current.delete(toastKey);
       dismissToast(id);
     }, 4200);
   }, [dismissToast]);
@@ -1853,15 +1861,6 @@ function ArticleDetailPage({
   const articleDisplaySummary = article
     ? cleanArticleDisplayText(article.summary)
     : "";
-  const articleBodyContent = article
-    ? stripLeadingArticleDuplicates(
-        article.content,
-        articleDisplayTitle || article.title,
-        articleDisplaySummary || article.summary,
-        article.coverImage
-      )
-    : "";
-
   useEffect(() => {
     let active = true;
 
@@ -1993,47 +1992,18 @@ function ArticleDetailPage({
       <main className="content-page article-detail-page">
         {isLoading ? (
           <SkeletonVisibility visible={showSkeleton}>
-            <ArticleDetailSkeleton articleText={articleText} />
+            <ArticleDetailContentSkeleton
+              backLink={{ href: "/articles", label: articleText.backToArticles }}
+              locale={locale}
+            />
           </SkeletonVisibility>
         ) : article ? (
-          <article className="article-detail-card">
-            <a className="ghost-button article-back-link" href="/articles">
-              <ChevronLeft size={16} />
-              {articleText.backToArticles}
-            </a>
-
-            <header className="article-detail-head">
-              <div className="article-detail-meta">
-                {article.category ? <span>{article.category}</span> : null}
-                {formatAdminDate(article.published_at ?? article.updated_at) ? (
-                  <span>
-                    {articleText.publishedOn(
-                      formatAdminDate(article.published_at ?? article.updated_at)
-                    )}
-                  </span>
-                ) : null}
-              </div>
-              <h1>{articleDisplayTitle}</h1>
-              <p>{articleDisplaySummary}</p>
-              <CompactTagRow tags={article.tags} />
-            </header>
-
-            <ArticleDetailCover src={article.coverImage} />
-
-            <Suspense
-              fallback={
-                <LoadingSkeleton>
-                  <ArticleBodySkeleton />
-                </LoadingSkeleton>
-              }
-            >
-              <MarkdownContent
-                content={articleBodyContent}
-                locale={locale}
-                proxySettings={proxySettings}
-              />
-            </Suspense>
-          </article>
+          <ArticleDetailContent
+            article={article}
+            backLink={{ href: "/articles", label: articleText.backToArticles }}
+            locale={locale}
+            proxySettings={proxySettings}
+          />
         ) : (
           <section className="empty-state article-empty-state">
             <div className="empty-state-title">
@@ -2157,88 +2127,9 @@ function ArticleListItem({
         </span>
         <h3>{displayTitle}</h3>
         <p>{displaySummary}</p>
-        <CompactTagRow tags={article.tags} />
+        <CompactTagRow fallbackCategory={article.category} tags={article.tags} />
       </div>
     </a>
-  );
-}
-
-function ArticleDetailCover({ src }: { src: string }) {
-  const proxySettings = useProxySettings();
-  const proxiedSrc = proxifyUrl(src, proxySettings, { resourceType: "image" });
-  const imageRef = useRef<HTMLImageElement | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    setFailed(false);
-    setLoaded(false);
-  }, [proxiedSrc]);
-
-  useEffect(() => {
-    const image = imageRef.current;
-
-    if (image?.complete && image.naturalWidth > 0) {
-      setLoaded(true);
-    }
-  }, [proxiedSrc]);
-
-  if (!proxiedSrc || failed) {
-    return null;
-  }
-
-  return (
-    <figure
-      className={`article-detail-cover-frame ${loaded ? "is-loaded" : ""}`}
-      aria-hidden="true"
-    >
-      <img
-        className="article-detail-cover"
-        ref={imageRef}
-        src={proxiedSrc}
-        alt=""
-        loading="eager"
-        decoding="async"
-        fetchPriority="high"
-        onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
-      />
-    </figure>
-  );
-}
-
-function ArticleBodySkeleton() {
-  return (
-    <SkeletonLayoutMask className="markdown-content article-body-skeleton">
-      <h2>Article section heading</h2>
-      <p>Article paragraph content follows the final Markdown typography and width.</p>
-      <p>Additional paragraph content keeps the same spacing and responsive wrapping.</p>
-      <h3>Article subsection heading</h3>
-      <ul><li>Article list item</li><li>Article list item</li></ul>
-    </SkeletonLayoutMask>
-  );
-}
-
-function ArticleDetailSkeleton({ articleText }: { articleText: ReturnType<typeof getArticleText> }) {
-  return (
-    <section className="article-detail-card article-detail-loading">
-      <SkeletonLayoutMask>
-        <a className="ghost-button article-back-link" href="/articles">
-          <ChevronLeft size={16} />{articleText.backToArticles}
-        </a>
-      </SkeletonLayoutMask>
-      <SkeletonLayoutMask className="article-detail-head article-detail-head-skeleton">
-        <div className="article-detail-meta">
-          <span>Category</span>
-          <span>{articleText.publishedOn("2026-07-18")}</span>
-        </div>
-        <h1>Article detail title placeholder</h1>
-        <p>Article detail summary follows the final responsive typography.</p>
-        <CompactTagRow tags={["Article", "Category", "Guide"]} />
-      </SkeletonLayoutMask>
-      <div className="article-detail-cover-frame article-cover-skeleton" aria-hidden="true" />
-      <ArticleBodySkeleton />
-    </section>
   );
 }
 
@@ -2993,15 +2884,20 @@ function HomeHeader({
                   themeMode={themeMode}
                 />
 
-                <a className="mobile-admin-card" href="/admin" onClick={closeMobileNav}>
+                <div className="mobile-admin-card">
                   <span className="mobile-admin-card-copy">
                     <strong>{t.actions.login}</strong>
                     <small>{locale === "zh" ? "进入控制台" : "Enter console"}</small>
                   </span>
-                  <span className="icon-button" aria-hidden="true">
+                  <a
+                    className="icon-button"
+                    href="/admin"
+                    aria-label={t.actions.login}
+                    onClick={closeMobileNav}
+                  >
                     <LogIn size={18} />
-                  </span>
-                </a>
+                  </a>
+                </div>
               </div>
             </aside>
           </div>,
@@ -3168,7 +3064,10 @@ function HomeHeader({
                           <strong>{tool.name}</strong>
                           <span>{tool.description}</span>
                           <div className="global-search-tags">
-                            <CompactTagRow tags={getToolDisplayTags(tool)} />
+                            <CompactTagRow
+                              fallbackCategory={tool.category}
+                              tags={tool.tags}
+                            />
                           </div>
                         </div>
                         <ArrowUpRight size={18} />
@@ -3196,7 +3095,10 @@ function HomeHeader({
                           <strong>{getArticleDisplayTitle(article)}</strong>
                           <span>{cleanArticleDisplayText(article.summary)}</span>
                           <div className="global-search-tags">
-                            <CompactTagRow tags={article.tags} />
+                            <CompactTagRow
+                              fallbackCategory={article.category}
+                              tags={article.tags}
+                            />
                           </div>
                         </div>
                         <ArrowUpRight size={18} />
@@ -3231,22 +3133,6 @@ function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
       {icon}
       {title}
     </h2>
-  );
-}
-
-function getToolDisplayTags(tool: Tool) {
-  const tags = tool.tags.map((tag) => tag.trim()).filter(Boolean);
-
-  if (tags.length) {
-    return tags;
-  }
-
-  return Array.from(
-    new Set(
-      [tool.githubLanguage, tool.githubLicense]
-        .map((tag) => tag.trim())
-        .filter(Boolean)
-    )
   );
 }
 
@@ -3610,7 +3496,7 @@ function HomeToolCard({
         </h3>
         <p>{tool.description}</p>
         <div className="tool-card-footer">
-          <CompactTagRow tags={getToolDisplayTags(tool)} />
+          <CompactTagRow fallbackCategory={tool.category} tags={tool.tags} />
         </div>
       </div>
     </article>
@@ -3860,7 +3746,7 @@ function ToolCard({
         </div>
         <p>{tool.description}</p>
         <div className="tool-card-footer">
-          <CompactTagRow tags={getToolDisplayTags(tool)} />
+          <CompactTagRow fallbackCategory={tool.category} tags={tool.tags} />
         </div>
       </div>
     </article>

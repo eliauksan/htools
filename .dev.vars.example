@@ -8,6 +8,11 @@ ADMIN_PASSWORD=
 # Without it, the admin browser reads public repository information directly from GitHub.
 GITHUB_TOKEN=
 
+# Optional CloudFlare ImgBed image upload
+# Add IMGBED_TOKEN as an encrypted Secret with upload permission.
+# Configure the ImgBed URL and upload options in Admin > Service Settings.
+IMGBED_TOKEN=
+
 # Optional administrator login protection
 # Add TURNSTILE_SITE_KEY as a plain variable and TURNSTILE_SECRET_KEY as an encrypted Secret.
 # Configure both values, redeploy, then enable Turnstile in Admin > Service Settings.
@@ -22,3 +27,7 @@ TGTOKEN=
 # D1 database binding
 # Bind the HTools D1 database with the variable name DB in Cloudflare Pages.
 # DB is a binding, not an environment variable, so no DB value is listed here.
+
+# Optional Workers AI binding
+# Add a Workers AI binding named AI in Cloudflare Pages, then redeploy and enable it in Admin > Service Settings.
+# AI is a binding, not an environment variable, so no AI value is listed here.

@@ -6,6 +6,7 @@ import {
   jsonDeleted,
   jsonError,
   requireAdmin,
+  resolveContentSourceFetchUrl,
   validateContentSourcePayload,
   writeErrorResponse,
   type ContentSourceRow,
@@ -36,8 +37,10 @@ export const onRequestPut: PagesFunction<Env> = async ({
     const payload = validateContentSourcePayload(
       (await request.json()) as object
     );
-    const preview =
-      payload.url !== existing.url ? await fetchFeedPreview(payload.url) : null;
+    const urlChanged = payload.url !== existing.url;
+    const preview = urlChanged
+      ? await fetchFeedPreview(await resolveContentSourceFetchUrl(db, payload.url))
+      : null;
     const now = new Date().toISOString();
 
     await db.prepare(
@@ -59,13 +62,19 @@ export const onRequestPut: PagesFunction<Env> = async ({
       )
       .run();
 
-    await db.prepare(
-      `UPDATE content_items
-       SET category = ?, updated_at = ?
-       WHERE source_id = ?`
-    )
-      .bind(payload.category, now, id)
-      .run();
+    if (urlChanged) {
+      await db.prepare("DELETE FROM content_items WHERE source_id = ?")
+        .bind(id)
+        .run();
+    } else {
+      await db.prepare(
+        `UPDATE content_items
+         SET category = ?, updated_at = ?
+         WHERE source_id = ?`
+      )
+        .bind(payload.category, now, id)
+        .run();
+    }
 
     const row = await db.prepare("SELECT * FROM content_sources WHERE id = ?")
       .bind(id)

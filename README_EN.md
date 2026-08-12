@@ -26,12 +26,13 @@ HTools is an open-source tool directory platform powered by Cloudflare Pages Fun
 
 ## Features
 
-- The public site includes tool categories, articles, tool submission, and an about page.
-- The dashboard manages tools, articles, RSS sources, categories, and system settings.
-- RSS items can be previewed or converted into site articles; articles and the about page support Markdown.
-- Users can fetch GitHub repository metadata and continue to GitHub to create a public issue; admins can also auto-fill repository details.
-- Administrators can manually push tools, articles, content-feed items, and custom messages to Telegram, then browse, edit, and update those push records from one dashboard.
-- Full backup and restore, a public tool feed, and Simplified Chinese / English interfaces are included.
+- **Tool directory**: category browsing, site-wide search, featured picks, and public tool submissions.
+- **Content management**: articles and RSS subscription content in one dashboard, with Markdown support and conversion into site articles.
+- **Telegram push**: send tools, articles, subscription items, and custom messages, then browse and update the records in one place.
+- **GitHub integration**: read public repository details and auto-fill project metadata.
+- **Workers AI** (optional): generate descriptions, summaries, and tags; convert common documents to Markdown.
+- **ImgBed** (optional): upload images from the dashboard and fill in their public URLs automatically.
+- **Data & experience**: full backup and restore, a public tool feed, Simplified Chinese / English interfaces, and light / dark themes.
 
 ## Deployment
 
@@ -45,19 +46,21 @@ Build output directory: dist
 ```
 
 4. Create a Cloudflare D1 database, for example `htools`.
-5. Go back to the Pages project settings and add a D1 binding for Functions:
-
-```txt
-Variable name: DB
-D1 database: select the database you just created
-```
-
+5. Go back to the Pages project settings and add the `DB` binding listed under "Resource Bindings" below; add the `AI` binding as well if you want Workers AI.
 6. Add the required variables to the Pages deployment environment using the environment-variable table below, and store every value marked as Secret as an encrypted variable.
-
 7. Redeploy the Pages project.
 8. Open `/admin` and sign in.
 
 The D1 schema is initialized or upgraded automatically on first API access; no manual migration command is required. The database starts empty, so import the default source from the dashboard or add tools manually.
+
+## Resource Bindings
+
+Add these under **Settings → Bindings** in the Pages project. Bindings are not environment variables, so they take no value:
+
+| Variable name | Required | Type | Description |
+| --- | --- | --- | --- |
+| `DB` | Yes | D1 database | Select the D1 database you created; stores tools, articles, subscription content, and settings. |
+| `AI` | No | Workers AI | Once bound, select a model and enable AI generation and document conversion under Admin > Service Settings. |
 
 ## Environment Variables
 
@@ -67,6 +70,7 @@ The application reads the following environment variables:
 | --- | --- | --- | --- |
 | `ADMIN_PASSWORD` | Yes | Secret | Admin password and session-signing secret; use a unique password of at least 12 characters. |
 | `GITHUB_TOKEN` | No | Secret | Raises the limit for admin-side public repository metadata requests. Use a read-only token without write, delete, or administration permissions; without it, the admin browser requests GitHub directly. |
+| `IMGBED_TOKEN` | No | Secret | API token for [CloudFlare ImgBed](https://github.com/MarSeventh/CloudFlare-ImgBed). Grant only the `upload` permission, redeploy, then configure and enable the image bed under Admin > Service Settings. Uploads PNG, JPEG, WebP, GIF, or AVIF files up to 10 MB for tool previews, article covers, and Telegram push images. |
 | `TURNSTILE_SITE_KEY` | No; configure together with the secret key | Plain variable | Turnstile Site Key for the administrator login page; configure it together with the secret key. |
 | `TURNSTILE_SECRET_KEY` | No; configure together with the site key | Secret | Verifies Turnstile results on the server. Add the deployed domain, redeploy, then enable it in the dashboard. |
 | `TGTOKEN` | No | Secret | Telegram Bot Token. After redeploying, set the recipient, test the connection, and enable it in the dashboard. Pushes are always triggered manually by an administrator. |

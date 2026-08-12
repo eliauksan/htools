@@ -1,7 +1,9 @@
 import {
   fetchFeedPreview,
+  getDatabase,
   json,
   requireAdmin,
+  resolveContentSourceFetchUrl,
   validateContentSourcePayload,
   writeErrorResponse,
   type Env
@@ -18,7 +20,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       (await request.json()) as object,
       { requireCategory: false }
     );
-    const feed = await fetchFeedPreview(payload.url);
+    const db = await getDatabase(env);
+    const feed = await fetchFeedPreview(
+      await resolveContentSourceFetchUrl(db, payload.url)
+    );
 
     return json({
       feed: {

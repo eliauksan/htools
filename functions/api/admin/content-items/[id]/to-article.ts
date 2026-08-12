@@ -51,6 +51,17 @@ export const onRequestPost: PagesFunction<Env> = async ({
         ? (payload as { category: string }).category.trim().slice(0, 48)
         : "";
     const published = (payload as { published?: unknown }).published === true;
+    const summaryOverride = typeof (payload as { summary?: unknown }).summary === "string"
+      ? (payload as { summary: string }).summary.trim().slice(0, 6000)
+      : "";
+    const tagsOverride = Array.isArray((payload as { tags?: unknown }).tags)
+      ? Array.from(new Set(
+          (payload as { tags: unknown[] }).tags
+            .filter((tag): tag is string => typeof tag === "string")
+            .map((tag) => tag.replace(/^#+/, "").trim().slice(0, 48))
+            .filter(Boolean)
+        )).slice(0, 24)
+      : null;
 
     if (
       !category ||
@@ -68,12 +79,12 @@ export const onRequestPost: PagesFunction<Env> = async ({
       item.content || item.summary,
       item.summary
     );
-    const articleSummary = normalizeFeedItemSummary(
+    const articleSummary = summaryOverride || normalizeFeedItemSummary(
       item.summary,
       item.content || item.summary,
       articleTitle
     );
-    const articleTags = normalizeFeedItemTags(
+    const articleTags = tagsOverride ?? normalizeFeedItemTags(
       safelyParseTags(item.tags),
       item.title,
       item.summary,

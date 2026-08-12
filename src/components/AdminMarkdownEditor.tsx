@@ -13,10 +13,10 @@ export default function AdminMarkdownEditor({
   actions = MARKDOWN_EDITOR_ACTIONS,
   className = "",
   disabled = false,
-  headingAside,
   id,
   label,
   locale,
+  modeAside,
   maxLength,
   mode: controlledMode,
   onChange,
@@ -25,6 +25,7 @@ export default function AdminMarkdownEditor({
   preview,
   previewClassName = "",
   previewLocale,
+  previewOnly = false,
   proxySettings,
   required = false,
   rows = 12,
@@ -35,8 +36,8 @@ export default function AdminMarkdownEditor({
   actions?: ReadonlyArray<(typeof MARKDOWN_EDITOR_ACTIONS)[number]>;
   className?: string;
   disabled?: boolean;
-  headingAside?: ReactNode;
   id: string;
+  modeAside?: ReactNode;
   label: string;
   locale: Locale;
   maxLength?: number;
@@ -47,6 +48,7 @@ export default function AdminMarkdownEditor({
   preview?: ReactNode;
   previewClassName?: string;
   previewLocale?: Locale;
+  previewOnly?: boolean;
   proxySettings?: ProxySettings;
   required?: boolean;
   rows?: number;
@@ -58,7 +60,7 @@ export default function AdminMarkdownEditor({
   const editPanelRef = useRef<HTMLDivElement>(null);
   const [editPanelHeight, setEditPanelHeight] = useState(0);
   const [internalMode, setInternalMode] = useState<MarkdownEditorMode>("edit");
-  const mode = controlledMode ?? internalMode;
+  const mode = previewOnly ? "preview" : controlledMode ?? internalMode;
   const isMeasuringPreviewHeight =
     mode === "preview" && editPanelHeight === 0;
   const showEditPanel = mode === "edit" || isMeasuringPreviewHeight;
@@ -84,11 +86,11 @@ export default function AdminMarkdownEditor({
   }, [showEditPanel]);
 
   useEffect(() => {
-    if (required && mode === "preview" && !value.trim()) {
+    if (!previewOnly && required && mode === "preview" && !value.trim()) {
       setInternalMode("edit");
       onModeChange?.("edit");
     }
-  }, [mode, onModeChange, required, value]);
+  }, [mode, onModeChange, previewOnly, required, value]);
 
   function selectMode(nextMode: MarkdownEditorMode) {
     if (nextMode === "preview" && required && !value.trim()) return;
@@ -121,89 +123,93 @@ export default function AdminMarkdownEditor({
   return (
     <div className={`admin-markdown-editor ${className}`.trim()}>
       <div className="admin-markdown-editor-heading">
-        <label htmlFor={id}>{label}</label>
-        {headingAside}
+        {previewOnly ? <span>{label}</span> : <label htmlFor={id}>{label}</label>}
       </div>
-      <div
-        aria-label={text.modeLabel}
-        className="admin-segmented-toggle admin-markdown-editor-mode"
-        role="group"
-      >
-        {MARKDOWN_EDITOR_MODES.map((option) => (
-          <button
-            aria-pressed={mode === option}
-            className={`admin-segmented-toggle-option ${mode === option ? "is-active" : ""}`.trim()}
-            disabled={option === "preview" && required && !value.trim()}
-            key={option}
-            type="button"
-            onClick={() => selectMode(option)}
-          >
-            {text.modes[option]}
-          </button>
-        ))}
-      </div>
-      {showEditPanel ? (
-        <div
-          aria-hidden={isMeasuringPreviewHeight || undefined}
-          className="admin-markdown-editor-edit"
-          ref={editPanelRef}
-          style={isMeasuringPreviewHeight ? { visibility: "hidden" } : undefined}
-        >
+      {!previewOnly ? (
+        <div className="admin-markdown-mode-row">
           <div
-            aria-label={text.toolbarLabel}
-            className="admin-markdown-toolbar"
-            role="toolbar"
+            aria-label={text.modeLabel}
+            className="admin-segmented-toggle admin-markdown-editor-mode"
+            role="group"
           >
-            {actions.map((action) => {
-              const actionLabel = text.actions[action];
-              return (
-                <button
-                  aria-label={actionLabel}
-                  className="ghost-button admin-markdown-tool"
-                  disabled={disabled}
-                  key={action}
-                  title={actionLabel}
-                  type="button"
-                  onClick={() => applyFormat(action)}
-                  onPointerDown={(event) => event.preventDefault()}
-                >
-                  {actionLabel}
-                </button>
-              );
-            })}
+            {MARKDOWN_EDITOR_MODES.map((option) => (
+              <button aria-pressed={mode === option}
+                className={`admin-segmented-toggle-option ${mode === option ? "is-active" : ""}`.trim()}
+                disabled={option === "preview" && required && !value.trim()}
+                key={option}
+                type="button"
+                onClick={() => selectMode(option)}
+              >
+                {text.modes[option]}
+              </button>
+            ))}
           </div>
-          <textarea
-            className={textareaClassName}
-            disabled={disabled}
-            id={id}
-            maxLength={maxLength}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={placeholder}
-            ref={textareaRef}
-            required={required}
-            rows={rows}
-            value={value}
-          />
+          {modeAside}
         </div>
-      ) : (
-        <section
-          aria-label={text.preview}
-          className={`admin-markdown-editor-preview ${previewClassName}`.trim()}
-          style={editPanelHeight > 0 ? { height: `${editPanelHeight}px` } : undefined}
-        >
-          {preview ?? (
-            value.trim() ? (
-              <MarkdownContent
-                content={value}
-                locale={previewLocale ?? locale}
-                proxySettings={proxySettings}
-              />
-            ) : (
-              <p className="admin-markdown-editor-empty">{text.previewEmpty}</p>
-            )
-          )}
-        </section>
-      )}
+      ) : null}
+      <div className="admin-markdown-editor-input-row">
+        {showEditPanel ? (
+          <div
+            aria-hidden={isMeasuringPreviewHeight || undefined}
+            className="admin-markdown-editor-edit"
+            ref={editPanelRef}
+            style={isMeasuringPreviewHeight ? { visibility: "hidden" } : undefined}
+          >
+            <div
+              aria-label={text.toolbarLabel}
+              className="admin-markdown-toolbar"
+              role="toolbar"
+            >
+              {actions.map((action) => {
+                const actionLabel = text.actions[action];
+                return (
+                  <button aria-label={actionLabel}
+                    className="ghost-button admin-markdown-tool"
+                    disabled={disabled}
+                    key={action}
+                    title={actionLabel}
+                    type="button"
+                    onClick={() => applyFormat(action)}
+                    onPointerDown={(event) => event.preventDefault()}
+                  >
+                    {actionLabel}
+                  </button>
+                  );
+                })}
+            </div>
+            <textarea
+              className={textareaClassName}
+              disabled={disabled}
+              id={id}
+              maxLength={maxLength}
+              onChange={(event) => onChange(event.target.value)}
+              placeholder={placeholder}
+              ref={textareaRef}
+              required={required}
+              rows={rows}
+              value={value}
+            />
+          </div>
+        ) : (
+          <section
+            aria-label={text.preview}
+            className={`admin-markdown-editor-preview ${previewClassName}`.trim()}
+            style={editPanelHeight > 0 ? { height: `${editPanelHeight}px` } : undefined}
+          >
+            {preview ?? (
+              value.trim() ? (
+                <MarkdownContent
+                  content={value}
+                  locale={previewLocale ?? locale}
+                  proxySettings={proxySettings}
+                />
+              ) : (
+                <p className="admin-markdown-editor-empty">{text.previewEmpty}</p>
+              )
+            )}
+          </section>
+        )}
+      </div>
     </div>
   );
 }

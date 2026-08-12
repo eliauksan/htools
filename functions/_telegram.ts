@@ -3,24 +3,47 @@ import {
   UpstreamServiceError,
   createSearchTerms,
   getDatabase,
-  ensureTelegramMessageSchema,
   jsonError,
   type ArticleRow,
   type ContentItemRow,
   type Env,
   type ToolRow
 } from "./_shared";
+import { getEffectiveTags } from "../shared/effective-tags";
 
 const TELEGRAM_SETTINGS_KEY = "telegram_settings";
 const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
+const TELEGRAM_MAX_PHOTO_CAPTION_LENGTH = 1024;
 const TELEGRAM_MAX_FOOTER_LENGTH = 1000;
 const TELEGRAM_MAX_BODY_LENGTH = 4096;
 const TELEGRAM_SECTION_SEPARATOR = "\n\n";
 const TELEGRAM_MESSAGE_TOO_LONG_ERROR =
   `Telegram message exceeds the ${TELEGRAM_MAX_MESSAGE_LENGTH} character limit.`;
+const TELEGRAM_PHOTO_CAPTION_TOO_LONG_ERROR =
+  `Telegram photo caption exceeds the ${TELEGRAM_MAX_PHOTO_CAPTION_LENGTH} character limit.`;
 const TELEGRAM_NOT_CONFIGURED_ERROR = "Telegram configuration is incomplete.";
-const TELEGRAM_TEST_TIMEOUT_MS = 10_000;
+const TELEGRAM_REQUEST_TIMEOUT_MS = 10_000;
 const TELEGRAM_TEST_TIMEOUT_ERROR = "Telegram connection test timed out.";
+const TELEGRAM_RETRY_DELAY_MS = 200;
+const TELEGRAM_SAFE_RETRY_METHODS = new Set([
+  "getMe",
+  "getChat",
+  "getChatMember",
+  "editMessageText",
+  "editMessageMedia",
+  "deleteMessage"
+]);
+const TELEGRAM_PUSH_LOCK_TTL_MS = 30_000;
+const TELEGRAM_PUSH_UNCERTAIN_TTL_MS = 60_000;
+const TELEGRAM_PUSH_IN_PROGRESS_ERROR = "Telegram message operation is already in progress.";
+const TELEGRAM_PUSH_UNCERTAIN_ERROR = "Telegram push result is uncertain.";
+
+class TelegramRequestError extends UpstreamServiceError {
+  constructor(message: string, readonly outcome: "known" | "uncertain") {
+    super(message);
+    this.name = "TelegramRequestError";
+  }
+}
 
 export type TelegramSettings = {
   available: boolean;
@@ -39,6 +62,18 @@ export type TelegramConnection = {
 };
 
 export type TelegramResourceType = "tool" | "article" | "content" | "custom";
+type TelegramPushOperation = "save" | "send" | "update" | "recover" | "delete";
+
+type TelegramPushLockRow = {
+  operation: TelegramPushOperation;
+  state: "active" | "uncertain";
+  expires_at: string;
+};
+
+type TelegramPushLockContext = {
+  markExternalRequestCompleted: () => void;
+  markExternalRequestStarted: () => void;
+};
 
 export type TelegramMessageRow = {
   id: string;
@@ -84,6 +119,7 @@ type TelegramMessagePayload = {
   title?: unknown;
   resource?: unknown;
   category?: unknown;
+  confirmUncertainRetry?: unknown;
 };
 
 export type TelegramSourceState = {
@@ -168,14 +204,26 @@ type TelegramMessage = {
   chat: TelegramChat;
 };
 
-type TelegramSendPayload = {
+type TelegramTextPayload = {
   text: string;
   parse_mode: "HTML";
-  link_preview_options: {
-    is_disabled: boolean;
-    url?: string;
-    prefer_large_media?: boolean;
-    show_above_text?: boolean;
+  link_preview_options: { is_disabled: true };
+};
+
+type TelegramPhotoPayload = {
+  photo: string;
+  caption: string;
+  parse_mode: "HTML";
+};
+
+type TelegramEditPhotoPayload = {
+  chat_id: string;
+  message_id: number;
+  media: {
+    type: "photo";
+    media: string;
+    caption: string;
+    parse_mode: "HTML";
   };
 };
 
@@ -227,6 +275,12 @@ export function writeTelegramErrorResponse(error: unknown, fallback: string) {
   if (message === TELEGRAM_TEST_TIMEOUT_ERROR) {
     return jsonError(message, "TELEGRAM_TEST_TIMEOUT", { status: 504 });
   }
+  if (message === TELEGRAM_PUSH_IN_PROGRESS_ERROR) {
+    return jsonError(message, "TELEGRAM_PUSH_IN_PROGRESS", { status: 409 });
+  }
+  if (message === TELEGRAM_PUSH_UNCERTAIN_ERROR) {
+    return jsonError(message, "TELEGRAM_PUSH_UNCERTAIN", { status: 409 });
+  }
   if (isTelegramMessageMissingError(message)) {
     return jsonError(message, "TELEGRAM_MESSAGE_NOT_FOUND", { status: 404 });
   }
@@ -259,6 +313,7 @@ export function writeTelegramErrorResponse(error: unknown, fallback: string) {
   }
   if (
     message === TELEGRAM_MESSAGE_TOO_LONG_ERROR ||
+    message === TELEGRAM_PHOTO_CAPTION_TOO_LONG_ERROR ||
     message.includes("message body is too long") ||
     message.includes("message footer is too long")
   ) {
@@ -344,7 +399,7 @@ export async function testTelegramConnection(env: Env, requestedTarget?: unknown
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, TELEGRAM_TEST_TIMEOUT_MS);
+  }, TELEGRAM_REQUEST_TIMEOUT_MS);
 
   try {
     return await resolveTelegramConnection(env, target, controller.signal);
@@ -355,6 +410,151 @@ export async function testTelegramConnection(env: Env, requestedTarget?: unknown
     throw error;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+function isTelegramRequestOutcomeUncertain(error: unknown) {
+  return error instanceof TelegramRequestError && error.outcome === "uncertain";
+}
+
+async function acquireTelegramPushLock(
+  db: D1Database,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  operation: TelegramPushOperation,
+  takeOverUncertain: boolean
+) {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const expiresAt = new Date(now.getTime() + TELEGRAM_PUSH_LOCK_TTL_MS).toISOString();
+  const token = crypto.randomUUID();
+  const result = await db.prepare(
+    `INSERT INTO telegram_push_locks
+       (resource_type, resource_id, operation, lock_token, state, expires_at, updated_at)
+     VALUES (?, ?, ?, ?, 'active', ?, ?)
+     ON CONFLICT(resource_type, resource_id) DO UPDATE SET
+       operation = excluded.operation,
+       lock_token = excluded.lock_token,
+       state = 'active',
+       expires_at = excluded.expires_at,
+       updated_at = excluded.updated_at
+      WHERE telegram_push_locks.expires_at <= ?
+         OR (? = 1 AND telegram_push_locks.state = 'uncertain')`
+  )
+    .bind(
+      resourceType,
+      resourceId,
+      operation,
+      token,
+      expiresAt,
+      nowIso,
+      nowIso,
+      takeOverUncertain ? 1 : 0
+    )
+    .run();
+
+  if (Number(result.meta?.changes ?? 0) > 0) return token;
+
+  const existing = await db.prepare(
+    `SELECT operation, state, expires_at
+     FROM telegram_push_locks
+     WHERE resource_type = ? AND resource_id = ?`
+  )
+    .bind(resourceType, resourceId)
+    .first<TelegramPushLockRow>();
+  throw new InvalidRequestError(
+    existing?.state === "uncertain"
+      ? TELEGRAM_PUSH_UNCERTAIN_ERROR
+      : TELEGRAM_PUSH_IN_PROGRESS_ERROR
+  );
+}
+
+async function markTelegramPushLockUncertain(
+  db: D1Database,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  token: string
+) {
+  const now = new Date();
+  await db.prepare(
+    `UPDATE telegram_push_locks
+     SET state = 'uncertain', expires_at = ?, updated_at = ?
+     WHERE resource_type = ? AND resource_id = ? AND lock_token = ?`
+  )
+    .bind(
+      new Date(now.getTime() + TELEGRAM_PUSH_UNCERTAIN_TTL_MS).toISOString(),
+      now.toISOString(),
+      resourceType,
+      resourceId,
+      token
+    )
+    .run();
+}
+
+async function releaseTelegramPushLock(
+  db: D1Database,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  token: string
+) {
+  await db.prepare(
+    `DELETE FROM telegram_push_locks
+     WHERE resource_type = ? AND resource_id = ? AND lock_token = ?`
+  )
+    .bind(resourceType, resourceId, token)
+    .run();
+}
+
+async function withTelegramPushLock<T>(
+  db: D1Database,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  operation: TelegramPushOperation,
+  action: (context: TelegramPushLockContext) => Promise<T>,
+  takeOverUncertain = false
+) {
+  const token = await acquireTelegramPushLock(
+    db,
+    resourceType,
+    resourceId,
+    operation,
+    takeOverUncertain
+  );
+  let externalRequestStarted = false;
+  let externalRequestCompleted = false;
+  let preserveLock = false;
+
+  try {
+    return await action({
+      markExternalRequestCompleted: () => {
+        externalRequestCompleted = true;
+      },
+      markExternalRequestStarted: () => {
+        externalRequestStarted = true;
+      }
+    });
+  } catch (error) {
+    if (
+      externalRequestCompleted ||
+      (externalRequestStarted && isTelegramRequestOutcomeUncertain(error))
+    ) {
+      preserveLock = true;
+      try {
+        await markTelegramPushLockUncertain(db, resourceType, resourceId, token);
+      } catch {
+        // ponytail: if extending the lock fails, the active lock still protects until its shorter TTL.
+      }
+      throw new InvalidRequestError(TELEGRAM_PUSH_UNCERTAIN_ERROR);
+    }
+    throw error;
+  } finally {
+    if (!preserveLock) {
+      try {
+        await releaseTelegramPushLock(db, resourceType, resourceId, token);
+      } catch {
+        // ponytail: cleanup is best-effort because a stale active lock expires automatically.
+      }
+    }
   }
 }
 
@@ -479,7 +679,6 @@ export async function getTelegramMessageState(
 ): Promise<TelegramMessageState> {
   const settings = await requireEnabledTelegramSettings(env);
   const db = await getDatabase(env);
-  await ensureTelegramMessageSchema(db);
   const row = await db.prepare(
     `SELECT * FROM telegram_messages
      WHERE resource_type = ? AND resource_id = ?
@@ -548,7 +747,20 @@ export async function saveTelegramMessage(
 ) {
   await requireEnabledTelegramSettings(env);
   const db = await getDatabase(env);
-  await ensureTelegramMessageSchema(db);
+  return withTelegramPushLock(db, resourceType, resourceId, "save", () =>
+    saveTelegramMessageUnlocked(env, db, resourceType, resourceId, origin, payload, locale)
+  );
+}
+
+async function saveTelegramMessageUnlocked(
+  env: Env,
+  db: D1Database,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  origin: string,
+  payload: TelegramMessagePayload,
+  locale: "zh" | "en"
+) {
   const existing = await db.prepare(
     `SELECT * FROM telegram_messages
      WHERE resource_type = ? AND resource_id = ?
@@ -630,7 +842,28 @@ export async function sendTelegramMessage(
 ) {
   const settings = await requireEnabledTelegramSettings(env);
   const db = await getDatabase(env);
-  await ensureTelegramMessageSchema(db);
+  return withTelegramPushLock(
+    db,
+    resourceType,
+    resourceId,
+    "send",
+    (lock) => sendTelegramMessageUnlocked(
+      env, db, settings, resourceType, resourceId, origin, payload, lock
+    ),
+    payload.confirmUncertainRetry === true
+  );
+}
+
+async function sendTelegramMessageUnlocked(
+  env: Env,
+  db: D1Database,
+  settings: TelegramSettings,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  origin: string,
+  payload: TelegramMessagePayload,
+  lock: TelegramPushLockContext
+) {
   const existing = await db.prepare(
     `SELECT * FROM telegram_messages
      WHERE resource_type = ? AND resource_id = ?
@@ -670,10 +903,14 @@ export async function sendTelegramMessage(
     media.url
   );
   const targetRef = settings.target;
-  const message = await telegramRequest<TelegramMessage>(env, "sendMessage", {
-    chat_id: targetRef,
-    ...createTelegramSendPayload(messageMarkdown, media.enabled ? media.url : "")
-  });
+  lock.markExternalRequestStarted();
+  const message = await sendTelegramRemoteMessage(
+    env,
+    targetRef,
+    messageMarkdown,
+    media
+  );
+  lock.markExternalRequestCompleted();
   const now = new Date().toISOString();
   const chatId = String(message.chat.id);
 
@@ -755,7 +992,28 @@ export async function updateTelegramMessage(
 ) {
   const settings = await requireEnabledTelegramSettings(env);
   const db = await getDatabase(env);
-  await ensureTelegramMessageSchema(db);
+  return withTelegramPushLock(
+    db,
+    resourceType,
+    resourceId,
+    "update",
+    (lock) => updateTelegramMessageUnlocked(
+      env, db, settings, resourceType, resourceId, origin, payload, lock
+    ),
+    true
+  );
+}
+
+async function updateTelegramMessageUnlocked(
+  env: Env,
+  db: D1Database,
+  settings: TelegramSettings,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  origin: string,
+  payload: TelegramMessagePayload,
+  lock: TelegramPushLockContext
+) {
   const existing = await db.prepare(
     `SELECT * FROM telegram_messages
      WHERE resource_type = ? AND resource_id = ? AND message_id <> ''
@@ -801,26 +1059,43 @@ export async function updateTelegramMessage(
     media.enabled,
     media.url
   );
+  lock.markExternalRequestStarted();
+  let remoteMessage: TelegramMessage | null = null;
   try {
-    await telegramRequest<TelegramMessage>(env, "editMessageText", {
-      chat_id: existing.chat_id,
-      message_id: Number(existing.message_id),
-      ...createTelegramSendPayload(messageMarkdown, media.enabled ? media.url : "")
-    });
+    remoteMessage = currentMediaEnabled === media.enabled
+      ? await editTelegramRemoteMessage(
+        env,
+        existing,
+        messageMarkdown,
+        media
+      )
+      : await replaceTelegramRemoteMessage(
+        env,
+        existing,
+        messageMarkdown,
+        media
+      );
   } catch (error) {
     const message = error instanceof Error ? error.message.toLowerCase() : "";
     if (isTelegramMessageMissingError(message)) {
       throw new InvalidRequestError("Telegram message no longer exists.");
     }
-    if (!message.includes("message is not modified")) {
+    if (message.includes("message is not modified")) {
+      remoteMessage = null;
+    } else {
       throw error;
     }
   }
+  lock.markExternalRequestCompleted();
 
   const now = new Date().toISOString();
+  const nextChatId = remoteMessage ? String(remoteMessage.chat.id) : existing.chat_id;
+  const nextMessageId = remoteMessage
+    ? String(remoteMessage.message_id)
+    : existing.message_id;
   await db.prepare(
     `UPDATE telegram_messages
-     SET custom_title = ?, resource_data = ?, category = ?, target_ref = ?, message_markdown = ?,
+     SET custom_title = ?, resource_data = ?, category = ?, chat_id = ?, target_ref = ?, message_id = ?, message_markdown = ?,
          media_enabled = ?, media_url = ?,
          last_pushed_hash = ?, updated_at = ?
      WHERE id = ?`
@@ -829,7 +1104,9 @@ export async function updateTelegramMessage(
       customTitle,
       resourceData,
       category,
+      nextChatId,
       targetRef,
+      nextMessageId,
       messageMarkdown,
       media.enabled ? 1 : 0,
       media.url,
@@ -859,11 +1136,21 @@ export async function deleteTelegramPush(
   recordId?: string
 ) {
   const db = await getDatabase(env);
-  await ensureTelegramMessageSchema(db);
   const normalizedRecordId = recordId?.trim() ?? "";
   if (normalizedRecordId.length > 256) {
     throw new InvalidRequestError("Telegram message record is invalid.");
   }
+  return withTelegramPushLock(db, resourceType, resourceId, "delete", () =>
+    deleteTelegramPushUnlocked(db, resourceType, resourceId, normalizedRecordId)
+  );
+}
+
+async function deleteTelegramPushUnlocked(
+  db: D1Database,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  normalizedRecordId: string
+) {
   const existing = normalizedRecordId
     ? await db.prepare(
         `SELECT * FROM telegram_messages
@@ -905,7 +1192,28 @@ export async function recoverTelegramMessage(
 ) {
   await requireEnabledTelegramSettings(env);
   const db = await getDatabase(env);
-  await ensureTelegramMessageSchema(db);
+  return withTelegramPushLock(db, resourceType, resourceId, "recover", () =>
+    recoverTelegramMessageUnlocked(
+      env,
+      db,
+      resourceType,
+      resourceId,
+      origin,
+      payload,
+      locale
+    )
+  );
+}
+
+async function recoverTelegramMessageUnlocked(
+  env: Env,
+  db: D1Database,
+  resourceType: TelegramResourceType,
+  resourceId: string,
+  origin: string,
+  payload: TelegramMessagePayload,
+  locale: "zh" | "en"
+) {
   const existing = await db.prepare(
     `SELECT * FROM telegram_messages
      WHERE resource_type = ? AND resource_id = ? AND message_id <> ''
@@ -1003,11 +1311,7 @@ export function buildTelegramMessageMarkdown(
   return message;
 }
 
-export function createTelegramSendPayload(
-  markdown: string,
-  mediaUrl: string
-): TelegramSendPayload {
-  const normalizedMediaUrl = getTelegramMediaUrl(mediaUrl);
+export function createTelegramSendPayload(markdown: string): TelegramTextPayload {
   const text = renderTelegramHtml(markdown);
 
   if (Array.from(text).length > TELEGRAM_MAX_MESSAGE_LENGTH) {
@@ -1017,15 +1321,128 @@ export function createTelegramSendPayload(
   return {
     text,
     parse_mode: "HTML",
-    link_preview_options: normalizedMediaUrl
-      ? {
-        is_disabled: false,
-        url: normalizedMediaUrl,
-        prefer_large_media: true,
-        show_above_text: true
-      }
-      : { is_disabled: true }
+    link_preview_options: { is_disabled: true }
   };
+}
+
+export function createTelegramPhotoPayload(
+  markdown: string,
+  mediaUrl: string
+): TelegramPhotoPayload {
+  const photo = getTelegramMediaUrl(mediaUrl);
+  if (!photo) {
+    throw new InvalidRequestError("Telegram image URL is required when image sending is enabled.");
+  }
+  if (Array.from(markdown).length > TELEGRAM_MAX_PHOTO_CAPTION_LENGTH) {
+    throw new InvalidRequestError(TELEGRAM_PHOTO_CAPTION_TOO_LONG_ERROR);
+  }
+  return {
+    photo,
+    caption: renderTelegramHtml(markdown),
+    parse_mode: "HTML"
+  };
+}
+
+function createTelegramEditPhotoPayload(
+  row: TelegramMessageRow,
+  markdown: string,
+  mediaUrl: string
+): TelegramEditPhotoPayload {
+  const payload = createTelegramPhotoPayload(markdown, mediaUrl);
+  return {
+    chat_id: row.chat_id,
+    message_id: Number(row.message_id),
+    media: {
+      type: "photo",
+      media: payload.photo,
+      caption: payload.caption,
+      parse_mode: payload.parse_mode
+    }
+  };
+}
+
+async function sendTelegramRemoteMessage(
+  env: Env,
+  targetRef: string,
+  markdown: string,
+  media: { enabled: boolean; url: string }
+) {
+  return media.enabled
+    ? telegramRequest<TelegramMessage>(env, "sendPhoto", {
+      chat_id: targetRef,
+      ...createTelegramPhotoPayload(markdown, media.url)
+    })
+    : telegramRequest<TelegramMessage>(env, "sendMessage", {
+      chat_id: targetRef,
+      ...createTelegramSendPayload(markdown)
+    });
+}
+
+async function editTelegramRemoteMessage(
+  env: Env,
+  row: TelegramMessageRow,
+  markdown: string,
+  media: { enabled: boolean; url: string }
+) {
+  return media.enabled
+    ? telegramRequest<TelegramMessage>(
+      env,
+      "editMessageMedia",
+      createTelegramEditPhotoPayload(row, markdown, media.url)
+    )
+    : telegramRequest<TelegramMessage>(env, "editMessageText", {
+      chat_id: row.chat_id,
+      message_id: Number(row.message_id),
+      ...createTelegramSendPayload(markdown)
+    });
+}
+
+async function replaceTelegramRemoteMessage(
+  env: Env,
+  row: TelegramMessageRow,
+  markdown: string,
+  media: { enabled: boolean; url: string }
+) {
+  const replacement = await sendTelegramRemoteMessage(
+    env,
+    row.target_ref || row.chat_id,
+    markdown,
+    media
+  );
+  try {
+    await deleteTelegramRemoteMessage(env, row.chat_id, row.message_id);
+  } catch (error) {
+    try {
+      await deleteTelegramRemoteMessage(
+        env,
+        String(replacement.chat.id),
+        String(replacement.message_id)
+      );
+    } catch {
+      throw new TelegramRequestError(
+        "Telegram message replacement result is uncertain.",
+        "uncertain"
+      );
+    }
+    throw error;
+  }
+  return replacement;
+}
+
+async function deleteTelegramRemoteMessage(
+  env: Env,
+  chatId: string,
+  messageId: string
+) {
+  try {
+    await telegramRequest<true>(env, "deleteMessage", {
+      chat_id: chatId,
+      message_id: Number(messageId)
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!isTelegramMessageMissingError(message)) throw error;
+  }
 }
 
 function renderTelegramHtml(markdown: string) {
@@ -1173,26 +1590,51 @@ async function telegramRequest<T>(
     throw new InvalidRequestError(TELEGRAM_NOT_CONFIGURED_ERROR);
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: options.signal
-    });
-  } catch (error) {
-    if (options.signal?.aborted) throw error;
-    throw new UpstreamServiceError("Telegram API request failed.");
-  }
+  const retryable = TELEGRAM_SAFE_RETRY_METHODS.has(method);
+  const attempts = retryable ? 2 : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    let response: Response;
+    try {
+      const signal = options.signal ?? AbortSignal.timeout(TELEGRAM_REQUEST_TIMEOUT_MS);
+      response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal
+      });
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+      if (attempt + 1 < attempts) {
+        await waitForTelegramRetry(options.signal);
+        continue;
+      }
+      throw new TelegramRequestError("Telegram API request failed.", "uncertain");
+    }
 
-  const data = (await response.json().catch(() => ({}))) as TelegramApiResponse<T>;
-  if (!response.ok || data.ok !== true || data.result === undefined) {
-    throw new UpstreamServiceError(
-      data.description ? `Telegram API: ${data.description}` : "Telegram API request failed."
+    const data = (await response.json().catch(() => ({}))) as TelegramApiResponse<T>;
+    if (response.ok && data.ok === true && data.result !== undefined) return data.result;
+
+    const outcomeUncertain =
+      response.status === 408 ||
+      response.status === 425 ||
+      response.status >= 500 ||
+      response.ok;
+    if (outcomeUncertain && attempt + 1 < attempts) {
+      await waitForTelegramRetry(options.signal);
+      continue;
+    }
+    throw new TelegramRequestError(
+      data.description ? `Telegram API: ${data.description}` : "Telegram API request failed.",
+      outcomeUncertain ? "uncertain" : "known"
     );
   }
-  return data.result;
+
+  throw new TelegramRequestError("Telegram API request failed.", "uncertain");
+}
+
+async function waitForTelegramRetry(signal?: AbortSignal) {
+  await new Promise((resolve) => setTimeout(resolve, TELEGRAM_RETRY_DELAY_MS));
+  signal?.throwIfAborted();
 }
 
 function getTelegramToken(env: Env) {
@@ -1607,7 +2049,7 @@ async function loadTelegramResource(
       demoUrl: resolveTelegramPublicUrl(tool.demo_url ?? "", origin),
       image: resolveTelegramPublicUrl(tool.image, origin),
       category: "",
-      tags: safelyParseTags(tool.tags)
+      tags: getEffectiveTags(safelyParseTags(tool.tags), tool.category)
     };
   }
 
@@ -1625,9 +2067,7 @@ async function loadTelegramResource(
       demoUrl: resolveTelegramPublicUrl(item.url, origin),
       image: resolveTelegramPublicUrl(item.cover_image, origin),
       category: "",
-      tags: Array.from(
-        new Set([item.category, ...safelyParseTags(item.tags)].filter(Boolean))
-      )
+      tags: getEffectiveTags(safelyParseTags(item.tags), item.category)
     };
   }
 
@@ -1635,21 +2075,18 @@ async function loadTelegramResource(
     .bind(id)
     .first<ArticleRow>();
   if (!article) throw new InvalidRequestError("Article not found.");
-  const articlePath = `/articles/${encodeURIComponent(article.slug)}${
-    article.published === 1 ? "" : "?preview=1"
-  }`;
   return {
     type,
     id: article.id,
     title: article.title,
     description: article.summary,
-    url: resolveTelegramPublicUrl(articlePath, origin),
+    url: article.published === 1
+      ? resolveTelegramPublicUrl(`/articles/${encodeURIComponent(article.slug)}`, origin)
+      : "",
     demoUrl: "",
     image: resolveTelegramPublicUrl(article.cover_image, origin),
     category: "",
-    tags: Array.from(
-      new Set([article.category, ...safelyParseTags(article.tags)].filter(Boolean))
-    )
+    tags: getEffectiveTags(safelyParseTags(article.tags), article.category)
   };
 }
 

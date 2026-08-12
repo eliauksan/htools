@@ -1,6 +1,6 @@
 {
   "name": "htools",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "private": true,
   "type": "module",
   "scripts": {
@@ -26,7 +26,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "postcss": "^8.5.25",
+    "postcss": "^8.5.26",
     "typescript": "^5.9.2",
     "vite": "^7.2.7",
     "wrangler": "^4.118.0"

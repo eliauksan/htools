@@ -42,7 +42,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             image: metadata.image || undefined,
             date_published: metadata.datePublished || undefined,
             date_modified: metadata.dateModified || undefined,
-            tags: parsePublicArticleTags(article.tags)
+            tags: parsePublicArticleTags(article.tags, article.category)
           };
         })
       },

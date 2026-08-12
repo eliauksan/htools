@@ -4,6 +4,7 @@ import {
   type ArticleRow,
   type Env
 } from "./_shared";
+import { getEffectiveTags } from "../shared/effective-tags";
 
 export type PublicArticleMetadata = {
   url: string;
@@ -88,14 +89,15 @@ export function getLatestPublicDate(values: string[]) {
     : "";
 }
 
-export function parsePublicArticleTags(value: string) {
+export function parsePublicArticleTags(value: string, category = "") {
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed)
+    const tags = Array.isArray(parsed)
       ? parsed.filter((tag): tag is string => typeof tag === "string")
       : [];
+    return getEffectiveTags(tags, category);
   } catch {
-    return [];
+    return getEffectiveTags([], category);
   }
 }
 

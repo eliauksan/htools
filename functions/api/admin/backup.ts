@@ -1,6 +1,5 @@
 import {
   getDatabase,
-  ensureTelegramMessageSchema,
   invalidatePublicApiCache,
   badRequest,
   json,
@@ -42,15 +41,19 @@ const BACKUP_SOURCE = "htools-backup";
 const BACKUP_VERSION = "4";
 const MAX_BACKUP_BODY_BYTES = 10 * 1024 * 1024;
 const SAFE_SETTING_KEYS = [
+  "ai_settings",
   "umami_settings",
   "source_public_enabled",
   "github_settings",
+  "image_bed_settings",
   "admin_turnstile_enabled",
   "proxy_settings",
+  "rsshub_settings",
   "site_settings",
   "admin_category_settings",
   "telegram_settings"
 ] as const;
+const SAFE_SETTING_PLACEHOLDERS = SAFE_SETTING_KEYS.map(() => "?").join(", ");
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const unauthorized = await requireAdmin(request, env);
@@ -173,7 +176,6 @@ async function readLimitedJsonBody(request: Request): Promise<unknown> {
 }
 
 async function readBackupData(db: D1Database): Promise<BackupData> {
-  await ensureTelegramMessageSchema(db);
   const [tools, articles, contentSources, contentItems, telegramMessages, settings] =
     await Promise.all([
       db
@@ -216,7 +218,7 @@ async function readBackupData(db: D1Database): Promise<BackupData> {
         .prepare(
           `SELECT key, value, updated_at
            FROM app_settings
-           WHERE key IN (?, ?, ?, ?, ?, ?, ?, ?)
+           WHERE key IN (${SAFE_SETTING_PLACEHOLDERS})
            ORDER BY key`
         )
         .bind(...SAFE_SETTING_KEYS)
@@ -234,8 +236,8 @@ async function readBackupData(db: D1Database): Promise<BackupData> {
 }
 
 async function restoreBackupData(db: D1Database, data: BackupData) {
-  await ensureTelegramMessageSchema(db);
   const statements: D1PreparedStatement[] = [
+    db.prepare("DELETE FROM telegram_push_locks"),
     db.prepare("DELETE FROM telegram_messages"),
     db.prepare("DELETE FROM content_items"),
     db.prepare("DELETE FROM content_sources"),
