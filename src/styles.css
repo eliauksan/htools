@@ -1116,8 +1116,6 @@ html[data-theme="dark"] .global-search-shortcut {
   position: relative;
   overflow: hidden;
   width: 100%;
-  aspect-ratio: 2 / 1;
-  max-height: 420px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-2);
@@ -1127,6 +1125,7 @@ html[data-theme="dark"] .global-search-shortcut {
 .article-detail-cover-frame::before {
   position: absolute;
   inset: 0;
+  z-index: 1;
   background:
     linear-gradient(90deg, transparent, rgb(255 255 255 / 38%), transparent),
     var(--surface-2);
@@ -1142,11 +1141,9 @@ html[data-theme="dark"] .global-search-shortcut {
 }
 
 .article-detail-cover {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -2747,7 +2744,7 @@ html[data-theme="dark"] .mobile-nav-drawer {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   opacity: 0;
   transition:
     filter 0.2s ease,
@@ -3250,15 +3247,11 @@ html[data-theme="dark"] .skeleton-shimmer::after {
   right: 0;
   width: 32px;
   min-height: 32px;
-  border: 1px solid transparent;
-  background: transparent;
   color: var(--muted);
   opacity: 0.72;
 }
 
 .tool-editor-dialog .dialog-header .icon-button:hover {
-  border-color: transparent;
-  background: var(--admin-borderless-hover-bg);
   color: var(--text);
   opacity: 1;
 }
@@ -3269,8 +3262,6 @@ html[data-theme="dark"] .skeleton-shimmer::after {
 }
 
 .tool-editor-dialog .dialog-header .icon-button:focus-visible {
-  border-color: transparent;
-  background: var(--admin-borderless-hover-bg);
   color: var(--text);
   opacity: 1;
   outline: 0;
@@ -4893,18 +4884,6 @@ html[data-theme="light"] .admin-workspace {
   padding: 0;
 }
 
-.admin-tool-card-actions .admin-featured-badge {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text);
-}
-
-.admin-tool-card-actions .admin-article-publish-button {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text);
-}
-
 .admin-tool-card-actions .admin-featured-badge.is-active {
   color: var(--text);
 }
@@ -4921,14 +4900,6 @@ html[data-theme="light"] .admin-workspace {
 
 .admin-article-card .admin-tool-card-head {
   grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.admin-tool-card-actions .admin-featured-badge:hover:not(:disabled),
-.admin-tool-card-actions .admin-featured-badge:focus-visible:not(:disabled),
-.admin-tool-card-actions .admin-article-publish-button:hover:not(:disabled),
-.admin-tool-card-actions .admin-article-publish-button:focus-visible:not(:disabled) {
-  border-color: transparent;
-  background: var(--admin-borderless-hover-bg);
 }
 
 .admin-tool-menu-trigger svg {
@@ -4998,13 +4969,6 @@ html[data-theme="light"] .admin-workspace {
   border-color: transparent;
   background: var(--admin-borderless-hover-bg);
   outline: 0;
-}
-
-.admin-tool-card-actions .icon-button:hover:not(:disabled),
-.admin-tool-card-actions .icon-button:focus-visible:not(:disabled) {
-  border-color: transparent;
-  background: var(--admin-borderless-hover-bg);
-  box-shadow: none;
 }
 
 .admin-tool-action-menu button.danger:hover,
@@ -5138,18 +5102,6 @@ html[data-theme="light"] .admin-workspace {
   -webkit-line-clamp: 2;
 }
 
-.admin-tool-card-actions .admin-telegram-button {
-  border-color: transparent;
-  background: transparent;
-  color: var(--text);
-}
-
-.admin-tool-card-actions .admin-telegram-button:hover:not(:disabled),
-.admin-tool-card-actions .admin-telegram-button:focus-visible:not(:disabled) {
-  border-color: transparent;
-  background: var(--admin-borderless-hover-bg);
-}
-
 .admin-tool-links {
   display: grid;
   gap: 0;
@@ -5187,8 +5139,8 @@ html[data-theme="light"] .admin-workspace {
     color 0.16s ease;
 }
 
-.admin-tool-link-row:hover,
-.admin-tool-link-row:focus-within {
+.admin-tool-link-row:has(> .admin-tool-link-text:hover),
+.admin-tool-link-row:has(> .admin-tool-link-text:focus-visible) {
   background: var(--admin-borderless-hover-bg);
   color: var(--text);
 }
@@ -5289,25 +5241,6 @@ html[data-theme="light"] .admin-workspace {
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   padding: 0 2px 12px;
-}
-
-.telegram-message-action-error {
-  display: grid;
-  justify-items: start;
-  gap: 8px;
-  margin: -4px 0 0;
-  color: #b42318;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.4;
-}
-
-.telegram-message-action-error p {
-  margin: 0;
-}
-
-html[data-theme="dark"] .telegram-message-action-error {
-  color: #f97066;
 }
 
 .telegram-message-body-field {
@@ -5506,13 +5439,6 @@ html[data-theme="dark"] .telegram-message-count .is-invalid {
   gap: 10px;
 }
 
-.telegram-push-preview-heading {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-}
-
 .telegram-push-preview-dialog .telegram-message-preview {
   min-height: 0;
   border: 0;
@@ -5529,13 +5455,6 @@ html[data-theme="dark"] .telegram-message-count .is-invalid {
   border: 1px solid transparent;
   background: var(--surface);
   padding: 0;
-}
-
-.telegram-push-view-link:hover,
-.telegram-push-view-link:focus-visible {
-  border-color: transparent;
-  background: var(--admin-borderless-hover-bg);
-  outline: 0;
 }
 
 .telegram-message-preview .markdown-content {
@@ -6303,18 +6222,6 @@ html[data-theme="dark"] .telegram-message-count .is-invalid {
   font-weight: 400;
   line-height: 1;
   white-space: nowrap;
-}
-
-.settings-config-status {
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.settings-config-status:not(.is-configured) {
-  color: var(--muted);
 }
 
 .settings-config-status-skeleton {
@@ -8914,10 +8821,6 @@ html[data-theme="dark"] .admin-workspace .link-check-table th {
   line-height: 1.55;
 }
 
-.content-flow-reader .article-detail-cover-frame {
-  max-height: 280px;
-}
-
 .content-flow-reader .article-detail-loading {
   min-height: 100%;
 }
@@ -8943,10 +8846,6 @@ html[data-theme="dark"] .admin-workspace .link-check-table th {
 .content-browse-dialog .article-detail-head p {
   font-size: 16px;
   line-height: 1.55;
-}
-
-.content-browse-dialog .article-detail-cover-frame {
-  max-height: 260px;
 }
 
 .content-flow-skeleton {
@@ -9304,6 +9203,7 @@ html[data-theme="dark"] .admin-workspace .content-flow-skeleton .content-source-
 
 .article-detail-loading .article-cover-skeleton {
   display: block;
+  aspect-ratio: 2 / 1;
   background: color-mix(in srgb, var(--surface-2) 78%, var(--text) 8%);
 }
 
@@ -10398,7 +10298,7 @@ html[data-theme="dark"] .admin-workspace .content-flow-skeleton .content-source-
     border-color: var(--border);
   }
 
-  .admin-workspace .admin-tool-link-row:hover:not(:focus-within),
+  .admin-workspace .admin-tool-link-row:has(> .admin-tool-link-text:hover),
   .admin-workspace .content-source-item:has(> .content-source-main:hover):not(.is-active) {
     background: transparent;
   }

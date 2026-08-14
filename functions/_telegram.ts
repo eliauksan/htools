@@ -62,7 +62,7 @@ export type TelegramConnection = {
 };
 
 export type TelegramResourceType = "tool" | "article" | "content" | "custom";
-type TelegramPushOperation = "save" | "send" | "update" | "recover" | "delete";
+type TelegramPushOperation = "save" | "send" | "update" | "delete";
 
 type TelegramPushLockRow = {
   operation: TelegramPushOperation;
@@ -109,6 +109,12 @@ export type TelegramMessageState = {
   defaultMediaUrl: string;
   resource: TelegramResource;
   resourceExists: boolean;
+  /**
+   * Set when the stored push could not be edited in place: the admin deleted the
+   * message inside Telegram, or the delivery target changed. The record is reset to
+   * "not pushed" so the admin can decide whether to send a fresh message.
+   */
+  remoteMessageMissing?: "deleted" | "target-changed";
 };
 
 type TelegramMessagePayload = {
@@ -1031,9 +1037,7 @@ async function updateTelegramMessageUnlocked(
   resource = normalizeTelegramPayloadResource(payload.resource, resource);
   const customTitle = resolveTelegramCustomTitle(resource, payload);
   const targetRef = settings.target;
-  if (hasTelegramTargetChanged(existing, targetRef)) {
-    throw new InvalidRequestError("Telegram target has changed.");
-  }
+  const targetChanged = hasTelegramTargetChanged(existing, targetRef);
 
   const messageMarkdown = normalizeBodyMarkdown(payload.bodyMarkdown);
   const defaultBody = buildTelegramMessageMarkdown(
@@ -1059,45 +1063,64 @@ async function updateTelegramMessageUnlocked(
     media.enabled,
     media.url
   );
-  lock.markExternalRequestStarted();
   let remoteMessage: TelegramMessage | null = null;
-  try {
-    remoteMessage = currentMediaEnabled === media.enabled
-      ? await editTelegramRemoteMessage(
-        env,
-        existing,
-        messageMarkdown,
-        media
-      )
-      : await replaceTelegramRemoteMessage(
-        env,
-        existing,
-        messageMarkdown,
-        media
-      );
-  } catch (error) {
-    const message = error instanceof Error ? error.message.toLowerCase() : "";
-    if (isTelegramMessageMissingError(message)) {
-      throw new InvalidRequestError("Telegram message no longer exists.");
+  let remoteMessageMissing: "deleted" | "target-changed" | null = null;
+  if (targetChanged) {
+    // ponytail: the stored message lives in a chat we no longer publish to, so editing
+    // it is impossible. Keep the admin's edits, drop the stale remote link, and let the
+    // UI ask whether a fresh message should go out to the new target.
+    remoteMessageMissing = "target-changed";
+  } else {
+    lock.markExternalRequestStarted();
+    try {
+      remoteMessage = currentMediaEnabled === media.enabled
+        ? await editTelegramRemoteMessage(
+          env,
+          existing,
+          messageMarkdown,
+          media
+        )
+        : await replaceTelegramRemoteMessage(
+          env,
+          existing,
+          messageMarkdown,
+          media
+        );
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (isTelegramMessageMissingError(message)) {
+        // ponytail: the admin deleted the message inside Telegram. Deleting can be
+        // deliberate, so never re-send automatically — reset the record to "not pushed"
+        // and let the admin confirm.
+        remoteMessageMissing = "deleted";
+      } else if (message.includes("message is not modified")) {
+        remoteMessage = null;
+      } else {
+        throw error;
+      }
     }
-    if (message.includes("message is not modified")) {
-      remoteMessage = null;
-    } else {
-      throw error;
-    }
+    lock.markExternalRequestCompleted();
   }
-  lock.markExternalRequestCompleted();
 
   const now = new Date().toISOString();
-  const nextChatId = remoteMessage ? String(remoteMessage.chat.id) : existing.chat_id;
-  const nextMessageId = remoteMessage
-    ? String(remoteMessage.message_id)
-    : existing.message_id;
+  // ponytail: when the remote message is unreachable the record must forget its old
+  // Telegram identity, otherwise the next update would keep failing against a message
+  // that no longer exists (or lives in the previous target).
+  const nextChatId = remoteMessageMissing
+    ? ""
+    : remoteMessage
+      ? String(remoteMessage.chat.id)
+      : existing.chat_id;
+  const nextMessageId = remoteMessageMissing
+    ? ""
+    : remoteMessage
+      ? String(remoteMessage.message_id)
+      : existing.message_id;
   await db.prepare(
     `UPDATE telegram_messages
      SET custom_title = ?, resource_data = ?, category = ?, chat_id = ?, target_ref = ?, message_id = ?, message_markdown = ?,
          media_enabled = ?, media_url = ?,
-         last_pushed_hash = ?, updated_at = ?
+         last_pushed_hash = ?, sent_at = CASE WHEN ? = 1 THEN '' ELSE sent_at END, updated_at = ?
      WHERE id = ?`
   )
     .bind(
@@ -1105,12 +1128,13 @@ async function updateTelegramMessageUnlocked(
       resourceData,
       category,
       nextChatId,
-      targetRef,
+      remoteMessageMissing ? "" : targetRef,
       nextMessageId,
       messageMarkdown,
       media.enabled ? 1 : 0,
       media.url,
-      pushedHash,
+      remoteMessageMissing ? "" : pushedHash,
+      remoteMessageMissing ? 1 : 0,
       now,
       existing.id
     )
@@ -1119,7 +1143,7 @@ async function updateTelegramMessageUnlocked(
   const row = await db.prepare("SELECT * FROM telegram_messages WHERE id = ?")
     .bind(existing.id)
     .first<TelegramMessageRow>();
-  return toTelegramMessageState(
+  const state = await toTelegramMessageState(
     row,
     defaultBody,
     defaultMediaUrl,
@@ -1127,6 +1151,7 @@ async function updateTelegramMessageUnlocked(
     resource,
     await telegramResourceExists(db, resourceType, resourceId)
   );
+  return remoteMessageMissing ? { ...state, remoteMessageMissing } : state;
 }
 
 export async function deleteTelegramPush(
@@ -1180,91 +1205,6 @@ async function deleteTelegramPushUnlocked(
     deleted: true as const,
     id: existing.id
   };
-}
-
-export async function recoverTelegramMessage(
-  env: Env,
-  resourceType: TelegramResourceType,
-  resourceId: string,
-  origin: string,
-  payload: TelegramMessagePayload,
-  locale: "zh" | "en" = "zh"
-) {
-  await requireEnabledTelegramSettings(env);
-  const db = await getDatabase(env);
-  return withTelegramPushLock(db, resourceType, resourceId, "recover", () =>
-    recoverTelegramMessageUnlocked(
-      env,
-      db,
-      resourceType,
-      resourceId,
-      origin,
-      payload,
-      locale
-    )
-  );
-}
-
-async function recoverTelegramMessageUnlocked(
-  env: Env,
-  db: D1Database,
-  resourceType: TelegramResourceType,
-  resourceId: string,
-  origin: string,
-  payload: TelegramMessagePayload,
-  locale: "zh" | "en"
-) {
-  const existing = await db.prepare(
-    `SELECT * FROM telegram_messages
-     WHERE resource_type = ? AND resource_id = ? AND message_id <> ''
-     ORDER BY updated_at DESC, id DESC
-     LIMIT 1`
-  )
-    .bind(resourceType, resourceId)
-    .first<TelegramMessageRow>();
-
-  if (!existing) {
-    throw new InvalidRequestError("Telegram message record was not found.");
-  }
-  const resource = await loadStoredOrCurrentTelegramResource(
-    db, resourceType, resourceId, origin, existing
-  );
-
-  const messageMarkdown = payload.bodyMarkdown === undefined
-    ? existing.message_markdown
-    : normalizeBodyMarkdown(payload.bodyMarkdown);
-  const defaultMediaUrl = createDefaultTelegramMediaUrl(resource);
-  const currentMediaEnabled = existing.media_enabled === 1;
-  const currentMediaUrl = getTelegramMediaUrl(existing.media_url) || defaultMediaUrl;
-  const media = normalizeTelegramMedia(
-    payload,
-    currentMediaUrl,
-    currentMediaEnabled
-  );
-
-  await db.prepare(
-    `UPDATE telegram_messages
-     SET chat_id = '', target_ref = '', message_id = '', message_markdown = ?,
-         media_enabled = ?, media_url = ?, last_pushed_hash = '', sent_at = '',
-         updated_at = ?
-     WHERE id = ?`
-  )
-    .bind(
-      messageMarkdown,
-      media.enabled ? 1 : 0,
-      media.url,
-      new Date().toISOString(),
-      existing.id
-    )
-    .run();
-
-  return getTelegramMessageState(
-    env,
-    resource.type,
-    resource.id,
-    origin,
-    locale
-  );
 }
 
 export function buildTelegramMessageMarkdown(

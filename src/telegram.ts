@@ -476,16 +476,15 @@ export function getTelegramText(locale: Locale) {
         contentOriginalUrlPlaceholder: "https://example.com/article",
         articleUrlPlaceholder: "https://example.com/articles/article-name",
         bodyPlaceholder: "在这里编写 Telegram Markdown 正文",
-        statuses: {
-          not_pushed: "未推送",
-          pending: "已推送",
-          synced: "已推送"
-        },
-        messageNotFound: "原 Telegram 消息已不存在。清除旧消息记录后，可以手动重新推送。",
-        targetChanged: "Telegram 发送目标已经改变。请重新建立推送，再将当前内容手动推送到新目标。",
-        permissionDenied: "机器人当前没有发送或编辑目标消息的权限，请先调整 Telegram 权限后重试。",
-        recoverMessage: "重新建立推送",
-        recovered: "旧消息记录已清除，请手动重新推送。",
+        targetChanged: "Telegram 发送目标已经改变，点击更新推送可确认是否推送到新目标。",
+        resendDeletedTitle: "原消息已不存在",
+        resendDeletedDescription:
+          "原 Telegram 消息已不存在，这条推送已回到未推送状态。是否立即推送一条新消息？",
+        resendTargetChangedTitle: "发送目标已改变",
+        resendTargetChangedDescription:
+          "发送目标已改变，原消息保留在旧会话，这条推送已回到未推送状态。是否向新目标推送一条新消息？",
+        resendAction: "重新推送",
+        resendSkipped: "当前内容未推送到当前目标。",
         bodyLabel: "Markdown 正文",
         previewTitle: "消息预览",
         mediaEnabled: "已开启",
@@ -565,16 +564,15 @@ export function getTelegramText(locale: Locale) {
         contentOriginalUrlPlaceholder: "https://example.com/article",
         articleUrlPlaceholder: "https://example.com/articles/article-name",
         bodyPlaceholder: "Write the Telegram Markdown content here",
-        statuses: {
-          not_pushed: "Not pushed",
-          pending: "Pushed",
-          synced: "Pushed"
-        },
-        messageNotFound: "The original Telegram message no longer exists. Clear its old record, then push it manually again.",
-        targetChanged: "The Telegram target has changed. Rebuild the push, then send the current content to the new target manually.",
-        permissionDenied: "The bot cannot send or edit the target message. Update its Telegram permissions, then try again.",
-        recoverMessage: "Rebuild Push",
-        recovered: "The old message record was cleared. Push the content manually again.",
+        targetChanged: "The Telegram target has changed. Use Update Push to confirm sending to the new target.",
+        resendDeletedTitle: "Original message is gone",
+        resendDeletedDescription:
+          "The original Telegram message no longer exists, so this push is back to not pushed. Push a new message now?",
+        resendTargetChangedTitle: "Delivery target changed",
+        resendTargetChangedDescription:
+          "The delivery target changed and the original message stays in the previous chat, so this push is back to not pushed. Push a new message to the new target?",
+        resendAction: "Push again",
+        resendSkipped: "The current content is not pushed to the current target.",
         bodyLabel: "Markdown content",
         previewTitle: "Message preview",
         mediaEnabled: "Enabled",

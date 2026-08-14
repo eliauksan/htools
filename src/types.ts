@@ -350,6 +350,12 @@ export type TelegramMessage = {
   defaultMediaUrl: string;
   resource: TelegramPushResource;
   resourceExists: boolean;
+  /**
+   * Set when the stored push could not be edited in place: the admin deleted the
+   * message inside Telegram, or the delivery target changed. The record is reset to
+   * "not pushed" so the admin can decide whether to send a fresh message.
+   */
+  remoteMessageMissing?: "deleted" | "target-changed";
 };
 
 export type TelegramResourceType = "tool" | "article" | "content" | "custom";

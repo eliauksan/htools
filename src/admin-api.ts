@@ -1279,29 +1279,6 @@ export async function updateTelegramMessage(
   return (await readJson<TelegramMessageResponse>(response)).message;
 }
 
-export async function recoverTelegramMessage(
-  resourceType: TelegramResourceType,
-  resourceId: string,
-  bodyMarkdown: string,
-  mediaEnabled: boolean,
-  mediaUrl: string,
-  locale: "zh" | "en",
-  token: string
-) {
-  const response = await fetch(
-    `/api/admin/telegram-messages/${resourceType}/${encodeURIComponent(resourceId)}/recover?locale=${locale}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ bodyMarkdown, mediaEnabled, mediaUrl })
-    }
-  );
-  return (await readJson<TelegramMessageResponse>(response)).message;
-}
-
 export async function saveTelegramMessage(
   resourceType: TelegramResourceType,
   resourceId: string,
