@@ -172,15 +172,6 @@ function TelegramPushRecordCard({
           </div>
           <div className="admin-tool-title-meta">
             {displayDate ? <span>{displayDate}</span> : null}
-            <span>
-              {record.resourceType === "tool"
-                ? text.typeTool
-                : record.resourceType === "article"
-                  ? text.typeArticle
-                  : record.resourceType === "content"
-                    ? text.typeContent
-                    : text.typeCustom}
-            </span>
           </div>
         </div>
         <div className="admin-tool-card-actions" ref={actions.rootRef}>

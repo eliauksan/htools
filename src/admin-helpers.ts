@@ -77,7 +77,7 @@ export const initialForm: ToolInput = {
   url: "",
   demoUrl: "",
   image: "",
-  category: "Web Framework",
+  category: "",
   tags: [],
   githubLanguage: "",
   githubLicense: "",

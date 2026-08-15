@@ -9,6 +9,15 @@ import type {
   ToolImportResponse
 } from "./types";
 
+// The English category empty state reads "Select or create a tool category".
+// The four scope labels are Tool / Article / Subscription / Push, so only
+// "article" needs "an" — picking by first letter keeps it correct if a scope is
+// ever added, and makes the generated text match the subscription form's own
+// help line (contentText.categoryPlaceholder) exactly.
+function withEnglishArticle(noun: string) {
+  return `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
+}
+
 export function getAdminMaintenanceText(locale: Locale) {
   if (locale === "zh") {
     const siteText = {
@@ -674,7 +683,7 @@ export function getAdminWorkspaceText(locale: Locale) {
         topLabel: "\u65b0\u589e/\u7b5b\u9009\u5206\u7c7b",
         toolLabel: "\u5de5\u5177\u5206\u7c7b",
         articleLabel: "\u6587\u7ae0\u5206\u7c7b",
-        contentLabel: "\u5185\u5bb9\u5206\u7c7b",
+        contentLabel: "\u8ba2\u9605\u5206\u7c7b",
         pushLabel: "\u63a8\u9001\u5206\u7c7b",
         inputPlaceholder: "\u8f93\u5165\u65b0\u589e\u5206\u7c7b",
         empty: "\u6ca1\u6709\u627e\u5230\u5206\u7c7b",
@@ -701,7 +710,8 @@ export function getAdminWorkspaceText(locale: Locale) {
           `\u8fd9\u4e2a\u5206\u7c7b\u4e0b\u8fd8\u6709 ${count} \u6761\u5185\u5bb9\u3002\u53ef\u4ee5\u8fc1\u79fb\u5230\u5176\u4ed6\u5206\u7c7b\uff0c\u4e5f\u53ef\u4ee5\u5220\u9664\u5206\u7c7b\u53ca\u5185\u5bb9\u3002`,
         migrateToLabel: "\u8fc1\u79fb\u5230\u5206\u7c7b",
         migrateHelp: "\u53ef\u9009\u62e9\u5df2\u6709\u5206\u7c7b\uff0c\u4e5f\u53ef\u4ee5\u8f93\u5165\u65b0\u5206\u7c7b\u3002",
-        selectLabel: "\u9009\u62e9\u5206\u7c7b",
+        selectOrCreateLabel: (label: string) => `选择或新建${label}`,
+        requiredLabel: (label: string) => `请先选择${label}。`,
         cleared: (scopeLabel: string) => `${scopeLabel}\u5df2\u6e05\u7a7a\u5168\u90e8\u5185\u5bb9\u3002`,
         featuredCleared: "\u5de5\u5177\u5e93\u5df2\u53d6\u6d88\u6240\u6709\u7cbe\u9009\u5de5\u5177\u3002",
         removed: (label: string, scopeLabel: string) =>
@@ -725,7 +735,7 @@ export function getAdminWorkspaceText(locale: Locale) {
       topLabel: "Create / Filter Category",
       toolLabel: "Tool category",
       articleLabel: "Article category",
-      contentLabel: "Content category",
+      contentLabel: "Subscription category",
       pushLabel: "Push category",
       inputPlaceholder: "Type to add category",
       empty: "No matching categories",
@@ -752,7 +762,9 @@ export function getAdminWorkspaceText(locale: Locale) {
         `This category still has ${count} items. You can migrate them to another category or delete the category and its content.`,
       migrateToLabel: "Migrate to category",
       migrateHelp: "Choose an existing category or type a new one.",
-      selectLabel: "Select category",
+      selectOrCreateLabel: (label: string) =>
+        `Select or create ${withEnglishArticle(label.toLowerCase())}`,
+      requiredLabel: (label: string) => `Select ${label.toLowerCase()} first.`,
       cleared: (scopeLabel: string) =>
         `${scopeLabel}: all content has been cleared.`,
       featuredCleared: "Tools: all featured tools have been unfeatured.",
@@ -791,8 +803,6 @@ export function getContentFlowText(locale: Locale) {
       sourceUrlPlaceholder: "https://example.com/feed.xml 或 rsshub://example/route",
       categoryLabel: "订阅分类",
       categoryPlaceholder: "选择或新建订阅分类",
-      categoryEmptyLabel: "选择订阅分类",
-      categoryRequired: "请先选择订阅分类。",
       tagsLabel: "默认标签",
       tagsPlaceholder: ADMIN_RESOURCE_FIELD_EXAMPLES.zh.adminTags,
       enabledLabel: "启用订阅",
@@ -830,7 +840,6 @@ export function getContentFlowText(locale: Locale) {
       convertCategoryDescription:
         "请选择文章管理中的分类；也可以输入新分类，转换后会用于前台文章分流。",
       convertCategoryAction: "转为文章",
-      convertCategoryRequired: "请先选择文章分类。",
       convertPublishLabel: "发布方式",
       convertAsDraft: "存为草稿",
       convertAsPublished: "直接发布",
@@ -888,8 +897,6 @@ export function getContentFlowText(locale: Locale) {
     sourceUrlPlaceholder: "https://example.com/feed.xml or rsshub://example/route",
     categoryLabel: "Subscription category",
     categoryPlaceholder: "Select or create a subscription category",
-    categoryEmptyLabel: "Select subscription category",
-    categoryRequired: "Select a subscription category first.",
     tagsLabel: "Default tags",
     tagsPlaceholder: ADMIN_RESOURCE_FIELD_EXAMPLES.en.adminTags,
     enabledLabel: "Enable Subscription",
@@ -928,7 +935,6 @@ export function getContentFlowText(locale: Locale) {
     convertCategoryDescription:
       "Choose a category from article management, or create a new one for the public article filter.",
     convertCategoryAction: "Convert to article",
-    convertCategoryRequired: "Select an article category first.",
     convertPublishLabel: "Publish mode",
     convertAsDraft: "Save draft",
     convertAsPublished: "Publish",

@@ -232,13 +232,6 @@ function getTelegramPushFilterResourceType(value: string): TelegramResourceType 
   return undefined;
 }
 
-function getTelegramPushDefaultFilter(resourceType: TelegramResourceType) {
-  if (resourceType === "tool") return TELEGRAM_PUSH_TOOL_FILTER;
-  if (resourceType === "article") return TELEGRAM_PUSH_ARTICLE_FILTER;
-  if (resourceType === "content") return TELEGRAM_PUSH_CONTENT_FILTER;
-  return "";
-}
-
 function getTelegramWriteEntityScope(
   resourceType: TelegramResourceType
 ): AdminWriteEntityScope {
@@ -247,17 +240,12 @@ function getTelegramWriteEntityScope(
 
 function getTelegramStoredCategory(value: string) {
   const normalized = normalizeAdminCategoryValue(value);
+  // ponytail: source sentinels like __telegram_tool__ used to double as the default
+  // push category. They no longer do, so any that survive in legacy records must read
+  // back as "no category" instead of being treated as a real one.
   return isAllCategoryValue(normalized) || isTelegramPushSourceFilter(normalized)
     ? ""
     : normalized;
-}
-
-function getTelegramDisplayCategory(
-  resourceType: TelegramResourceType,
-  value: string
-) {
-  const stored = getTelegramStoredCategory(value);
-  return stored || getTelegramPushDefaultFilter(resourceType);
 }
 
 function createOptimisticTelegramMessage(
@@ -1845,7 +1833,13 @@ export default function AdminApp({
         ...adminCategorySettings.push,
         ...telegramPushCategoryOptions,
         ...telegramPushRecords.map((record) => record.resource?.category ?? "")
-      ],
+      // ponytail: legacy records still carry source sentinels in their category, and
+      // they are not real categories any more. Drop them here so the editor never
+      // offers one; the list filter re-adds them explicitly from
+      // TELEGRAM_PUSH_FIXED_FILTERS, where they are legitimate source filters.
+      ].filter(
+        (category) => !isTelegramPushSourceFilter(normalizeAdminCategoryValue(category))
+      ),
       adminCategorySettings.push,
       t
     )),
@@ -1858,13 +1852,6 @@ export default function AdminApp({
       t
     )),
     [adminCategorySettings.push, pushExistingCategories, t, telegramCategory]
-  );
-  const telegramEditorCategoryOptions = useMemo(
-    () => uniqueAdminCategories([
-      getTelegramPushDefaultFilter(telegramResource?.type ?? "custom"),
-      ...pushCategoryOptions
-    ]),
-    [pushCategoryOptions, telegramResource?.type]
   );
   const pushFilterCategories = useMemo(
     () =>
@@ -2014,8 +2001,7 @@ export default function AdminApp({
       sortCategoriesBySettings(
         [
           ...adminFilterCategories,
-          form.category,
-          initialForm.category
+          form.category
         ],
         adminCategorySettings.tools,
         t
@@ -2851,7 +2837,7 @@ export default function AdminApp({
   function openCreate() {
     const category =
       isAllCategoryValue(adminCategory) || isFeaturedCategoryValue(adminCategory)
-        ? initialForm.category
+        ? ""
         : adminCategory;
 
     setEditingTool(null);
@@ -3000,10 +2986,9 @@ export default function AdminApp({
       resource.id
     );
     if (!acquireWriteAction(actionKey)) return;
-    const defaultCategory = getTelegramPushDefaultFilter(resource.type);
-    const previewResource = { ...resource, category: defaultCategory };
+    const previewResource = { ...resource, category: "" };
     setTelegramQuickResource(previewResource);
-    setTelegramQuickCategory(defaultCategory);
+    setTelegramQuickCategory("");
     setTelegramQuickMessage(
       createOptimisticTelegramMessage(
         previewResource,
@@ -3109,7 +3094,7 @@ export default function AdminApp({
     setTelegramUrl(resource.url);
     setTelegramDemoUrl(resource.demoUrl);
     setTelegramImage(resource.image);
-    setTelegramCategory(getTelegramDisplayCategory(resource.type, resource.category));
+    setTelegramCategory(getTelegramStoredCategory(resource.category));
     setTelegramTagText(formatTagInputText(resource.tags));
     const optimisticMessage = createOptimisticTelegramMessage(
       resource,
@@ -3141,7 +3126,7 @@ export default function AdminApp({
       setTelegramUrl(message.resource.url);
       setTelegramDemoUrl(message.resource.demoUrl);
       setTelegramImage(message.resource.image);
-      setTelegramCategory(getTelegramDisplayCategory(message.resource.type, message.resource.category));
+      setTelegramCategory(getTelegramStoredCategory(message.resource.category));
       setTelegramTagText(formatTagInputText(message.resource.tags));
       setTelegramMediaEnabled(message.mediaEnabled);
       setTelegramMediaUrl(message.mediaUrl);
@@ -3234,7 +3219,11 @@ export default function AdminApp({
       setTelegramUrl(message.resource.url);
       setTelegramDemoUrl(message.resource.demoUrl);
       setTelegramImage(message.resource.image);
-      setTelegramCategory(getTelegramDisplayCategory(message.resource.type, message.resource.category));
+      // ponytail: keep the category the admin just picked. Sentinels from legacy
+      // records are stripped on read, so an untouched record opens with an empty
+      // category and shows the "select or create" empty state instead of a raw
+      // __telegram_tool__ string.
+      setTelegramCategory(getTelegramStoredCategory(message.resource.category));
       setTelegramTagText(formatTagInputText(message.resource.tags));
       setTelegramBodyMarkdown(message.bodyMarkdown);
       setTelegramMediaEnabled(message.mediaEnabled);
@@ -3308,7 +3297,7 @@ export default function AdminApp({
       setTelegramUrl(message.resource.url);
       setTelegramDemoUrl(message.resource.demoUrl);
       setTelegramImage(message.resource.image);
-      setTelegramCategory(getTelegramDisplayCategory(message.resource.type, message.resource.category));
+      setTelegramCategory(getTelegramStoredCategory(message.resource.category));
       setTelegramTagText(formatTagInputText(message.resource.tags));
       if (message.remoteMessageMissing) {
         // ponytail: the edits are saved but nothing reached Telegram. Keep the editor
@@ -3459,7 +3448,15 @@ export default function AdminApp({
     event.preventDefault();
     const actionKey = getAdminWriteEntityKey("tool", editingTool?.id);
     if (!acquireWriteAction(actionKey)) return;
-    toolGitHub.reset();
+
+    const category = normalizeAdminCategoryValue(form.category);
+
+    if (!category || isAllCategoryValue(category) || isFeaturedCategoryValue(category)) {
+      setStatus(categoryText.requiredLabel(categoryText.toolLabel));
+      releaseWriteAction(actionKey);
+      return;
+    }
+
     setIsSaving(true);
     setStatus("");
 
@@ -3470,6 +3467,7 @@ export default function AdminApp({
       const tags = parseArticleTagsInput(toolTagText);
       const payload = {
         ...form,
+        category,
         url: normalizedUrl,
         demoUrl: normalizedDemoUrl,
         image: normalizedImage || createImageFromUrl(normalizedUrl),
@@ -3503,7 +3501,7 @@ export default function AdminApp({
     const category = normalizeAdminCategoryValue(articleForm.category);
 
     if (!category || isAllCategoryValue(category) || isFeaturedCategoryValue(category)) {
-      setStatus(articleText.categoryRequired);
+      setStatus(categoryText.requiredLabel(categoryText.articleLabel));
       releaseWriteAction(actionKey);
       return;
     }
@@ -3621,7 +3619,7 @@ export default function AdminApp({
     const category = normalizeAdminCategoryValue(contentSourceForm.category);
 
     if (!category || isAllCategoryValue(category) || isFeaturedCategoryValue(category)) {
-      setStatus(contentText.categoryRequired);
+      setStatus(categoryText.requiredLabel(categoryText.contentLabel));
       releaseWriteAction(actionKey);
       return;
     }
@@ -3677,7 +3675,7 @@ export default function AdminApp({
   async function handleSyncContentSources(sources: ContentSource[]) {
     const targets = sources.filter((source) => source.category.trim());
     if (sources.length && !targets.length) {
-      setStatus(contentText.categoryRequired);
+      setStatus(categoryText.requiredLabel(categoryText.contentLabel));
       return;
     }
 
@@ -3881,7 +3879,7 @@ export default function AdminApp({
     const category = normalizeAdminCategoryValue(categoryValue);
 
     if (!category || isAllCategoryValue(category) || isFeaturedCategoryValue(category)) {
-      setStatus(contentText.convertCategoryRequired);
+      setStatus(categoryText.requiredLabel(categoryText.articleLabel));
       releaseWriteAction(actionKey);
       return;
     }
@@ -4927,29 +4925,21 @@ export default function AdminApp({
                   <AdminCategoryFilter
                     alignToTopOnOpen
                     categories={uniqueAdminCategories([
-                      getTelegramPushDefaultFilter(telegramQuickResource.type),
                       ...pushExistingCategories,
                       telegramQuickCategory
                     ])}
                     categoryText={categoryText}
                     className="tool-form-category-filter"
                     disabled={telegramQuickLoading || telegramQuickSaving}
-                    fixedCategories={[
-                      getTelegramPushDefaultFilter(telegramQuickResource.type)
-                    ]}
-                    labelFor={(category) =>
-                      getTelegramPushCategoryLabel(category, telegramText, t)
-                    }
                     onChange={(category) => {
                       setTelegramQuickCategory(category);
-                      if (!isTelegramPushSourceFilter(category)) {
-                        void rememberAdminCategory("push", category);
-                      }
+                      void rememberAdminCategory("push", category);
                     }}
                     onDeleteCategory={(category) => void deleteAdminCategory("push", category)}
                     onMoveCategory={(category) => void moveAdminCategory("push", category)}
                     t={t}
                     value={telegramQuickCategory}
+                    scope="push"
                   />
                 </div>
               </>
@@ -5261,22 +5251,17 @@ export default function AdminApp({
                 <AdminCategoryFilter
                   allowCreate
                   alignToTopOnOpen
-                  categories={telegramEditorCategoryOptions}
+                  categories={pushCategoryOptions}
                   categoryText={categoryText}
                   className="tool-form-category-filter"
-                  fixedCategories={[getTelegramPushDefaultFilter(telegramResource.type)].filter(Boolean)}
-                  labelFor={(category) =>
-                    getTelegramPushCategoryLabel(category, telegramText, t)
-                  }
                   onDeleteCategory={(category) => void deleteAdminCategory("push", category)}
                   onChange={(category) => {
                     setTelegramCategory(category);
-                    if (!isTelegramPushSourceFilter(category)) {
-                      void rememberAdminCategory("push", category);
-                    }
+                    void rememberAdminCategory("push", category);
                   }}
                   t={t}
                   value={telegramCategory}
+                  scope="push"
                 />
               </div>
               {telegramResource.type === "tool" || telegramResource.type === "custom"
@@ -5633,6 +5618,7 @@ export default function AdminApp({
                   }}
                   t={t}
                   value={form.category}
+                  scope="tools"
                 />
                 <BooleanSegmentedToggle
                   className="tool-featured-status-toggle field-assist-toggle"
@@ -5872,7 +5858,6 @@ export default function AdminApp({
                 categoryText={categoryText}
                 className="tool-form-category-filter"
                 disabled={isConvertingContentItem}
-                emptyLabel={articleText.categoryEmptyLabel}
                 onDeleteCategory={(category) =>
                   void deleteAdminCategory("articles", category)
                 }
@@ -5885,6 +5870,7 @@ export default function AdminApp({
                 }}
                 t={t}
                 value={articleForm.category}
+                scope="articles"
               />
             </div>
 
@@ -6084,7 +6070,6 @@ export default function AdminApp({
                 categories={contentCategoryOptions}
                 categoryText={categoryText}
                 className="tool-form-category-filter"
-                emptyLabel={contentText.categoryEmptyLabel}
                 onDeleteCategory={(category) =>
                   void deleteAdminCategory("content", category)
                 }
@@ -6097,6 +6082,7 @@ export default function AdminApp({
                 }}
                 t={t}
                 value={contentSourceForm.category}
+                scope="content"
               />
             </div>
 
@@ -6200,7 +6186,6 @@ export default function AdminApp({
                 categories={articleCategoryOptions}
                 categoryText={categoryText}
                 className="tool-form-category-filter"
-                emptyLabel={articleText.categoryEmptyLabel}
                 onDeleteCategory={(category) =>
                   void deleteAdminCategory("articles", category)
                 }
@@ -6210,6 +6195,7 @@ export default function AdminApp({
                 }}
                 t={t}
                 value={convertArticleCategory}
+                scope="articles"
               />
             </div>
             <AdminMarkdownEditor
@@ -6356,8 +6342,8 @@ export default function AdminApp({
                   )}
                   categoryText={categoryText}
                   className="admin-category-action-filter"
-                  emptyLabel={categoryText.selectLabel}
                   onChange={setCategoryActionTarget}
+                  scope={pendingCategoryAction.scope}
                   t={t}
                   value={categoryActionTarget}
                 />
@@ -7350,12 +7336,12 @@ function AdminCategoryFilter({
   className = "",
   deletableFixedCategories = [],
   disabled = false,
-  emptyLabel,
   fixedCategories = [],
   labelFor,
   onChange,
   onDeleteCategory,
   onMoveCategory,
+  scope,
   t,
   value
 }: {
@@ -7367,12 +7353,16 @@ function AdminCategoryFilter({
   className?: string;
   deletableFixedCategories?: string[];
   disabled?: boolean;
-  emptyLabel?: string;
   fixedCategories?: string[];
   labelFor?: (category: string) => string;
   onChange: (category: string) => void;
   onDeleteCategory?: (category: string) => void;
   onMoveCategory?: (category: string) => void;
+  /**
+   * Which category list this control edits. Editors pass it so the empty state reads
+   * "选择或新建工具分类" instead of implying a selection; filters omit it and use allLabel.
+   */
+  scope?: AdminCategoryScope;
   t: Messages;
   value: string;
 }) {
@@ -7397,11 +7387,24 @@ function AdminCategoryFilter({
     [labelFor, t]
   );
   const normalizedValue = normalizeAdminCategoryValue(value);
+  // ponytail: a lookup table instead of nested ternaries, so adding a fifth
+  // AdminCategoryScope member is a type error here rather than a silent fall
+  // through to the push label.
+  const scopeCategoryLabels: Record<AdminCategoryScope, string> = {
+    tools: categoryText.toolLabel,
+    articles: categoryText.articleLabel,
+    content: categoryText.contentLabel,
+    push: categoryText.pushLabel
+  };
+  const scopeCategoryLabel = scope ? scopeCategoryLabels[scope] : "";
+  const resolvedEmptyLabel = scopeCategoryLabel
+    ? categoryText.selectOrCreateLabel(scopeCategoryLabel)
+    : getCategoryLabel("All", t);
   const selectedLabel = normalizedValue
     ? isAllCategoryValue(normalizedValue) && allLabel
       ? allLabel
       : resolveLabel(normalizedValue)
-    : (emptyLabel ?? getCategoryLabel("All", t));
+    : resolvedEmptyLabel;
   const displaySelectedLabel = getAdminCategoryDisplayLabel(selectedLabel);
   const createCategoryName = query.trim();
   const isFilteringCategories = Boolean(query.trim());
@@ -7443,12 +7446,12 @@ function AdminCategoryFilter({
     });
   }, [allowCreate, categories, createCategoryName, resolveLabel]);
   const categoryWidthChars = useMemo(() => {
-    const widthLabel = allLabel ?? emptyLabel ?? categoryText.selectLabel;
+    const widthLabel = allLabel ?? resolvedEmptyLabel;
     return Math.max(
       getAdminCategoryLabelWidth(categoryText.topLabel),
       getAdminCategoryLabelWidth(widthLabel)
     );
-  }, [allLabel, categoryText.selectLabel, categoryText.topLabel, emptyLabel]);
+  }, [allLabel, categoryText.topLabel, resolvedEmptyLabel]);
   const categoryFilterStyle = {
     "--admin-category-filter-text-width": `${categoryWidthChars}em`
   } as CSSProperties;
