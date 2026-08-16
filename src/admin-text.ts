@@ -18,6 +18,35 @@ function withEnglishArticle(noun: string) {
   return `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
 }
 
+// 订阅内容的删除弹窗要同时交代"几个订阅"和"几条内容":删分类会把该分类下的订阅源
+// 一起删掉,只说内容条数等于隐瞒了真正不可恢复的那部分。数量为 0 的那段整段省掉,
+// 所以永远不会出现"0 个订阅"。两个都是 0 时到不了弹窗(删除前的守卫会直接放行),
+// 因此这里不需要处理空字符串。
+function describeSubscriptionPayloadZh(sourceCount: number, itemCount: number) {
+  const parts: string[] = [];
+  if (sourceCount > 0) parts.push(`${sourceCount} 个订阅`);
+  if (itemCount > 0) parts.push(`${itemCount} 条内容`);
+
+  // 用"和 "连接:中文数字两侧留空格,和这个文件里既有的 `中的 ${count} 条内容` 写法一致
+  return parts.join("和 ");
+}
+
+// 英文沿用备份提示里既有的单复数写法(`${count} ${count === 1 ? "tool" : "tools"}`),
+// 名词用 subscriptions / subscription items,不另造词。
+function describeSubscriptionPayloadEn(sourceCount: number, itemCount: number) {
+  const parts: string[] = [];
+  if (sourceCount > 0) {
+    parts.push(`${sourceCount} ${sourceCount === 1 ? "subscription" : "subscriptions"}`);
+  }
+  if (itemCount > 0) {
+    parts.push(
+      `${itemCount} ${itemCount === 1 ? "subscription item" : "subscription items"}`
+    );
+  }
+
+  return parts.join(" and ");
+}
+
 export function getAdminMaintenanceText(locale: Locale) {
   if (locale === "zh") {
     const siteText = {
@@ -708,11 +737,16 @@ export function getAdminWorkspaceText(locale: Locale) {
           "\u53ef\u5c06\u6b64\u5206\u7c7b\u4e0b\u7684\u63a8\u9001\u8bb0\u5f55\u8fc1\u79fb\u5230\u5176\u4ed6\u5206\u7c7b\uff0c\u6216\u5220\u9664\u5206\u7c7b\u53ca\u5176\u5168\u90e8\u8bb0\u5f55\u3002",
         occupiedDescription: (count: number) =>
           `\u8fd9\u4e2a\u5206\u7c7b\u4e0b\u8fd8\u6709 ${count} \u6761\u5185\u5bb9\u3002\u53ef\u4ee5\u8fc1\u79fb\u5230\u5176\u4ed6\u5206\u7c7b\uff0c\u4e5f\u53ef\u4ee5\u5220\u9664\u5206\u7c7b\u53ca\u5185\u5bb9\u3002`,
+        contentClearDescription: (sourceCount: number, itemCount: number) =>
+          `\u8fd9\u5c06\u6e05\u7a7a\u8ba2\u9605\u5185\u5bb9\u4e2d\u7684 ${describeSubscriptionPayloadZh(sourceCount, itemCount)}\u3002`,
+        contentOccupiedDescription: (sourceCount: number, itemCount: number) =>
+          `\u8fd9\u4e2a\u5206\u7c7b\u4e0b\u8fd8\u6709 ${describeSubscriptionPayloadZh(sourceCount, itemCount)}\u3002\u53ef\u4ee5\u8fc1\u79fb\u5230\u5176\u4ed6\u5206\u7c7b\uff0c\u4e5f\u53ef\u4ee5\u5220\u9664\u5206\u7c7b\u53ca\u5185\u5bb9\u3002`,
         migrateToLabel: "\u8fc1\u79fb\u5230\u5206\u7c7b",
         migrateHelp: "\u53ef\u9009\u62e9\u5df2\u6709\u5206\u7c7b\uff0c\u4e5f\u53ef\u4ee5\u8f93\u5165\u65b0\u5206\u7c7b\u3002",
         selectOrCreateLabel: (label: string) => `选择或新建${label}`,
         requiredLabel: (label: string) => `请先选择${label}。`,
         cleared: (scopeLabel: string) => `${scopeLabel}\u5df2\u6e05\u7a7a\u5168\u90e8\u5185\u5bb9\u3002`,
+        refreshFailedHint: "\u5217\u8868\u5237\u65b0\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u52a0\u8f7d\u9875\u9762\u3002",
         featuredCleared: "\u5de5\u5177\u5e93\u5df2\u53d6\u6d88\u6240\u6709\u7cbe\u9009\u5de5\u5177\u3002",
         removed: (label: string, scopeLabel: string) =>
           `\u5206\u7c7b\u201c${label}\u201d\u5df2\u4ece${scopeLabel}\u5220\u9664\u3002`,
@@ -760,6 +794,10 @@ export function getAdminWorkspaceText(locale: Locale) {
         "Move this category's push records into another category, or delete the category and all of its records.",
       occupiedDescription: (count: number) =>
         `This category still has ${count} items. You can migrate them to another category or delete the category and its content.`,
+      contentClearDescription: (sourceCount: number, itemCount: number) =>
+        `This will delete ${describeSubscriptionPayloadEn(sourceCount, itemCount)} from Subscription Content.`,
+      contentOccupiedDescription: (sourceCount: number, itemCount: number) =>
+        `This category still has ${describeSubscriptionPayloadEn(sourceCount, itemCount)}. You can migrate them to another category or delete the category and its content.`,
       migrateToLabel: "Migrate to category",
       migrateHelp: "Choose an existing category or type a new one.",
       selectOrCreateLabel: (label: string) =>
@@ -767,6 +805,7 @@ export function getAdminWorkspaceText(locale: Locale) {
       requiredLabel: (label: string) => `Select ${label.toLowerCase()} first.`,
       cleared: (scopeLabel: string) =>
         `${scopeLabel}: all content has been cleared.`,
+      refreshFailedHint: "The list failed to refresh. Please reload the page.",
       featuredCleared: "Tools: all featured tools have been unfeatured.",
       removed: (label: string, scopeLabel: string) =>
         `Category "${label}" removed from ${scopeLabel}.`,
@@ -968,4 +1007,33 @@ export function getContentFlowText(locale: Locale) {
     deleteConfirmDescription:
       "Synced content under this subscription will also be deleted."
   };
+}
+
+export type AdminCategoryText = ReturnType<typeof getAdminWorkspaceText>["category"];
+
+// 订阅内容删除确认弹窗的说明文字。放在这里而不是页面里,是为了能被真实执行的测试覆盖。
+// 三种情形:
+// 1. 具名分类 —— 说清这个分类下有几个订阅、几条内容(为 0 的那段由文案函数自己省掉)。
+// 2. "全部"且工作区非空 —— 同上,说两个数。
+// 3. "全部"且一个订阅一条内容都没有 —— **这一支必须回退到不带数字的那句**:
+//    具名分类有守卫拦着(没东西可删就不弹窗),但"全部"这一支是无条件弹窗的,
+//    如果还去拼数字就会得到"这将清空订阅内容中的 。"这种缺一块的句子。
+//    回退用的是消息推送批量清空早就在用的同一条文案,不新造词。
+export function getContentCategoryActionDescription(
+  categoryText: AdminCategoryText,
+  options: { isAll: boolean; sourceCount: number; itemCount: number }
+) {
+  const { isAll, sourceCount, itemCount } = options;
+
+  if (!isAll) {
+    return categoryText.contentOccupiedDescription(sourceCount, itemCount);
+  }
+
+  if (sourceCount + itemCount === 0) {
+    return categoryText.clearDescriptionWithoutCount(
+      categoryText.scopeLabel("content")
+    );
+  }
+
+  return categoryText.contentClearDescription(sourceCount, itemCount);
 }

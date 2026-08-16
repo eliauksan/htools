@@ -380,6 +380,10 @@ const encoder = new TextEncoder();
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const ADMIN_PASSWORD_KEY = "admin_password";
 const ADMIN_PASSWORD_ITERATIONS = 100000;
+// 会话签名密钥:首次签发令牌时自动生成并存进 app_settings,和登录密码彻底解绑。
+// 32 字节 = 256 位,正好是 HMAC-SHA256 的原生块长度;再长也会被内部先哈希压回 32 字节,强度不变。
+const SESSION_SECRET_KEY = "session_secret";
+const SESSION_SECRET_BYTES = 32;
 const DATABASE_NOT_BOUND_MESSAGE = "请检查您的项目是否已正确绑定数据库。";
 const GITHUB_SETTINGS_KEY = "github_settings";
 const AI_SETTINGS_KEY = "ai_settings";
@@ -3660,7 +3664,7 @@ export function toGitHubSettingsResponse(settings: GitHubSettings) {
 }
 
 export async function createToken(env: Env) {
-  const secret = getSecret(env);
+  const secret = await ensureSessionSecret(env);
   const issuedAt = Date.now().toString();
   const signature = await sign(issuedAt, secret);
   return `${issuedAt}.${signature}`;
@@ -4923,12 +4927,82 @@ function normalizeHttpUrl(value: string) {
   }
 }
 
+// 只剩 verifyPassword 一个调用点:新部署还没写过密码哈希时,用 env 明文让管理员首次登录。
+// 令牌签名已经不再用它,见 ensureSessionSecret。
 function getSecret(env: Env) {
   if (!env.ADMIN_PASSWORD) {
     throw new Error("ADMIN_PASSWORD is not configured.");
   }
 
   return env.ADMIN_PASSWORD;
+}
+
+// 会话签名密钥:**只有签发路径(createToken)允许创建它**,校验路径只读不写 ——
+// 没有密钥就不可能存在合法令牌,所以整个站的生命周期里"写密钥"只发生一次。
+async function ensureSessionSecret(env: Env) {
+  const db = await getDatabase(env);
+  const existing = await readSessionSecret(db);
+  if (existing) {
+    return existing;
+  }
+
+  const generated = bytesToBase64Url(
+    crypto.getRandomValues(new Uint8Array(SESSION_SECRET_BYTES))
+  );
+
+  // 必须是 DO NOTHING,不能用 INSERT OR REPLACE:两个冷启动实例同时生成时,覆盖写会让
+  // 先拿到令牌的管理员瞬间失效。让先写入的那枚获胜、其他实例读回同一枚,两张令牌都有效。
+  await db.prepare(
+    `INSERT INTO app_settings (key, value, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(key) DO NOTHING`
+  )
+    .bind(SESSION_SECRET_KEY, generated)
+    .run();
+
+  const stored = await readSessionSecret(db);
+  if (!stored) {
+    // fail-closed:读不回来就拒绝签发,绝不"临时生成一枚先用"——
+    // 多实例各持一枚会表现成随机掉登录,把配置故障伪装成偶发问题。
+    throw new Error("Session secret is not available.");
+  }
+
+  return stored;
+}
+
+async function readSessionSecret(db: D1Database) {
+  const row = await db.prepare("SELECT value FROM app_settings WHERE key = ?")
+    .bind(SESSION_SECRET_KEY)
+    .first<{ value: string }>();
+
+  return normalizeSessionSecret(row?.value);
+}
+
+function normalizeSessionSecret(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+// 鉴权时用这一条查询同时取回会话密钥和改密时间:D1 往返次数和改造前完全一样。
+async function getAuthSettings(env: Env) {
+  const db = await getDatabase(env);
+  const result = await db.prepare(
+    "SELECT key, value FROM app_settings WHERE key IN (?, ?)"
+  )
+    .bind(SESSION_SECRET_KEY, ADMIN_PASSWORD_KEY)
+    .all<{ key: string; value: string }>();
+
+  let sessionSecret: string | null = null;
+  let passwordSettings: AdminPasswordSettings | null = null;
+
+  for (const row of result.results ?? []) {
+    if (row.key === SESSION_SECRET_KEY) {
+      sessionSecret = normalizeSessionSecret(row.value);
+    } else if (row.key === ADMIN_PASSWORD_KEY) {
+      passwordSettings = parseAdminPasswordSettings(row.value);
+    }
+  }
+
+  return { sessionSecret, passwordSettings };
 }
 
 async function getAdminPasswordSettings(env: Env) {
@@ -4941,8 +5015,14 @@ async function getAdminPasswordSettings(env: Env) {
     return null;
   }
 
+  return parseAdminPasswordSettings(row.value);
+}
+
+// 单独抽出来是因为 getAuthSettings 那条合并查询也要解析同一份 JSON,
+// 两处必须用同一套校验规则,不许各写一份。
+function parseAdminPasswordSettings(value: string) {
   try {
-    const parsed = JSON.parse(row.value) as Partial<AdminPasswordSettings>;
+    const parsed = JSON.parse(value) as Partial<AdminPasswordSettings>;
 
     if (
       parsed.algorithm !== "PBKDF2-SHA256" ||
@@ -5040,7 +5120,6 @@ function base64UrlToBytes(value: string) {
 }
 
 async function verifyToken(token: string, env: Env) {
-  const secret = getSecret(env);
   const [issuedAt, signature] = token.split(".");
   const timestamp = Number(issuedAt);
 
@@ -5052,12 +5131,18 @@ async function verifyToken(token: string, env: Env) {
     return false;
   }
 
-  const expected = await sign(issuedAt, secret);
+  const { sessionSecret, passwordSettings } = await getAuthSettings(env);
+
+  // 校验路径只读不建:没有密钥就不可能存在合法令牌,直接拒绝(fail-closed)。
+  if (!sessionSecret) {
+    return false;
+  }
+
+  const expected = await sign(issuedAt, sessionSecret);
   if (!timingSafeEqual(signature, expected)) {
     return false;
   }
 
-  const passwordSettings = await getAdminPasswordSettings(env);
   if (!passwordSettings) {
     return true;
   }

@@ -6376,7 +6376,6 @@ html[data-theme="dark"] .telegram-message-count .is-invalid {
 .admin-workspace .settings-card-heading > p:first-of-type,
 .admin-workspace .link-check-heading > p:first-of-type,
 .admin-workspace .link-check-results-head > div > p:first-of-type,
-.admin-workspace .content-flow-section-head > p:first-of-type,
 .admin-workspace .content-item-card p,
 .admin-workspace .content-source-preview article p {
   color: var(--text);
@@ -8365,29 +8364,34 @@ html[data-theme="dark"] .admin-workspace .link-check-table th {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
-  padding: 16px 8px;
+  /* 标题条要和中栏 .content-source-toolbar 的顶边齐平,所以外层不再留上内边距和左右内边距,
+     横向内边距下移到 .content-source-list(分类行的高亮块靠它才不贴卡片边缘)。 */
+  padding: 0 0 16px;
 }
 
 .content-flow-section-head {
-  display: grid;
-  gap: 6px;
-  padding: 0 8px;
+  /* 与中栏 .content-source-toolbar 共用同一组数值:52px 高、下边框、10px 14px 内边距。
+     两栏内容因此从同一条水平线开始。改这里必须同时看那一处。 */
+  display: flex;
+  min-width: 0;
+  height: 52px;
+  min-height: 52px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
 }
 
 .content-flow-section-head h2 {
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
   color: var(--text);
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.content-flow-section-head p {
-  margin: 0;
-  color: var(--text);
+  /* 和中栏标题 .content-source-toolbar-title strong 完全一致 */
   font-size: 14px;
-  font-weight: 400;
-  line-height: 1.4;
+  font-weight: 500;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content-source-list {
@@ -8397,6 +8401,8 @@ html[data-theme="dark"] .admin-workspace .link-check-table th {
   gap: 2px;
   overflow: auto;
   scrollbar-gutter: stable;
+  /* 原来由 .content-flow-rail 的 8px 横向内边距提供,标题条改成通栏后挪到这里 */
+  padding: 0 8px;
 }
 
 .content-source-group-wrap,
@@ -9345,11 +9351,11 @@ html[data-theme="dark"] .admin-workspace .content-flow-skeleton .content-source-
   }
 
   .content-flow-rail {
-    padding: 14px 6px;
+    padding: 0 0 14px;
   }
 
-  .content-flow-section-head {
-    padding: 0 8px;
+  .content-source-list {
+    padding: 0 6px;
   }
 
   .content-source-group {

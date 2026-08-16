@@ -47,7 +47,12 @@ import {
 import { normalizeRssHubRouteUrl } from "../shared/rsshub";
 import { useAdminGitHubMetadata } from "./useAdminGitHubMetadata";
 import { buildTelegramPreviewMarkdown, countTelegramMessageCharacters, createDefaultTelegramBody, createTelegramArticleResource, createTelegramContentResource, createTelegramCustomBodyExample, createTelegramResourceMediaUrl, createTelegramToolResource, getTelegramText, readTelegramBodyFields, syncTelegramBodyField, TELEGRAM_MESSAGE_LIMIT, TELEGRAM_PHOTO_CAPTION_LIMIT, type TelegramPushResource } from "./telegram";
-import { getAdminMaintenanceText, getAdminWorkspaceText, getContentFlowText } from "./admin-text";
+import {
+  getAdminMaintenanceText,
+  getAdminWorkspaceText,
+  getContentCategoryActionDescription,
+  getContentFlowText
+} from "./admin-text";
 import AdminMarkdownEditor from "./components/AdminMarkdownEditor";
 import AdminAiAction from "./components/AdminAiAction";
 import AdminAiDocumentImport from "./components/AdminAiDocumentImport";
@@ -129,6 +134,8 @@ import {
   buildFailedLinkCheckResults,
   buildLinkCheckTargets,
   clampInteger,
+  countContentCategoryItems,
+  countContentCategorySources,
   datetimeLocalToIso,
   formatAdminDate,
   getAdminCategoryDisplayLabel,
@@ -137,6 +144,7 @@ import {
   getAdminSystemSettingsGroupFromPath,
   getErrorMessage,
   getInitialAdminView,
+  hasDeletableContentCategoryPayload,
   initialAdminCategorySettings,
   initialArticleForm,
   initialContentSourceForm,
@@ -864,6 +872,9 @@ export default function AdminApp({
   const contentItemsNextCursorRef = useRef<string | null>(null);
   const contentItemsLoadingCursorRef = useRef<string | null>(null);
   const contentSourcesLoadedRef = useRef(false);
+  // 订阅源有自己的请求轮次,和内容列表那一套分开:内容列表的轮次会因为筛选、
+  // 搜索、游标变化而增长,而订阅源列表和这些条件无关,不该被内容那边的轮次作废。
+  const contentSourcesRequestGenerationRef = useRef(0);
   const mutationRefreshGenerationRef = useRef(0);
   const telegramSettingsLoadRequestRef = useRef(0);
   const telegramSettingsLoadAbortRef = useRef<AbortController | null>(null);
@@ -1451,6 +1462,7 @@ export default function AdminApp({
       setPendingCategoryAction({
         category: normalized,
         contentCount: getAdminCategoryContentCount(scope, normalized),
+        sourceCount: getAdminCategorySourceCount(scope, normalized),
         scope
       });
       setCategoryActionTarget("");
@@ -1467,11 +1479,20 @@ export default function AdminApp({
     }
 
     const contentCount = getAdminCategoryContentCount(scope, normalized);
+    const sourceCount = getAdminCategorySourceCount(scope, normalized);
+    // 订阅内容删分类会连该分类下的订阅源一起删,所以"要不要弹确认"必须把订阅源算上:
+    // 一个"有订阅、还没同步出内容"的分类内容数是 0,只看内容就会静默删掉它的订阅源。
+    // 其他三个栏目没有订阅源这层,直接沿用内容条数。
+    const hasDeletablePayload =
+      scope === "content"
+        ? hasDeletableContentCategoryPayload(contentCount, sourceCount)
+        : contentCount > 0;
 
-    if (contentCount > 0) {
+    if (hasDeletablePayload) {
       setPendingCategoryAction({
         category: normalized,
         contentCount,
+        sourceCount,
         scope
       });
       setCategoryActionTarget(getDefaultCategoryActionTarget(scope, normalized));
@@ -1501,13 +1522,7 @@ export default function AdminApp({
 
       if (scope === "push") return telegramPushRecords.length;
 
-      return (
-        contentSources.length +
-        Object.values(contentCategoryCounts).reduce(
-          (total, count) => total + count,
-          0
-        )
-      );
+      return countContentCategoryItems(contentCategoryCounts, normalized);
     }
 
     if (scope === "tools") {
@@ -1541,16 +1556,18 @@ export default function AdminApp({
       ).length;
     }
 
-    const sourceCount = contentSources.filter(
-      (source) => normalizeAdminCategoryValue(source.category) === normalized
-    ).length;
-    const itemCount = Object.entries(contentCategoryCounts).reduce(
-      (total, [name, count]) =>
-        normalizeAdminCategoryValue(name) === normalized ? total + count : total,
-      0
-    );
+    return countContentCategoryItems(contentCategoryCounts, normalized);
+  }
 
-    return sourceCount + itemCount;
+  // 这个数字只给"要不要弹确认"和弹窗文案里的"几个订阅"用,不参与"几条内容"。
+  // 两者分开的理由见 admin-helpers.ts 里 countContentCategoryItems 上面那段注释。
+  function getAdminCategorySourceCount(
+    scope: AdminCategoryScope,
+    category: string
+  ) {
+    if (scope !== "content") return 0;
+
+    return countContentCategorySources(contentSources, category);
   }
 
   function getCategoryActionOptions(
@@ -1703,20 +1720,28 @@ export default function AdminApp({
       setPendingCategoryAction(null);
       setCategoryActionTarget("");
 
+      // 只有订阅内容的刷新分成"读订阅源 + 读内容"两个请求,所以只有它可能只更新一半。
+      // 工具库、文章和消息推送刷新失败会写进各自面板的错误区、用户看得见,不需要这层兜底。
+      let contentRefreshOk = true;
+
       if (scope === "tools") {
         await refreshAfterMutation(refresh);
       } else if (scope === "articles") {
         await refreshAfterMutation(async () => {
           await refreshArticles();
-          await refreshContent();
+          const contentResult = await refreshContent();
+          contentRefreshOk = contentResult.sourcesOk && contentResult.itemsOk;
         });
       } else if (scope === "push") {
         await refreshAfterMutation(refreshTelegramPushRecords);
       } else {
-        await refreshAfterMutation(() => refreshContent());
+        await refreshAfterMutation(async () => {
+          const contentResult = await refreshContent();
+          contentRefreshOk = contentResult.sourcesOk && contentResult.itemsOk;
+        });
       }
 
-      setStatus(
+      const resultMessage =
         action === "migrate"
           ? getAdminCategoryMigratedText(categoryText, t, normalized, target, result.affected)
           : scope === "push" && isTelegramPushSourceFilter(normalized)
@@ -1725,7 +1750,12 @@ export default function AdminApp({
                   getTelegramPushCategoryLabel(normalized, telegramText, t)
                 )
               )
-          : getAdminCategoryDeletedText(categoryText, t, normalized, scope)
+          : getAdminCategoryDeletedText(categoryText, t, normalized, scope);
+
+      setStatus(
+        contentRefreshOk
+          ? resultMessage
+          : `${resultMessage}${categoryText.refreshFailedHint}`
       );
     } catch (error) {
       setStatus(categoryText.updateFailed);
@@ -2155,10 +2185,21 @@ export default function AdminApp({
 
     const shouldReloadSources =
       options.reloadSources !== false || !contentSourcesLoadedRef.current;
+    const sourcesGeneration = shouldReloadSources
+      ? contentSourcesRequestGenerationRef.current + 1
+      : contentSourcesRequestGenerationRef.current;
+    if (shouldReloadSources) {
+      contentSourcesRequestGenerationRef.current = sourcesGeneration;
+    }
     const sourcesRequest = shouldReloadSources
       ? loadContentSources(token)
       : Promise.resolve(null);
     const itemsRequest = loadContentItems(token, getContentItemRequestParams());
+    // 两个请求各自成功与否要往上报:订阅源那一半失败时,左栏会原样留着已经不存在的订阅,
+    // 而调用方(清空 / 删分类)紧接着还会发一条成功提示,把这里的错误提示盖掉 ——
+    // 结果就是"提示说已清空、左栏却还在,而且一个错都不报"(2026-08-15 实测复现)。
+    let sourcesOk = true;
+    let itemsOk = true;
 
     try {
       const [sourcesResult, itemsResult] = await Promise.allSettled([
@@ -2166,13 +2207,25 @@ export default function AdminApp({
         itemsRequest
       ]);
 
-      if (contentItemsRequestGenerationRef.current !== generation) return;
-
+      // 订阅源结果**不按内容列表的轮次丢弃**,只看它自己那条轮次。
+      // 2026-08-16 实测复现过:先选中一个订阅源、再清空全部内容,清空后筛选被切回"全部",
+      // 这个状态变化会触发第二次刷新(reloadSources: false,不会重新读订阅源),
+      // 于是第一次读回来的订阅源列表被内容那边的轮次作废 —— 左栏就永久留着已经删掉的订阅源,
+      // 而调用方还以为两半都成功(旧代码在这里 return 的是两个 true),连提示都不给。
       if (sourcesResult.status === "fulfilled" && sourcesResult.value) {
-        setContentSources(sourcesResult.value);
-        contentSourcesLoadedRef.current = true;
+        if (contentSourcesRequestGenerationRef.current === sourcesGeneration) {
+          setContentSources(sourcesResult.value);
+          contentSourcesLoadedRef.current = true;
+        }
       } else if (sourcesResult.status === "rejected") {
+        sourcesOk = false;
         setStatus(getLocalizedErrorMessage(sourcesResult.reason, t));
+      }
+
+      // 内容列表这一半仍然按轮次丢弃:它的结果和当时的筛选、搜索、游标绑在一起,
+      // 被更新的一轮取代之后就是过期数据。
+      if (contentItemsRequestGenerationRef.current !== generation) {
+        return { sourcesOk, itemsOk };
       }
 
       if (itemsResult.status === "fulfilled") {
@@ -2185,6 +2238,7 @@ export default function AdminApp({
         setContentCategoryCounts(nextPage.categoryCounts);
         setContentLoadError(null);
       } else {
+        itemsOk = false;
         const message = getLocalizedErrorMessage(itemsResult.reason, t);
         setContentLoadError(message);
         setStatus(message);
@@ -2195,6 +2249,8 @@ export default function AdminApp({
         setIsLoadingContent(false);
       }
     }
+
+    return { sourcesOk, itemsOk };
   }
 
   async function loadMoreContentItems() {
@@ -2350,7 +2406,9 @@ export default function AdminApp({
     }
   }
 
-  async function refreshAfterMutation(refreshAction: () => Promise<void>) {
+  // 参数放宽成 Promise<unknown>:refreshContent 现在会回报两半请求的成败,
+  // 而这里只关心"刷新跑完了",返回值由调用方自己看。
+  async function refreshAfterMutation(refreshAction: () => Promise<unknown>) {
     const generation = mutationRefreshGenerationRef.current + 1;
     mutationRefreshGenerationRef.current = generation;
     const scrollContainer = adminContentScrollRef.current;
@@ -6250,6 +6308,14 @@ export default function AdminApp({
                       )
                     : categoryText.pushCategoryDescription
                 } ${telegramText.management.deleteDescription}`
+              : pendingCategoryAction.scope === "content"
+              ? // 订阅内容单独一支:删分类会连订阅源一起删,所以两个数都要说出来;
+                // 空工作区点"全部"时回退到不带数字的那句,详见 admin-text.ts 里的说明。
+                getContentCategoryActionDescription(categoryText, {
+                  isAll: pendingCategoryIsAll,
+                  sourceCount: pendingCategoryAction.sourceCount,
+                  itemCount: pendingCategoryAction.contentCount
+                })
               : pendingCategoryIsAll
               ? categoryText.clearDescription(
                   categoryText.scopeLabel(pendingCategoryAction.scope),
@@ -6825,7 +6891,6 @@ function AdminContentFlowPanel({
       <aside className="content-flow-rail">
         <div className="content-flow-section-head">
           <h2>{contentText.title}</h2>
-          <p>{contentText.description}</p>
         </div>
 
         <div className="content-source-list">
@@ -7020,7 +7085,11 @@ function AdminContentFlowPanel({
                   className="content-flow-empty"
                   description={
                     !hasActiveFilter && contentCategoryItemCount === 0
-                      ? contentText.itemEmptyDescription
+                      ? // 左栏标题块改成 52px 通栏之后,"这个栏目是干什么的"那句说明搬到了这里:
+                        // 先说是什么(contentText.description),再说怎么做(itemEmptyDescription)。
+                        // 公共 AdminEmptyState 不动、也不给它加属性 —— 它被四个栏目共用,
+                        // 这里只是把两句拼成它本来就接受的那一个字符串。
+                        `${contentText.description} ${contentText.itemEmptyDescription}`
                       : contentText.noMatchDescription
                   }
                   title={

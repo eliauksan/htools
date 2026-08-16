@@ -18,7 +18,6 @@ export function ContentFlowSkeleton({
       <aside className="content-flow-rail">
         <div className="content-flow-section-head">
           <h2>{contentText.title}</h2>
-          <p>{contentText.description}</p>
         </div>
 
         <div className="content-source-list">
